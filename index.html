@@ -33,12 +33,17 @@
         <label class="field"><span>Größe</span><input id="xh" type="range" min="1.5" max="8" step="0.1" value="3" /><output data-for="xh"></output></label>
         <label class="field"><span>Zeilenabstand</span><input id="lineH" type="range" min="6" max="30" step="0.5" value="12" /><output data-for="lineH"></output></label>
         <label class="field"><span>Stil</span><input id="hasty" type="range" min="0" max="1" step="0.05" value="0.3" /><output data-for="hasty"></output></label>
+        <label class="field"><span>Optimieren</span><input id="optimize" type="range" min="0" max="1" step="0.1" value="0.7" /><output data-for="optimize"></output></label>
+        <p id="styleNote" class="note info" hidden></p>
         <div class="field">
           <span>Tinte</span>
           <span class="swatches">
             <button type="button" data-ink="#1c2340" style="--c:#1c2340" aria-label="Dunkelblau"></button>
             <button type="button" data-ink="#151515" style="--c:#151515" aria-label="Schwarz"></button>
             <button type="button" data-ink="#1f4fbf" style="--c:#1f4fbf" aria-label="Blau"></button>
+            <button type="button" data-ink="#a3271e" style="--c:#a3271e" aria-label="Rot"></button>
+            <button type="button" data-ink="#22684a" style="--c:#22684a" aria-label="Grün"></button>
+            <button type="button" data-ink="#55565c" style="--c:#55565c" aria-label="Bleistift"></button>
             <input id="ink" type="color" value="#1c2340" aria-label="Eigene Farbe" />
           </span>
         </div>
@@ -57,7 +62,6 @@
           <summary>Weitere Einstellungen</summary>
           <label class="field"><span>Strichstärke</span><input id="weight" type="range" min="0" max="3" step="0.25" value="0" /><output data-for="weight"></output></label>
           <label class="field"><span>Ränder</span><input id="margin" type="range" min="0" max="40" step="1" value="15" /><output data-for="margin"></output></label>
-          <label class="check"><input id="optimize" type="checkbox" checked /> <span>Optimieren <small>Grundlinie ausrichten, Ausreißer weglassen, eigene Buchstabenabstände</small></span></label>
           <label class="check"><input id="crop" type="checkbox" /> <span>Export auf Text zuschneiden</span></label>
           <div class="field"><span>Variante</span><span class="inline"><input id="seed" type="number" step="1" value="1" /><button id="dice" type="button">Neu mischen</button></span></div>
         </details>
@@ -103,6 +107,16 @@
       </div>
 
       <div class="card">
+        <h2>Schreibstil aus Notizen lernen</h2>
+        <p class="muted">Lade normal geschriebene Seiten hoch (aus GoodNotes als PDF exportiert, oder Fotos/Screenshots). Die App misst daraus deine Schriftgröße, deinen Zeilenabstand sowie Wort- und Buchstabenabstände und nutzt sie für die aktive Handschrift. Je mehr Text, desto genauer.</p>
+        <p id="styleResult" class="note info" hidden></p>
+        <div class="row">
+          <label class="button primary">Notizen auswählen<input id="notes" type="file" accept="application/pdf,image/png,image/jpeg" multiple hidden /></label>
+          <button id="styleReset" hidden>Gelernten Stil entfernen</button>
+        </div>
+      </div>
+
+      <div class="card">
         <h2>Sicherung laden</h2>
         <p class="muted">Eine mit „Sichern“ erstellte Datei, z. B. von einem anderen Gerät.</p>
         <label class="button">Datei auswählen<input id="restore" type="file" accept=".json,application/json" hidden /></label>
@@ -111,8 +125,14 @@
 
     <section id="glyphs" class="tab">
       <div class="intro">
-        <h2 id="glyphsTitle"></h2>
-        <p class="muted small"><span id="coverage"></span> Antippen löscht eine Variante. Blass = beim Optimieren weggelassen. <i class="dot in"></i> Strich-Eintritt <i class="dot out"></i> Austritt</p>
+        <div class="titlebar">
+          <h2 id="glyphsTitle"></h2>
+          <span class="seg" id="compare">
+            <button type="button" data-view="before">Vorher</button>
+            <button type="button" data-view="after" class="on">Nachher</button>
+          </span>
+        </div>
+        <p class="muted small"><span id="coverage"></span> „Nachher“ zeigt die Zeichen so, wie „Optimieren“ sie verwendet – alle auf derselben Grundlinie. Durchgestrichen = weggelassen. Antippen löscht eine Variante. <i class="dot in"></i> Strich-Eintritt <i class="dot out"></i> Austritt</p>
       </div>
       <div id="grid"></div>
     </section>

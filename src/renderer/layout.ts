@@ -10,6 +10,7 @@ export interface Settings {
   hasty: number; // 0 = tidy, 1 = hasty
   seed: number;
   letterGap?: number | null; // learned gap between letters (x-heights), see glyphstore/optimize
+  wordGap?: number | null; // learned gap between words (x-heights), see segmentation/style
 }
 
 /** Canvas-order affine: x' = a x + c y + e, y' = b x + d y + f. Glyph px -> page mm. */
@@ -122,7 +123,7 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
         continue;
       }
       const g = pick(key);
-      const k = s0 * wordSize * (1 + gauss() * 0.025 * sig);
+      const k = s0 * (g.scale ?? 1) * wordSize * (1 + gauss() * 0.025 * sig);
       const sl = wordSlant + gauss() * 0.02 * sig;
       const rot = gauss() * 0.012 * sig;
       const cs = Math.cos(rot), sn = Math.sin(rot);
@@ -192,7 +193,7 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
         prevM = m; prevG = it.g;
       }
       for (const ms of wd.missing) page!.missing.push({ ...ms, x: ms.x + lineX, y: ms.y + y + drift(ms.x + lineX) });
-      lineX += wd.width + Math.max(0.75 * xh, (0.95 - 0.15 * h) * xh * (1 + gauss() * 0.1 * sig));
+      lineX += wd.width + Math.max(0.6 * xh, ((s.wordGap ?? 0.95) - 0.15 * h) * xh * (1 + gauss() * 0.1 * sig));
     }
   });
   return { pages, missing: missingSet };

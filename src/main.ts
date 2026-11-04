@@ -8,6 +8,7 @@ import { pagesOf } from './import/load';
 import { clearMaskCache, drawPage, type Background, type DrawOpts } from './renderer/draw';
 import { layout, profile, type Settings } from './renderer/layout';
 import { extractPage } from './segmentation/extract';
+import { measureLines, summarize, type LineMeasure, type TextStyle } from './segmentation/style';
 import { buildTemplatePdf } from './template/pdf';
 import { PAGE, PAIRS, SINGLES, WORDS } from './template/layout';
 
@@ -30,9 +31,12 @@ let raw: Variant[] = []; // active set as imported
 let tuned: Tuned = { variants: [], excluded: new Set(), letterGap: null };
 let bySrc = new Map<string, Variant>();
 let lib = new Map<string, Variant[]>();
+let style: TextStyle | null = null; // learned from free-text notes, per handwriting
+
+const loadStyle = () => { style = active ? JSON.parse(localStorage.getItem(`style:${active}`) ?? 'null') : null; };
 
 function rebuild() {
-  tuned = $<HTMLInputElement>('optimize').checked ? optimize(raw) : { variants: raw, excluded: new Set(), letterGap: null };
+  tuned = optimize(raw, n('optimize'));
   for (const v of tuned.variants) v.prof = profile(v.alpha, v.w, v.h, v.baseline);
   bySrc = new Map(tuned.variants.map((v) => [v.src, v]));
   lib = new Map();
@@ -51,6 +55,8 @@ async function useSet(name: string) {
   active = sets.includes(name) ? name : '';
   localStorage.setItem('set', active);
   raw = active ? await loadSet(active) : [];
+  loadStyle();
+  renderStyle();
   renderSets();
   rebuild();
 }
@@ -102,11 +108,10 @@ $('trySample').onclick = () => useSet(SAMPLE_SET);
 $('setName').oninput = () => { delete $('setName').dataset.auto; };
 
 // ---------- settings (persisted locally) ----------
-const NUM = ['hasty', 'xh', 'lineH', 'margin', 'weight', 'seed'] as const;
+const NUM = ['hasty', 'xh', 'lineH', 'margin', 'weight', 'seed', 'optimize'] as const;
 const saved = JSON.parse(localStorage.getItem('settings') ?? '{}');
 for (const id of [...NUM, 'ink', 'background']) if (saved[id] !== undefined) $<HTMLInputElement>(id).value = saved[id];
 $<HTMLInputElement>('crop').checked = !!saved.crop;
-$<HTMLInputElement>('optimize').checked = saved.optimize !== false;
 $<HTMLTextAreaElement>('text').value = localStorage.getItem('text') ?? 'Hallo, das ist ein Test meiner Handschrift.\nEs sieht hoffentlich echt aus!';
 
 // Clamp to the input's limits: a stored 0 line spacing once froze the page for good.
@@ -124,18 +129,20 @@ for (const id of NUM) {
 const FORMAT: Record<string, (v: number) => string> = {
   xh: (v) => `${v.toFixed(1)} mm`, lineH: (v) => `${v.toFixed(1)} mm`, margin: (v) => `${v} mm`,
   hasty: (v) => (v < 0.25 ? 'sauber' : v < 0.6 ? 'normal' : 'hastig'), weight: (v) => (v ? `+${v}` : 'normal'),
+  optimize: (v) => (v === 0 ? 'aus' : v < 0.45 ? 'leicht' : v < 0.85 ? 'mittel' : 'stark'),
 };
 
 function settings() {
   const s: Settings = {
     xh: n('xh'), lineH: n('lineH'), margin: n('margin'), pageW: PAGE.w, pageH: PAGE.h, hasty: n('hasty'), seed: n('seed'),
-    letterGap: tuned.letterGap,
+    letterGap: style?.letterGap ?? tuned.letterGap,
+    wordGap: style?.wordGap ?? null,
   };
   const o = {
     ink: $<HTMLInputElement>('ink').value, weight: n('weight'), background: $<HTMLInputElement>('background').value as Background,
     crop: $<HTMLInputElement>('crop').checked,
   };
-  localStorage.setItem('settings', JSON.stringify({ ...s, ...o, optimize: $<HTMLInputElement>('optimize').checked }));
+  localStorage.setItem('settings', JSON.stringify({ ...s, ...o, optimize: n('optimize'), letterGap: undefined, wordGap: undefined }));
   return { s, o };
 }
 
@@ -157,6 +164,8 @@ function preview() {
   document.querySelectorAll<HTMLButtonElement>('[data-bg]').forEach((b) => b.classList.toggle('on', b.dataset.bg === bg));
 
   $('empty').hidden = raw.length > 0;
+  $('styleNote').hidden = !style;
+  $('styleNote').textContent = style ? `Abstände aus deinen Notizen gelernt (${style.lines} Zeilen).` : '';
   const box = $('preview');
   box.hidden = !raw.length;
   if (!raw.length) { $('missing').hidden = true; return; }
@@ -171,7 +180,7 @@ document.querySelectorAll('#write input, #write textarea').forEach((el) => el.ad
   localStorage.setItem('text', $<HTMLTextAreaElement>('text').value);
   schedule();
 }));
-$('optimize').addEventListener('change', rebuild);
+$('optimize').addEventListener('change', rebuild); // on release: rebuilding the review grid is not instant
 document.querySelectorAll<HTMLButtonElement>('[data-ink]').forEach((b) => b.onclick = () => { $<HTMLInputElement>('ink').value = b.dataset.ink!; schedule(); });
 document.querySelectorAll<HTMLButtonElement>('[data-bg]').forEach((b) => b.onclick = () => { $<HTMLInputElement>('background').value = b.dataset.bg!; schedule(); });
 $('dice').onclick = () => { $<HTMLInputElement>('seed').value = String(Math.floor(Math.random() * 1e6)); schedule(); };
@@ -224,7 +233,7 @@ $<HTMLInputElement>('file').onchange = async (ev) => {
   for (const file of input.files ?? []) {
     let n = 0;
     try {
-      for await (const img of pagesOf(file)) {
+      for await (const { img } of pagesOf(file)) {
         n++;
         try {
           const { page, variants: vs } = extractPage(img);
@@ -241,6 +250,42 @@ $<HTMLInputElement>('file').onchange = async (ev) => {
   else log('Keine Proben gefunden.');
 };
 
+function renderStyle() {
+  const r = $('styleResult');
+  r.hidden = !style;
+  $('styleReset').hidden = !style;
+  if (style) {
+    r.textContent = `Gelernt für „${active}“ aus ${style.lines} Zeilen: Schriftgröße ${style.xh.toFixed(1)} mm, Zeilenabstand ${style.lineH.toFixed(1)} mm, `
+      + `Wortabstand ${style.wordGap.toFixed(2)} × und Buchstabenabstand ${style.letterGap.toFixed(2)} × x-Höhe.`;
+  }
+}
+
+$<HTMLInputElement>('notes').onchange = async (ev) => {
+  const input = ev.target as HTMLInputElement;
+  if (!active) { toast('Erst eine Handschrift auswählen.'); input.value = ''; return; }
+  const lines: LineMeasure[] = [];
+  let page = 0;
+  toast('Notizen werden analysiert …');
+  try {
+    for (const file of input.files ?? []) {
+      for await (const { img, pxPerMm } of pagesOf(file)) lines.push(...measureLines(img, pxPerMm, page++));
+    }
+  } catch (e) { toast(`Konnte nicht gelesen werden: ${(e as Error).message}`); }
+  input.value = '';
+  const found = summarize(lines);
+  if (!found) { toast('Zu wenig erkennbarer Text – bitte mehr oder größere Seiten wählen.'); return; }
+  style = found;
+  localStorage.setItem(`style:${active}`, JSON.stringify(found));
+  // Measured size and spacing go straight into the sliders; they stay adjustable.
+  $<HTMLInputElement>('xh').value = String(Math.round(found.xh * 10) / 10);
+  $<HTMLInputElement>('lineH').value = String(Math.round(found.lineH * 2) / 2);
+  for (const id of ['xh', 'lineH']) $<HTMLInputElement>(id).value = String(n(id));
+  renderStyle();
+  schedule();
+  toast('Schreibstil übernommen.');
+};
+$('styleReset').onclick = () => { localStorage.removeItem(`style:${active}`); style = null; renderStyle(); schedule(); };
+
 $<HTMLInputElement>('restore').onchange = async (ev) => {
   const input = ev.target as HTMLInputElement;
   const f = input.files?.[0];
@@ -255,32 +300,50 @@ $<HTMLInputElement>('restore').onchange = async (ev) => {
 };
 
 // ---------- review grid ----------
+let view: 'before' | 'after' = 'after';
+document.querySelectorAll<HTMLButtonElement>('#compare button').forEach((b) => b.onclick = () => {
+  view = b.dataset.view as typeof view;
+  document.querySelectorAll('#compare button').forEach((x) => x.classList.toggle('on', x === b));
+  renderGrid();
+});
+
+const ABOVE = 2.5 * 50, BELOW = 1.1 * 50; // frame around the baseline (glyph px, template x-height = 50 px)
+
+/** A variant drawn into a fixed frame, so all variants of a character share one baseline. */
 function thumb(v: Variant) {
+  const t = view === 'after' ? bySrc.get(v.src) : undefined;
+  const g = t ?? v, k = view === 'after' ? (t?.scale ?? 1) : 1;
   const c = document.createElement('canvas');
-  c.width = v.w; c.height = v.h;
+  c.width = Math.ceil(v.w * k); c.height = ABOVE + BELOW;
   const ctx = c.getContext('2d')!;
+  const src = document.createElement('canvas');
+  src.width = v.w; src.height = v.h;
   const img = new ImageData(v.w, v.h);
   for (let i = 0; i < v.alpha.length; i++) img.data[i * 4 + 3] = v.alpha[i];
-  ctx.putImageData(img, 0, 0);
-  const shown = bySrc.get(v.src) ?? v; // baseline after optimizing
-  ctx.strokeStyle = '#9bd';
-  ctx.beginPath(); ctx.moveTo(0, shown.baseline); ctx.lineTo(v.w, shown.baseline); ctx.stroke();
+  src.getContext('2d')!.putImageData(img, 0, 0);
+  ctx.strokeStyle = '#a9c3e0';
+  ctx.beginPath(); ctx.moveTo(0, ABOVE); ctx.lineTo(c.width, ABOVE); ctx.stroke();
+  ctx.setTransform(k, 0, 0, k, 0, ABOVE - g.baseline * k);
+  ctx.drawImage(src, 0, 0);
   const dot = (a: Variant['entry'], col: string) => {
     if (!a) return;
     ctx.fillStyle = col;
-    ctx.beginPath(); ctx.arc(a.x, a.y, 8, 0, 7); ctx.fill();
+    ctx.beginPath(); ctx.arc(a.x, a.y, 8 / k, 0, 7); ctx.fill();
   };
   dot(v.entry, '#1a1'); dot(v.exit, '#d22');
-  c.style.width = `${v.w * 0.36}px`; // one common scale, so a dash stays a short dash
-  if (tuned.excluded.has(v.src)) { c.classList.add('out'); c.title = 'beim Optimieren weggelassen'; }
-  else c.title = v.connected === undefined ? '' : v.connected ? 'verbunden' : 'getrennt';
-  c.onclick = async () => {
+  c.style.width = `${c.width * 0.45}px`; // one common scale, so a dash stays a short dash
+  const box = document.createElement('div');
+  box.className = 'thumb';
+  if (view === 'after' && tuned.excluded.has(v.src)) { box.classList.add('out'); box.title = 'beim Optimieren weggelassen'; }
+  else box.title = v.connected === undefined ? '' : v.connected ? 'verbunden' : 'getrennt';
+  box.onclick = async () => {
     if (!confirm(`Diese Variante von „${v.key}“ löschen?`)) return;
     await remove(active, v.src);
     raw = await loadSet(active);
     rebuild();
   };
-  return c;
+  box.append(c);
+  return box;
 }
 
 const GROUPS: [string, string[]][] = [

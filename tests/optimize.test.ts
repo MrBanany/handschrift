@@ -13,8 +13,18 @@ describe('optimize', () => {
   it('pulls floating letters back to the baseline, leaves descenders alone', () => {
     const t = optimize([v('i', 'i1', [[10, 40, 16, 85]]), v('g', 'g1', [[10, 50, 40, 130]])]);
     const i = t.variants.find((x) => x.src === 'i1')!, g = t.variants.find((x) => x.src === 'g1')!;
-    expect(i.baseline).toBeCloseTo(100 + 0.8 * (84 - 100)); // ink ended 16 px above the line
+    expect(i.baseline).toBe(84); // ink ended 16 px above the line
     expect(g.baseline).toBe(100);
+    const half = optimize([v('i', 'i1', [[10, 40, 16, 85]])], 0.5).variants[0];
+    expect(half.baseline).toBe(92);
+    expect(optimize([v('i', 'i1', [[10, 40, 16, 85]])], 0).variants[0].baseline).toBe(100);
+  });
+
+  it('evens out sizes of one character', () => {
+    const t = optimize([v('o', 'o1', [[0, 60, 40, 100]]), v('o', 'o2', [[0, 40, 40, 100]])]);
+    const [s1, s2] = t.variants.map((x) => x.scale!);
+    expect(s1).toBeGreaterThan(1); // smaller one grows
+    expect(s2).toBeCloseTo(1);
   });
 
   it('drops a size outlier but keeps at least two variants', () => {

@@ -13,8 +13,11 @@ function canvasOf(w: number, h: number) {
   return { c, ctx };
 }
 
-/** Render each page of a PDF (or a single image) at MM px/mm, one page at a time to spare memory. */
-export async function* pagesOf(file: File): AsyncGenerator<ImageData> {
+/**
+ * Render each page of a PDF (or a single image) ~2100 px wide, one page at a time to spare memory.
+ * pxPerMm is exact for PDFs; images are assumed to be A4 wide.
+ */
+export async function* pagesOf(file: File): AsyncGenerator<{ img: ImageData; pxPerMm: number }> {
   const W = PAGE.w * MM;
   if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
     const task = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
@@ -22,10 +25,11 @@ export async function* pagesOf(file: File): AsyncGenerator<ImageData> {
     try {
       for (let i = 1; i <= doc.numPages; i++) {
         const page = await doc.getPage(i);
-        const viewport = page.getViewport({ scale: W / page.getViewport({ scale: 1 }).width });
+        const widthPt = page.getViewport({ scale: 1 }).width;
+        const viewport = page.getViewport({ scale: W / widthPt });
         const { c, ctx } = canvasOf(Math.round(viewport.width), Math.round(viewport.height));
         await page.render({ canvas: c, canvasContext: ctx, viewport }).promise;
-        yield ctx.getImageData(0, 0, c.width, c.height);
+        yield { img: ctx.getImageData(0, 0, c.width, c.height), pxPerMm: W / ((widthPt * 25.4) / 72) };
         c.width = 0;
       }
     } finally { await task.destroy(); }
@@ -34,7 +38,7 @@ export async function* pagesOf(file: File): AsyncGenerator<ImageData> {
     const s = W / bmp.width;
     const { c, ctx } = canvasOf(W, Math.round(bmp.height * s));
     ctx.drawImage(bmp, 0, 0, c.width, c.height);
-    yield ctx.getImageData(0, 0, c.width, c.height);
+    yield { img: ctx.getImageData(0, 0, c.width, c.height), pxPerMm: MM };
     c.width = 0;
   }
 }

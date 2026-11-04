@@ -52,6 +52,41 @@ export function segment(word: string, lib: Library): string[] {
 
 interface WordItem { g: GlyphMeta; m: Mat; join: boolean }
 
+/** Band centres of GlyphMeta.prof, relative to the baseline in glyph px (see segmentation/analyze profiles). */
+export const BAND = (XH * MM) * 0.35;
+export const BANDS = Array.from({ length: 10 }, (_, i) => -2.6 * XH * MM + (i + 0.5) * BAND);
+
+export function profile(alpha: Uint8Array, w: number, h: number, baseline: number): NonNullable<GlyphMeta['prof']> {
+  const l: (number | null)[] = BANDS.map(() => null), r: (number | null)[] = BANDS.map(() => null);
+  for (let y = 0; y < h; y++) {
+    const i = Math.floor((y - baseline + 2.6 * XH * MM) / BAND);
+    if (i < 0 || i >= BANDS.length) continue;
+    for (let x = 0; x < w; x++) if (alpha[y * w + x] >= 128) {
+      l[i] = Math.min(l[i] ?? x, x);
+      r[i] = Math.max(r[i] ?? x, x);
+    }
+  }
+  return { l, r };
+}
+
+/**
+ * Smallest x shift of the next glyph so its ink clears the previous glyph's ink band by band,
+ * like real letters fitting together ("T" + "e" tucks under the bar). null when profiles are missing.
+ */
+function opticalShift(pg: GlyphMeta, pm: Mat, g: GlyphMeta, m: Mat): number | null {
+  if (!pg.prof || !g.prof) return null;
+  let need = -Infinity;
+  pg.prof.r.forEach((R, i) => {
+    if (R === null) return;
+    const pr = pm[0] * R + pm[2] * (pg.baseline + BANDS[i]) + pm[4];
+    for (let j = Math.max(0, i - 1); j <= Math.min(BANDS.length - 1, i + 1); j++) {
+      const L = g.prof!.l[j];
+      if (L !== null) need = Math.max(need, pr - (m[0] * L + m[2] * (g.baseline + BANDS[j]) + m[4]));
+    }
+  });
+  return need === -Infinity ? null : need;
+}
+
 export function layout(text: string, lib: Library, s: Settings): { pages: Page[]; missing: Set<string> } {
   const rand = mulberry32(s.seed);
   const gauss = () => Math.sqrt(-2 * Math.log(rand() + 1e-12)) * Math.cos(2 * Math.PI * rand());
@@ -108,11 +143,12 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
       } else {
         const punct = !/\p{L}|\p{N}/u.test(first);
         const gap = prev ? Math.max(0.04 * xh, (0.16 - 0.06 * h) * xh * (punct ? 0.6 : 1) * (1 + gauss() * 0.25 * sig)) : 0;
-        tx = cursor + gap - left;
+        const tuck = prev ? opticalShift(prev.g, prev.m, g, base) : null;
+        tx = tuck === null ? cursor + gap - left : Math.max(tuck + gap, cursor - left - 0.6 * xh);
       }
       const m: Mat = [a, b, c, d, base[4] + tx, base[5] + walk];
       items.push({ g, m, join });
-      cursor = right + tx;
+      cursor = Math.max(cursor, right + tx); // a letter tucked under the previous one must not shrink the word
       prev = { g, m, right: cursor, last: [...key].at(-1)! };
     }
     return { items, missing, width: cursor };
@@ -154,7 +190,7 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
         prevM = m; prevG = it.g;
       }
       for (const ms of wd.missing) page!.missing.push({ ...ms, x: ms.x + lineX, y: ms.y + y + drift(ms.x + lineX) });
-      lineX += wd.width + Math.max(0.4 * xh, (0.95 - 0.2 * h) * xh * (1 + gauss() * 0.15 * sig));
+      lineX += wd.width + Math.max(0.75 * xh, (0.95 - 0.15 * h) * xh * (1 + gauss() * 0.1 * sig));
     }
   });
   return { pages, missing: missingSet };

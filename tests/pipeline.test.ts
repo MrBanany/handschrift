@@ -127,6 +127,18 @@ describe('layout', () => {
     expect(en[0]).toBeGreaterThan(ex[0]); // entry lies to the right of the exit
   });
 
+  it('tucks a letter under an overhang and keeps word gaps clear', () => {
+    // "T": bar across the top bands, stem in the middle; "e": only in the x-height bands
+    const T: GlyphMeta = { ...glyph('T', 0), entry: null, exit: null, prof: { l: [null, null, 0, 0, 25, 25, 25, 25, null, null], r: [null, null, 60, 60, 35, 35, 35, 35, null, null] } };
+    const e: GlyphMeta = { ...glyph('e', 0), entry: null, exit: null, prof: { l: [null, null, null, null, null, 0, 0, 0, null, null], r: [null, null, null, null, null, 40, 40, 40, null, null] } };
+    const lib = new Map([['T', [T]], ['e', [e]]]);
+    const { pages } = layout('Te Te', lib, { ...S, hasty: 0 });
+    const [gT, gE, gT2] = pages[0].glyphs;
+    const rightT = gT.m[0] * 60 + gT.m[4];
+    expect(gE.m[4]).toBeLessThan(rightT); // e starts under the T bar
+    expect(gT2.m[4] - (gE.m[0] * 60 + gE.m[4])).toBeGreaterThan(0.7 * S.xh); // word gap measured from the widest glyph
+  });
+
   it('wraps lines inside the margins, breaks pages and flags missing characters', () => {
     const text = Array(400).fill('hallo welt').join(' ') + ' Ä';
     const { pages, missing } = layout(text, lib, S);

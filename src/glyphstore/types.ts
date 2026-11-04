@@ -10,6 +10,8 @@ export interface GlyphMeta {
   exit: Anchor | null; // where the pen leaves to the right
   strokeW: number; // mean stroke width (px)
   connected?: boolean; // multi-letter units: were the letters joined?
+  /** Leftmost/rightmost ink x per horizontal band (renderer/layout BANDS), derived on load, not stored. */
+  prof?: { l: (number | null)[]; r: (number | null)[] };
 }
 
 export interface Variant extends GlyphMeta { alpha: Uint8Array }

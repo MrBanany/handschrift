@@ -43,3 +43,16 @@ describe('optimize', () => {
     expect(optimize([pair(0)]).letterGap).toBeNull(); // too few samples to trust
   });
 });
+
+describe('review merge', () => {
+  it('uses strong, original or automatic per character', async () => {
+    const { merge, reviewKeys } = await import('../src/glyphstore/optimize');
+    const raw = [v('i', 'i1', [[10, 40, 16, 85]]), v('n', 'n1', [[10, 50, 40, 80]])];
+    const auto = optimize(raw, 0.5), strong = optimize(raw, 1.5);
+    expect(reviewKeys(raw, strong).sort()).toEqual(['i', 'n']);
+    const m = merge(raw, auto, strong, { i: 'accept', n: 'reject' });
+    expect(m.variants.find((x) => x.src === 'i1')!.baseline).toBe(84);
+    expect(m.variants.find((x) => x.src === 'n1')!.baseline).toBe(100);
+    expect(merge(raw, auto, strong, {}).variants.find((x) => x.src === 'i1')!.baseline).toBe(92);
+  });
+});

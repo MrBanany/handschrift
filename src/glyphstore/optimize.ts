@@ -31,18 +31,19 @@ export interface Tuned { variants: Variant[]; excluded: Set<string>; letterGap: 
 export const DEFAULT_LETTER_GAP = 0.16;
 
 /**
- * Clean up a handwriting set so text looks like normal writing. strength 0 = untouched, 1 = full:
+ * Clean up a handwriting set so text looks like normal writing. strength 0 = untouched, 1 = full,
+ * up to 1.5 = strong (only used after the writer approved it per character):
  * - letters that float above or sink below the baseline are pulled back to it,
  * - variants of one character are evened out in size; far-off ones are left out (at least two stay),
  * - the writer's own letter spacing is learned from the pairs that are not joined.
  */
 export function optimize(vs: Variant[], strength = 1): Tuned {
-  const s = Math.max(0, Math.min(1, strength));
+  const s = Math.max(0, Math.min(1.5, strength)), full = Math.min(1, s);
   if (s === 0) return { variants: vs, excluded: new Set(), letterGap: null };
   const fixed = vs.map((v) => {
     if (!SITS.test(v.key)) return v;
     const { bottom } = inkRows(v);
-    return bottom < 0 ? v : { ...v, baseline: v.baseline + s * (bottom - v.baseline) };
+    return bottom < 0 ? v : { ...v, baseline: v.baseline + full * (bottom - v.baseline) };
   });
 
   const excluded = new Set<string>();
@@ -69,6 +70,33 @@ export function optimize(vs: Variant[], strength = 1): Tuned {
   return {
     variants: fixed.filter((v) => !excluded.has(v.src)).map((v) => (scaled.has(v.src) ? { ...v, scale: scaled.get(v.src) } : v)),
     excluded,
-    letterGap: learned === null ? null : DEFAULT_LETTER_GAP + (learned - DEFAULT_LETTER_GAP) * s,
+    letterGap: learned === null ? null : DEFAULT_LETTER_GAP + (learned - DEFAULT_LETTER_GAP) * full,
   };
+}
+
+export type Decision = 'accept' | 'reject';
+
+/** Characters where the strong pass visibly changes something, to be reviewed side by side. */
+export function reviewKeys(raw: Variant[], strong: Tuned): string[] {
+  const t = new Map(strong.variants.map((v) => [v.src, v]));
+  const keys = new Set<string>();
+  for (const v of raw) {
+    const s = t.get(v.src);
+    if (!s || Math.abs(s.baseline - v.baseline) > 2 || Math.abs((s.scale ?? 1) - 1) > 0.04) keys.add(v.key);
+  }
+  return [...keys];
+}
+
+/** Per character: approved → strong, rejected → original, not reviewed → automatic. */
+export function merge(raw: Variant[], auto: Tuned, strong: Tuned, decisions: Record<string, Decision>): Tuned {
+  const maps = new Map([auto, strong].map((t) => [t, new Map(t.variants.map((v) => [v.src, v]))]));
+  const pick = (key: string) => (decisions[key] === 'accept' ? strong : decisions[key] === 'reject' ? null : auto);
+  const variants: Variant[] = [], excluded = new Set<string>();
+  for (const v of raw) {
+    const t = pick(v.key);
+    if (!t) variants.push(v);
+    else if (t.excluded.has(v.src)) excluded.add(v.src);
+    else variants.push(maps.get(t)!.get(v.src) ?? v);
+  }
+  return { variants, excluded, letterGap: auto.letterGap };
 }

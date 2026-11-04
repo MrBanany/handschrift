@@ -12,9 +12,14 @@ Deine Handschrift-Proben liegen nur im Browser-Speicher deines Geräts und komme
    (schwarzer oder dunkelblauer Stift, auf der durchgezogenen Linie) → als PDF exportieren → mit Namen importieren.
    Mehrere Handschriften sind möglich; unter **Schreiben** umschalten.
 4. Reiter **Zeichen**: Kontrolle. Schlechte Varianten antippen und löschen.
-5. **Schreiben**: Text einfügen → *Teilen* oder *Kopieren* → in GoodNotes einfügen.
-   *Optimieren* (unter „Weitere Einstellungen“, standardmäßig an) richtet Buchstaben auf der Grundlinie aus,
-   lässt Größen-Ausreißer weg und nutzt deine eigenen Buchstabenabstände.
+5. **Schreiben**: Text einfügen. Dann
+   - *Teilen* → PDF-Seiten mit Linien in GoodNotes importieren und darunter weiterschreiben (der Text bleibt durchsuchbar), oder
+   - *Schrift kopieren* bzw. die Schrift in der Vorschau lange drücken → in GoodNotes einsetzen (nur die Schrift, ohne Papier).
+     In Split View lässt sie sich auch direkt hinüberziehen.
+   *Linien* (Eng/Mittel/Weit) stellt Zeilenabstand und passende Schriftgröße ein.
+   *Optimieren* ist immer mindestens leicht an: Buchstaben sitzen auf der Grundlinie, kleine Buchstaben werden gleich hoch,
+   Ausreißer und zu weit geschriebene Paare fallen weg, Buchstabenabstände kommen aus deinen Proben.
+   Stärker geht's über den Regler oder einzeln im Reiter *Zeichen* → *Optimierung prüfen*.
 6. Ab und zu **Sichern** (Backup-Datei), z. B. für ein neues Gerät.
 
 ## Entwickeln

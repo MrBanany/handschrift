@@ -86,9 +86,11 @@ export function drawPage(page: Page, o: DrawOpts, variant: (src: string) => Vari
       c.strokeStyle = '#b9cde0';
       for (let y = o.margin + o.lineH; y <= o.pageH - o.margin + 0.01; y += o.lineH) { c.moveTo(0, (y - oy) * px); c.lineTo(W, (y - oy) * px); }
     } else if (o.background === 'grid') {
+      // A written line spans two boxes, and every baseline falls on a grid line.
+      const cell = o.lineH / 2, first = (from: number, phase: number) => phase + Math.ceil((from - phase) / cell) * cell - from;
       c.strokeStyle = '#d6e2ed';
-      for (let x = 5 - (ox % 5); x < Wmm; x += 5) { c.moveTo(x * px, 0); c.lineTo(x * px, H); }
-      for (let y = 5 - (oy % 5); y < Hmm; y += 5) { c.moveTo(0, y * px); c.lineTo(W, y * px); }
+      for (let x = first(ox, o.margin); x < Wmm; x += cell) { c.moveTo(x * px, 0); c.lineTo(x * px, H); }
+      for (let y = first(oy, o.margin + o.lineH); y < Hmm; y += cell) { c.moveTo(0, y * px); c.lineTo(W, y * px); }
     }
     c.stroke();
   }

@@ -4,6 +4,8 @@ import type { Variant } from './types';
 const xhPx = XH * MM;
 // Characters whose ink should end on the baseline (no descenders).
 const SITS = /^[a-eh-ik-orstuvwxzäöüA-IK-PR-ZÄÖÜ0-9.!?]+$/u;
+// Ink exactly one x-height tall (no ascenders, descenders or dots): their heights should match each other.
+const XLET = /^[acemnorsuvwxz]+$/u;
 
 const median = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[s.length >> 1] : NaN; };
 
@@ -35,6 +37,7 @@ export const DEFAULT_LETTER_GAP = 0.16;
  * up to 1.5 = strong (only used after the writer approved it per character):
  * - letters that float above or sink below the baseline are pulled back to it,
  * - variants of one character are evened out in size; far-off ones are left out (at least two stay),
+ * - small letters (a, e, n, o …) are brought to one common height, so words don't look bumpy,
  * - the writer's own letter spacing is learned from the pairs that are not joined.
  */
 export function optimize(vs: Variant[], strength = 1): Tuned {
@@ -49,12 +52,20 @@ export function optimize(vs: Variant[], strength = 1): Tuned {
   const excluded = new Set<string>();
   const byKey = new Map<string, Variant[]>();
   for (const v of fixed) byKey.set(v.key, [...(byKey.get(v.key) ?? []), v]);
+  const sizes = new Map([...byKey].map(([key, group]) => [key, group.map((v) => ({ v, h: v.baseline - inkRows(v).top, w: v.w }))]));
+  const keyH = new Map([...sizes].map(([key, size]) => [key, median(size.map((x) => x.h))]));
+  const xHeights = [...keyH].filter(([k, h]) => XLET.test(k) && h > 0).map(([, h]) => h);
+  const common = xHeights.length >= 3 ? median(xHeights) : NaN;
+
   const scaled = new Map<string, number>();
-  for (const group of byKey.values()) {
-    if (group.length < 2) continue;
-    const size = group.map((v) => ({ v, h: v.baseline - inkRows(v).top, w: v.w }));
-    const mh = median(size.map((x) => x.h)), mw = median(size.map((x) => x.w));
-    for (const x of size) if (x.h > 0) scaled.set(x.v.src, 1 + (mh / x.h - 1) * 0.6 * s);
+  for (const [key, size] of sizes) {
+    const group = byKey.get(key)!;
+    const mh = keyH.get(key)!, mw = median(size.map((x) => x.w));
+    const toCommon = XLET.test(key) && common > 0 && mh > 0 ? 1 + (common / mh - 1) * 0.6 * s : 1;
+    for (const x of size) {
+      const k = (group.length >= 2 && x.h > 0 ? 1 + (mh / x.h - 1) * 0.6 * s : 1) * toCommon;
+      scaled.set(x.v.src, k);
+    }
     if (group.length < 3) continue;
     const limit = 1.6 - 0.6 * s; // gentle settings only drop extreme outliers
     const off = size
@@ -65,7 +76,13 @@ export function optimize(vs: Variant[], strength = 1): Tuned {
     for (const x of off) excluded.add(x.v.src);
   }
 
-  const gaps = fixed.filter((v) => [...v.key].length === 2 && v.connected === false).map(pairGap);
+  const gapOf = new Map(fixed.filter((v) => [...v.key].length === 2 && v.connected === false).map((v) => [v.src, pairGap(v)]));
+  const gaps = [...gapOf.values()];
+  // A pair written far apart reads like two words in a sentence; without it the single letters are set with the usual gap.
+  if (gaps.length >= 5) {
+    const maxGap = Math.max(0.45 * xhPx, 2.5 * median(gaps)) * (1.6 - 0.6 * s);
+    for (const [src, g] of gapOf) if (g > maxGap) excluded.add(src);
+  }
   const learned = gaps.length >= 5 ? Math.min(0.6, Math.max(0.05, median(gaps) / xhPx)) : null;
   return {
     variants: fixed.filter((v) => !excluded.has(v.src)).map((v) => (scaled.has(v.src) ? { ...v, scale: scaled.get(v.src) } : v)),

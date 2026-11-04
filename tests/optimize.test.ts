@@ -27,6 +27,13 @@ describe('optimize', () => {
     expect(s2).toBeCloseTo(1);
   });
 
+  it('brings small letters to one common height', () => {
+    const t = optimize(['a', 'e', 'n', 'o'].map((k, i) => v(k, k, [[0, i === 3 ? 70 : 50, 40, 100]])));
+    const o = t.variants.find((x) => x.src === 'o')!.scale!;
+    expect(o).toBeCloseTo(1 + (49 / 29 - 1) * 0.6); // the short "o" grows towards the others (heights after baseline snap)
+    expect(t.variants.find((x) => x.src === 'a')!.scale).toBeCloseTo(1);
+  });
+
   it('drops a size outlier but keeps at least two variants', () => {
     const ok = [1, 2, 3].map((k) => v('a', `a${k}`, [[0, 50, 40, 100]]));
     const huge = v('a', 'a4', [[0, 0, 80, 100]]);
@@ -41,6 +48,12 @@ describe('optimize', () => {
     const t = optimize([0, 1, 2, 3, 4].map(pair));
     expect(t.letterGap).toBeCloseTo(10 / 50);
     expect(optimize([pair(0)]).letterGap).toBeNull(); // too few samples to trust
+  });
+
+  it('leaves out pairs written with a word-sized gap', () => {
+    const pair = (k: number, gap = 10) => v('st', `p${k}`, [[0, 50, 30, 100], [30 + gap, 50, 80, 100]], { connected: false });
+    const t = optimize([0, 1, 2, 3, 4].map((k) => pair(k)).concat(pair(5, 40)));
+    expect([...t.excluded]).toEqual(['p5']);
   });
 });
 

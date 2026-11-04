@@ -17,7 +17,9 @@ export interface Settings {
 export type Mat = [number, number, number, number, number, number];
 export interface Placed { g: GlyphMeta; m: Mat }
 export interface Missing { ch: string; x: number; y: number; w: number; h: number }
-export interface Page { glyphs: Placed[]; connectors: Connector[]; missing: Missing[] }
+/** A written line as plain text, for an invisible, searchable text layer (mm, y = baseline). */
+export interface Line { text: string; x: number; y: number; w: number }
+export interface Page { glyphs: Placed[]; connectors: Connector[]; missing: Missing[]; lines: Line[] }
 
 export function mulberry32(seed: number) {
   let a = seed >>> 0;
@@ -36,6 +38,18 @@ const dir = (m: Mat, a: Anchor): [number, number] => {
   return [x / l, y / l];
 };
 const scaleOf = (m: Mat) => Math.sqrt(Math.abs(m[0] * m[3] - m[1] * m[2]));
+
+/** Left/right edge of the actual ink (mm), not the slanted bitmap box, so word gaps look even. */
+function inkX(g: GlyphMeta, m: Mat): [number, number] {
+  let l = Infinity, r = -Infinity;
+  BANDS.forEach((b, i) => {
+    const y = g.baseline + b, L = g.prof?.l[i], R = g.prof?.r[i];
+    if (L != null) l = Math.min(l, m[0] * L + m[2] * y + m[4]);
+    if (R != null) r = Math.max(r, m[0] * R + m[2] * y + m[4]);
+  });
+  if (l > r) { const xs = [[0, 0], [g.w, 0], [0, g.h], [g.w, g.h]].map(([x, y]) => tf(m, x, y)[0]); return [Math.min(...xs), Math.max(...xs)]; }
+  return [l, r];
+}
 
 /** Split a word into the largest available samples: whole word > trigram > pair > single letter. */
 export function segment(word: string, lib: Library): string[] {
@@ -154,13 +168,18 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
       cursor = Math.max(cursor, right + tx); // a letter tucked under the previous one must not shrink the word
       prev = { g, m, right: cursor, last: [...key].at(-1)! };
     }
-    return { items, missing, width: cursor };
+    let inkL = Infinity, inkR = -Infinity;
+    for (const it of items) { const [l, r] = inkX(it.g, it.m); inkL = Math.min(inkL, l); inkR = Math.max(inkR, r); }
+    for (const ms of missing) { inkL = Math.min(inkL, ms.x); inkR = Math.max(inkR, ms.x + ms.w); }
+    return { items, missing, inkL: Number.isFinite(inkL) ? inkL : 0, inkR: Number.isFinite(inkR) ? inkR : cursor };
   }
 
   const pages: Page[] = [];
   let page: Page, y = 0, lineX = 0, lineStart = 0, slope = 0, amp = 0, phase = 0, lambda = 1;
-  const newPage = () => { page = { glyphs: [], connectors: [], missing: [] }; pages.push(page); y = s.margin + s.lineH; };
+  let rec: Line | null = null;
+  const newPage = () => { page = { glyphs: [], connectors: [], missing: [], lines: [] }; pages.push(page); y = s.margin + s.lineH; };
   const newLine = (first = false) => {
+    rec = null;
     if (!first) y += s.lineH;
     if (first || y > s.pageH - s.margin) newPage();
     lineStart = lineX = s.margin + Math.abs(gauss()) * 0.4 * sig;
@@ -176,11 +195,16 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
     if (li > 0) newLine();
     for (const word of line.split(/\s+/).filter(Boolean)) {
       const wd = layoutWord(word);
-      if (lineX > lineStart && lineX + wd.width > s.pageW - s.margin) newLine();
+      // lineX is where the next word's ink starts
+      if (lineX > lineStart && lineX - wd.inkL + wd.inkR > s.pageW - s.margin) newLine();
+      const ox = lineX - wd.inkL;
+      if (rec) rec.text += ` ${word}`;
+      else page!.lines.push(rec = { text: word, x: lineX, y, w: 0 });
+      rec.w = ox + wd.inkR - rec.x;
       let prevM: Mat | null = null, prevG: GlyphMeta | null = null;
       for (const it of wd.items) {
         const m: Mat = [...it.m];
-        m[4] += lineX;
+        m[4] += ox;
         m[5] += y + drift(m[4]);
         if (it.join && prevM && prevG) {
           page!.connectors.push(makeConnector(
@@ -192,8 +216,9 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
         page!.glyphs.push({ g: it.g, m });
         prevM = m; prevG = it.g;
       }
-      for (const ms of wd.missing) page!.missing.push({ ...ms, x: ms.x + lineX, y: ms.y + y + drift(ms.x + lineX) });
-      lineX += wd.width + Math.max(0.6 * xh, ((s.wordGap ?? 0.95) - 0.15 * h) * xh * (1 + gauss() * 0.1 * sig));
+      for (const ms of wd.missing) page!.missing.push({ ...ms, x: ms.x + ox, y: ms.y + y + drift(ms.x + ox) });
+      const sentenceEnd = /[.!?]["“”»)]*$/u.test(word) ? 0.3 * xh : 0; // people leave a bit more room after a full stop
+      lineX = ox + wd.inkR + sentenceEnd + Math.max(0.6 * xh, ((s.wordGap ?? 1.1) - 0.15 * h) * xh * (1 + gauss() * 0.1 * sig));
     }
   });
   return { pages, missing: missingSet };

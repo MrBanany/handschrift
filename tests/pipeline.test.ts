@@ -136,7 +136,9 @@ describe('layout', () => {
     const [gT, gE, gT2] = pages[0].glyphs;
     const rightT = gT.m[0] * 60 + gT.m[4];
     expect(gE.m[4]).toBeLessThan(rightT); // e starts under the T bar
-    expect(gT2.m[4] - (gE.m[0] * 60 + gE.m[4])).toBeGreaterThan(0.7 * S.xh); // word gap measured from the widest glyph
+    expect(gT2.m[4] - (gE.m[0] * 40 + gE.m[4])).toBeGreaterThan(0.7 * S.xh); // word gap measured ink to ink
+    expect(gT2.m[4] - (gE.m[0] * 40 + gE.m[4])).toBeLessThan(1.3 * S.xh); // … not from the empty bitmap edge
+    expect(pages[0].lines).toEqual([expect.objectContaining({ text: 'Te Te' })]);
   });
 
   it('wraps lines inside the margins, breaks pages and flags missing characters', () => {

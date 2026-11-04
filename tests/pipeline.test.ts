@@ -52,6 +52,13 @@ describe('segmentation', () => {
     expect(v.strokeW).toBeGreaterThan(3); expect(v.strokeW).toBeLessThan(8); // ~0.5 mm pen
   });
 
+  it('ignores the grey trace-over letters of the template', () => {
+    const p = blankPage(0);
+    const b = TEMPLATE_PAGES[0][0];
+    p.line([b.x + 4, b.y + 10], [b.x + 11, b.y + 15], 0.8, [222, 222, 222]); // GHOST colour from template/pdf.ts
+    expect(extractPage(p.img).variants).toEqual([]);
+  });
+
   it('tells joined from separate pairs', () => {
     const pi = TEMPLATE_PAGES.findIndex((pg) => pg.some((b) => b.key === 'ch'));
     const [b1, b2] = TEMPLATE_PAGES[pi].filter((b) => b.key === 'ch');

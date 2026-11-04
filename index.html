@@ -128,7 +128,7 @@
         <h2>Neue Handschrift anlegen oder ergänzen</h2>
         <ol class="steps">
           <li><button id="template">Vorlage herunterladen</button> und in GoodNotes öffnen.</li>
-          <li>Jedes Kästchen mit schwarzem oder dunkelblauem Stift auf der durchgezogenen Linie ausfüllen. Leere Kästchen sind erlaubt.</li>
+          <li>Jedes Kästchen mit schwarzem oder dunkelblauem Stift auf der durchgezogenen Linie ausfüllen. Der graue Buchstabe im ersten Kästchen zeigt die Größe – einfach in deiner Art darüberschreiben. Leere Kästchen sind erlaubt.</li>
           <li>In GoodNotes: Teilen → Exportieren → PDF.</li>
           <li>
             <label class="field"><span>Name</span><input id="setName" type="text" autocomplete="off" /></label>
@@ -168,7 +168,7 @@
       <h1 id="glyphsTitle"></h1>
       <p class="muted small"><span id="coverage"></span> So werden die Zeichen gerade verwendet. Antippen löscht eine Variante. <i class="dot in"></i> Strich-Eintritt <i class="dot out"></i> Austritt</p>
       <div id="grid"></div>
-      <div class="dock"><button id="reviewOpen" class="primary"></button></div>
+      <div class="dock"><button id="reviewOpen" class="primary"></button><button id="acceptAll" hidden>Alle übernehmen</button></div>
     </section>
   </main>
 
@@ -189,7 +189,7 @@
         <button id="reviewReject">Original behalten</button>
         <button id="reviewAccept" class="primary">Übernehmen</button>
       </footer>
-      <button id="reviewAll" class="link">Alle restlichen übernehmen</button>
+      <button id="reviewAll">Alle offenen übernehmen</button>
     </div>
   </div>
 

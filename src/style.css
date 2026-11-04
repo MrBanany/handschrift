@@ -120,7 +120,7 @@ details > * + * { margin-top: 10px; }
 .thumb canvas { display: block; max-width: 100%; height: auto; }
 .thumb.out canvas { opacity: .3; }
 .thumb.out::after { content: ''; position: absolute; left: 4px; right: 4px; top: 50%; border-top: 2px solid #e5484d; transform: rotate(-12deg); }
-.dock { position: sticky; bottom: calc(var(--tabbar) + 12px + env(safe-area-inset-bottom)); display: flex; justify-content: center; margin-top: 16px; pointer-events: none; }
+.dock { position: sticky; bottom: calc(var(--tabbar) + 12px + env(safe-area-inset-bottom)); display: flex; justify-content: center; gap: 8px; margin-top: 16px; pointer-events: none; }
 .dock button { pointer-events: auto; box-shadow: 0 8px 24px rgba(0,0,0,.5); min-height: 48px; padding: 0 22px; border-radius: 24px; }
 
 /* review sheet */

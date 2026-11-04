@@ -455,6 +455,9 @@ function renderReview() {
     return box;
   }));
   $<HTMLButtonElement>('reviewBack').disabled = rAt === 0;
+  const all = decisions(), left = rKeys.filter((k) => !all[k]).length;
+  $('reviewAll').hidden = !left;
+  $('reviewAll').textContent = `Alle ${left} offenen übernehmen`;
 }
 
 function decide(d: Decision, keys = [rKeys[rAt]]) {
@@ -465,14 +468,25 @@ function decide(d: Decision, keys = [rKeys[rAt]]) {
   renderReview();
 }
 
-function closeReview() { $('review').hidden = true; rebuild(); }
+// Close first, rebuild after the sheet is gone: on the iPad the rebuild takes a moment, and a second tap
+// during that time used to land on a glyph below (which asks to delete it).
+function closeReview() { $('review').hidden = true; setTimeout(rebuild, 50); }
+
+/** Strong optimisation for every character not decided yet; returns how many. */
+function acceptOpen() {
+  const all = decisions(), open = reviewKeys(raw, strong).filter((k) => !all[k]);
+  for (const k of open) all[k] = 'accept';
+  localStorage.setItem(`review:${active}`, JSON.stringify(all));
+  return open.length;
+}
 
 $('reviewOpen').onclick = openReview;
 $('reviewClose').onclick = closeReview;
 $('reviewBack').onclick = () => { rAt = Math.max(0, rAt - 1); renderReview(); };
 $('reviewAccept').onclick = () => decide('accept');
 $('reviewReject').onclick = () => decide('reject');
-$('reviewAll').onclick = () => { const d = decisions(); const open = rKeys.slice(rAt).filter((k) => !d[k]); rAt = rKeys.length - open.length; decide('accept', open); };
+$('reviewAll').onclick = () => { const count = acceptOpen(); closeReview(); toast(`${count} Zeichen übernommen.`); };
+$('acceptAll').onclick = () => { const count = acceptOpen(); rebuild(); toast(`${count} Zeichen übernommen.`); };
 addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('review').hidden) closeReview(); });
 
 const GROUPS: [string, string[]][] = [
@@ -493,6 +507,7 @@ function renderGrid() {
   const d = decisions(), toReview = active ? reviewKeys(raw, strong) : [], open = toReview.filter((k) => !d[k]).length;
   $('reviewOpen').hidden = !toReview.length;
   $('reviewOpen').textContent = open ? `Optimierung prüfen (${open} offen)` : 'Optimierung erneut prüfen';
+  $('acceptAll').hidden = !open;
   $('grid').replaceChildren(...(!active ? [] : GROUPS.flatMap(([title, keys]) => {
     const h = document.createElement('h3');
     h.textContent = title;

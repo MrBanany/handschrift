@@ -5,13 +5,17 @@ Deine Handschrift-Proben liegen nur im Browser-Speicher deines Geräts und komme
 
 ## Benutzen (iPad)
 
-1. App-Adresse in **Safari** öffnen → Teilen → **Zum Home-Bildschirm**.
-2. Reiter **Vorlage & Import** → *Vorlage herunterladen* → in GoodNotes öffnen und ausfüllen
-   (schwarzer oder dunkelblauer Stift, auf der durchgezogenen Grundlinie; leere Kästchen sind ok).
-3. In GoodNotes: Teilen → Exportieren → PDF → in der App unter *Ausgefüllte Vorlage importieren* auswählen.
+1. App-Adresse in **Safari** öffnen → Teilen → **Zum Home-Bildschirm**. Danach immer über das Home-Bildschirm-Symbol öffnen –
+   es hat einen eigenen Speicher, getrennt von Safari.
+2. Zum Ausprobieren unter **Schreiben** die Handschrift *Muster* wählen (wird aus einer Systemschrift erzeugt).
+3. Eigene Handschrift: Reiter **Handschriften** → *Vorlage herunterladen* → in GoodNotes ausfüllen
+   (schwarzer oder dunkelblauer Stift, auf der durchgezogenen Linie) → als PDF exportieren → mit Namen importieren.
+   Mehrere Handschriften sind möglich; unter **Schreiben** umschalten.
 4. Reiter **Zeichen**: Kontrolle. Schlechte Varianten antippen und löschen.
-5. Reiter **Schreiben**: Text einfügen → *PNG teilen / sichern* oder *In Zwischenablage* → in GoodNotes einfügen.
-6. Ab und zu **Handschrift-Satz sichern** (Backup-Datei), z. B. für ein neues Gerät.
+5. **Schreiben**: Text einfügen → *Teilen* oder *Kopieren* → in GoodNotes einfügen.
+   *Optimieren* (unter „Weitere Einstellungen“, standardmäßig an) richtet Buchstaben auf der Grundlinie aus,
+   lässt Größen-Ausreißer weg und nutzt deine eigenen Buchstabenabstände.
+6. Ab und zu **Sichern** (Backup-Datei), z. B. für ein neues Gerät.
 
 ## Entwickeln
 
@@ -25,5 +29,5 @@ npm run build
 Jeder Push auf `main` baut und veröffentlicht die App automatisch auf GitHub Pages (`.github/workflows/deploy.yml`).
 
 Module: `template/` (Vorlage), `import/` (PDF/Bild laden), `segmentation/` (Passermarken, Ausschneiden, Skelett, Ein-/Austritt),
-`glyphstore/` (IndexedDB, Backup), `connectors/` (Verbindungswahrscheinlichkeit, Bézier-Verbindungen),
+`glyphstore/` (IndexedDB mit mehreren Handschriften, Backup, Optimieren, Muster), `connectors/` (Verbindungswahrscheinlichkeit, Bézier-Verbindungen),
 `renderer/` (Layout mit Variation, Zeichnen), `export/` (PNG, Teilen, Zwischenablage).

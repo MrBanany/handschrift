@@ -9,9 +9,10 @@ export function download(blob: Blob, name: string) {
   setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
 }
 
+export const asFiles = (blobs: Blob[]) => blobs.map((b, i) => new File([b], `handschrift-${i + 1}.png`, { type: 'image/png' }));
+
 /** Share sheet on iPad/Android (e.g. straight into GoodNotes), download elsewhere. */
-export async function sharePngs(blobs: Blob[]) {
-  const files = blobs.map((b, i) => new File([b], `handschrift-${i + 1}.png`, { type: 'image/png' }));
+export async function shareFiles(files: File[]) {
   if (navigator.canShare?.({ files })) await navigator.share({ files });
   else files.forEach((f) => download(f, f.name));
 }

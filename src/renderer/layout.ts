@@ -9,6 +9,7 @@ export interface Settings {
   pageW: number; pageH: number; // mm
   hasty: number; // 0 = tidy, 1 = hasty
   seed: number;
+  letterGap?: number | null; // learned gap between letters (x-heights), see glyphstore/optimize
 }
 
 /** Canvas-order affine: x' = a x + c y + e, y' = b x + d y + f. Glyph px -> page mm. */
@@ -144,7 +145,8 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
         const punct = !/\p{L}|\p{N}/u.test(first);
         const gap = prev ? Math.max(0.04 * xh, (0.16 - 0.06 * h) * xh * (punct ? 0.6 : 1) * (1 + gauss() * 0.25 * sig)) : 0;
         const tuck = prev ? opticalShift(prev.g, prev.m, g, base) : null;
-        tx = tuck === null ? cursor + gap - left : Math.max(tuck + gap, cursor - left - 0.6 * xh);
+        const own = prev && s.letterGap != null ? Math.max(0.03 * xh, s.letterGap * (1 - 0.3 * h) * xh * (punct ? 0.6 : 1) * (1 + gauss() * 0.2 * sig)) : gap;
+        tx = tuck === null ? cursor + gap - left : Math.max(tuck + own, cursor - left - 0.6 * xh);
       }
       const m: Mat = [a, b, c, d, base[4] + tx, base[5] + walk];
       items.push({ g, m, join });

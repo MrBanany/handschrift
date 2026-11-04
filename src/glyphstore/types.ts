@@ -14,4 +14,4 @@ export interface GlyphMeta {
   prof?: { l: (number | null)[]; r: (number | null)[] };
 }
 
-export interface Variant extends GlyphMeta { alpha: Uint8Array }
+export interface Variant extends GlyphMeta { alpha: Uint8Array; set?: string }

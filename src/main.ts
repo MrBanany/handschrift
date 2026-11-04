@@ -9,6 +9,7 @@ import { pagesOf } from './import/load';
 import { clearMaskCache, drawPage, type Background, type DrawOpts } from './renderer/draw';
 import { layout, profile, type Settings } from './renderer/layout';
 import { extractPage } from './segmentation/extract';
+import { clean } from './renderer/clean';
 import { measureLines, summarize, type LineMeasure, type TextStyle } from './segmentation/style';
 import { buildTemplatePdf } from './template/pdf';
 import { PAIRS, SINGLES, WORDS } from './template/layout';
@@ -175,7 +176,7 @@ const exportAs = () => ($<HTMLInputElement>('exportAs').value === 'png' ? 'png' 
 /** page: paper + ink for export · ink: transparent full page (preview) · clip: transparent, cut to the text (copy) */
 function renderAll(pxPerMm: number, mode: 'page' | 'ink' | 'clip') {
   const { s, o } = settings();
-  const res = layout($<HTMLTextAreaElement>('text').value, lib, s);
+  const res = layout(clean($<HTMLTextAreaElement>('text').value, (ch) => lib.has(ch)), lib, s);
   const paper: DrawOpts = { ...o, crop: false, pxPerMm, pageW: s.pageW, pageH: s.pageH, lineH: s.lineH, margin: s.margin };
   const opts: DrawOpts = {
     ...paper,

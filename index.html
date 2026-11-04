@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#f6f4ef" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <title>Handschrift</title>
+</head>
+<body>
+  <nav>
+    <button data-tab="write" class="active">Schreiben</button>
+    <button data-tab="capture">Vorlage &amp; Import</button>
+    <button data-tab="glyphs">Zeichen</button>
+  </nav>
+
+  <section id="write" class="tab active">
+    <div class="controls">
+      <textarea id="text" rows="7" placeholder="Text eintippen oder einfügen …"></textarea>
+      <p id="missing" class="warn" hidden></p>
+      <label>sauber <input id="hasty" type="range" min="0" max="1" step="0.05" value="0.3" /> hastig</label>
+      <label>Schriftgröße (x-Höhe, mm) <input id="xh" type="number" min="1.5" max="8" step="0.1" value="3" /></label>
+      <label>Zeilenabstand (mm) <input id="lineH" type="number" min="5" max="20" step="0.5" value="10" /></label>
+      <label>Ränder (mm) <input id="margin" type="number" min="0" max="40" step="1" value="15" /></label>
+      <label>Strichstärke <input id="weight" type="range" min="0" max="3" step="0.25" value="0" /></label>
+      <label>Tintenfarbe <input id="ink" type="color" value="#1c2340" /></label>
+      <label>Hintergrund
+        <select id="background">
+          <option value="lined">liniert</option>
+          <option value="grid">kariert</option>
+          <option value="blank">blanko</option>
+          <option value="transparent">transparent</option>
+        </select>
+      </label>
+      <label>Zufalls-Seed <span class="row"><input id="seed" type="number" step="1" value="1" /><button id="dice" type="button">🎲</button></span></label>
+      <label class="check"><input id="crop" type="checkbox" /> Export auf Text zuschneiden</label>
+      <div class="buttons">
+        <button id="share" class="primary">PNG teilen / sichern</button>
+        <button id="copy">In Zwischenablage</button>
+      </div>
+    </div>
+    <div id="preview" class="preview"></div>
+  </section>
+
+  <section id="capture" class="tab">
+    <div class="card">
+      <h2>1. Vorlage holen</h2>
+      <p>Lade die Vorlage herunter, öffne sie in GoodNotes und schreibe in jedes Kästchen – auf der durchgezogenen Grundlinie, mit schwarzem oder dunkelblauem Stift. Leere Kästchen sind erlaubt. Paare und Wörter bitte so schreiben, wie du es normal tust (verbunden oder nicht).</p>
+      <button id="template" class="primary">Vorlage herunterladen (PDF)</button>
+    </div>
+    <div class="card">
+      <h2>2. Ausgefüllte Vorlage importieren</h2>
+      <p>In GoodNotes: Teilen → Exportieren → PDF. Dann hier auswählen. Einzelne Seiten als PNG/JPG gehen auch. Erneuter Import einer Seite ersetzt die alten Proben.</p>
+      <input id="file" type="file" accept="application/pdf,image/png,image/jpeg" multiple />
+      <pre id="log"></pre>
+    </div>
+    <div class="card">
+      <h2>Sicherung</h2>
+      <p>Dein Handschrift-Satz bleibt nur auf diesem Gerät. Für Backup oder Gerätewechsel als Datei sichern.</p>
+      <div class="buttons">
+        <button id="backup">Handschrift-Satz sichern</button>
+        <label class="button">Sicherung laden<input id="restore" type="file" accept=".json,application/json" hidden /></label>
+        <button id="wipe" class="danger">Alles löschen</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="glyphs" class="tab">
+    <p class="hint">Tippe auf eine Variante, um sie zu löschen. Grün = Eintritt, Rot = Austritt des Strichs.</p>
+    <div id="grid"></div>
+  </section>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

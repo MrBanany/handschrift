@@ -1,0 +1,142 @@
+import { describe, expect, it } from 'vitest';
+import { connectionModel } from '../src/connectors/connect';
+import type { GlyphMeta } from '../src/glyphstore/types';
+import { layout, segment, type Settings } from '../src/renderer/layout';
+import { extractPage } from '../src/segmentation/extract';
+import { readPageCode, register, type Affine } from '../src/segmentation/register';
+import { MM, TEMPLATE_PAGES, TEMPLATE_KEYS, SINGLES } from '../src/template/layout';
+import { blankPage, writeU } from './synthetic';
+
+describe('template layout', () => {
+  it('contains every requested key with unique box ids', () => {
+    for (const k of SINGLES) expect(TEMPLATE_KEYS).toContain(k);
+    const ids = TEMPLATE_PAGES.flat().map((b) => b.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    for (const b of TEMPLATE_PAGES.flat()) expect(b.x + b.w).toBeLessThanOrEqual(198.01);
+  });
+});
+
+describe('segmentation', () => {
+  const rot = 0.01; // a slightly rotated, shifted and scaled export
+  const skew: Affine = [MM * 1.01 * Math.cos(rot), -MM * Math.sin(rot), 14, MM * Math.sin(rot), MM * 1.01 * Math.cos(rot), -9];
+
+  for (const [name, T] of [['straight', undefined], ['rotated', skew]] as const) {
+    it(`registers marks and reads the page code (${name})`, () => {
+      const p = blankPage(3, T);
+      const found = register(p.img);
+      const ref = T ?? [MM, 0, 0, 0, MM, 0];
+      found.forEach((v, i) => expect(Math.abs(v - ref[i])).toBeLessThan(i % 3 === 2 ? 1.5 : 0.01));
+      expect(readPageCode(p.img, found) & 31).toBe(3);
+    });
+  }
+
+  it('cuts out written boxes, drops guides and empty boxes, finds entry/exit', () => {
+    const p = blankPage(0, skew);
+    const [a1, a2] = TEMPLATE_PAGES[0];
+    writeU(p, a1); writeU(p, a2, 1);
+    const { page, variants } = extractPage(p.img);
+    expect(page).toBe(0);
+    expect(variants.map((v) => v.src)).toEqual([a1.id, a2.id]);
+    const v = variants[0];
+    expect(v.key).toBe('a');
+    // ink sits on the baseline (within half a mm)
+    let lowest = 0;
+    for (let i = 0; i < v.alpha.length; i++) if (v.alpha[i] > 128) lowest = Math.max(lowest, Math.floor(i / v.w));
+    expect(Math.abs(lowest - v.baseline)).toBeLessThan(0.6 * MM);
+    expect(v.entry).not.toBeNull();
+    expect(v.exit).not.toBeNull();
+    expect(v.entry!.x).toBeLessThan(v.w * 0.2);
+    expect(v.exit!.x).toBeGreaterThan(v.w * 0.8);
+    expect(v.exit!.dx).toBeGreaterThan(0.3); // leaves to the upper right
+    expect(v.exit!.dy).toBeLessThan(0);
+    expect(v.strokeW).toBeGreaterThan(3); expect(v.strokeW).toBeLessThan(8); // ~0.5 mm pen
+  });
+
+  it('tells joined from separate pairs', () => {
+    const pi = TEMPLATE_PAGES.findIndex((pg) => pg.some((b) => b.key === 'ch'));
+    const [b1, b2] = TEMPLATE_PAGES[pi].filter((b) => b.key === 'ch');
+    const p = blankPage(pi);
+    writeU(p, b1); writeU(p, b1, 5.6); // second starts where the first ends: joined
+    writeU(p, b2); writeU(p, b2, 9); // clear gap
+    const vs = extractPage(p.img).variants;
+    expect(vs.find((v) => v.src === b1.id)!.connected).toBe(true);
+    expect(vs.find((v) => v.src === b2.id)!.connected).toBe(false);
+  });
+});
+
+// ---------- layout & connections (no bitmaps needed) ----------
+const glyph = (key: string, i: number, connected?: boolean): GlyphMeta => ({
+  src: `${key}-${i}`, key, w: 60, h: 120, baseline: 100, strokeW: 5, connected,
+  entry: { x: 2, y: 98, dx: 0.7, dy: -0.7, w: 5 }, exit: { x: 58, y: 95, dx: 0.8, dy: -0.6, w: 5 },
+});
+const libOf = (keys: string[], n = 3, conn?: (k: string) => boolean) =>
+  new Map(keys.map((k) => [k, Array.from({ length: n }, (_, i) => glyph(k, i, conn?.(k)))]));
+const S: Settings = { xh: 3, lineH: 10, margin: 15, pageW: 210, pageH: 297, hasty: 0.3, seed: 7 };
+
+describe('unit selection', () => {
+  it('prefers word > trigram > pair > single', () => {
+    const lib = libOf([...'abcdehinrstu', 'und', 'sch', 'ch', 'en']);
+    expect(segment('und', lib)).toEqual(['und']);
+    expect(segment('schen,', lib)).toEqual(['sch', 'en', ',']);
+    expect(segment('Bach', lib)).toEqual(['B', 'a', 'ch']);
+  });
+});
+
+describe('connection model', () => {
+  it('learns per pair and falls back to letter and global rates', () => {
+    const lib = new Map([
+      ['ch', [glyph('ch', 0, true), glyph('ch', 1, true), glyph('ch', 2, false)]],
+      ['ou', [glyph('ou', 0, false)]],
+    ]);
+    const p = connectionModel(lib);
+    expect(p('c', 'h')).toBeCloseTo(2 / 3);
+    expect(p('o', 'u')).toBe(0);
+    expect(p('c', 'x')).toBeCloseTo(2 / 3); // only "c" onwards is known
+    expect(p('a', ',')).toBe(0);
+    expect(p('A', 'h')).toBeLessThan(p('a', 'h'));
+  });
+});
+
+describe('layout', () => {
+  const lib = libOf([...'abcdefghijklmnopqrstuvwxyz'], 3, () => true);
+  const always = libOf([...'abcdefghijklmnopqrstuvwxyz', 'ab'], 3, () => true);
+
+  it('is reproducible per seed and varies across seeds', () => {
+    const a = layout('hallo welt', lib, S), b = layout('hallo welt', lib, S), c = layout('hallo welt', lib, { ...S, seed: 8 });
+    expect(a).toEqual(b);
+    expect(a.pages[0].glyphs.map((g) => g.m)).not.toEqual(c.pages[0].glyphs.map((g) => g.m));
+  });
+
+  it('never repeats the same sample back to back', () => {
+    const { pages } = layout('aaaaaaaaaaaa', lib, S);
+    const srcs = pages[0].glyphs.map((g) => g.g.src);
+    for (let i = 1; i < srcs.length; i++) expect(srcs[i]).not.toBe(srcs[i - 1]);
+  });
+
+  it('joins letters with a connector that starts at the exit and ends at the entry', () => {
+    const { pages } = layout('ab', always, { ...S, seed: 1 });
+    // "ab" exists as a pair sample, so no synthetic connector is needed
+    expect(pages[0].glyphs).toHaveLength(1);
+    const two = layout('ba', lib, { ...S, hasty: 1 });
+    const [g1, g2] = two.pages[0].glyphs, c = two.pages[0].connectors[0];
+    expect(c).toBeDefined();
+    const at = (m: number[], x: number, y: number) => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]];
+    const ex = at(g1.m, 58, 95), en = at(g2.m, 2, 98);
+    expect(c.p[0][0]).toBeCloseTo(ex[0]); expect(c.p[0][1]).toBeCloseTo(ex[1]);
+    expect(c.p[3][0]).toBeCloseTo(en[0]); expect(c.p[3][1]).toBeCloseTo(en[1]);
+    expect(en[0]).toBeGreaterThan(ex[0]); // entry lies to the right of the exit
+  });
+
+  it('wraps lines inside the margins, breaks pages and flags missing characters', () => {
+    const text = Array(400).fill('hallo welt').join(' ') + ' Ä';
+    const { pages, missing } = layout(text, lib, S);
+    expect(pages.length).toBeGreaterThan(1);
+    for (const pg of pages) for (const { g, m } of pg.glyphs) {
+      const right = Math.max(m[4], m[0] * g.w + m[4], m[0] * g.w + m[2] * g.h + m[4]);
+      expect(right).toBeLessThan(S.pageW - S.margin + 3);
+      expect(m[5]).toBeLessThan(S.pageH);
+    }
+    expect([...missing]).toEqual(['Ä']);
+    expect(pages.at(-1)!.missing).toHaveLength(1);
+  });
+});

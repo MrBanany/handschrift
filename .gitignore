@@ -1,0 +1,11 @@
+node_modules/
+dist/
+# Never commit real handwriting samples or exported glyph sets
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.heic
+*.handschrift.json
+samples/
+!public/*.png

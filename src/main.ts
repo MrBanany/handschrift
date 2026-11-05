@@ -1,13 +1,13 @@
 import './style.css';
 import { DEFAULT_SET, deleteSet, exportBackup, importBackup, listSets, loadSet, remove, saveMany } from './glyphstore/db';
-import { merge, optimize, reviewKeys, type Decision, type Tuned } from './glyphstore/optimize';
+import { DEFAULT_LETTER_GAP, merge, optimize, reviewKeys, type Decision, type Tuned } from './glyphstore/optimize';
 import { SAMPLE_SET, buildSampleSet } from './glyphstore/sample';
 import type { Variant } from './glyphstore/types';
-import { asFiles, copyPng, download, shareFiles, toPng } from './export/png';
+import { copyPng, download, shareFiles, toPng } from './export/png';
 import { toPdf } from './export/pdf';
 import { pagesOf } from './import/load';
 import { clearMaskCache, drawPage, type Background, type DrawOpts } from './renderer/draw';
-import { layout, profile, type Settings } from './renderer/layout';
+import { DEFAULT_WORD_GAP, layout, profile, type Settings } from './renderer/layout';
 import { extractPage } from './segmentation/extract';
 import { clean } from './renderer/clean';
 import { measureLines, summarize, type LineMeasure, type TextStyle } from './segmentation/style';
@@ -120,8 +120,7 @@ $('setName').oninput = () => { delete $('setName').dataset.auto; };
 const NUM = ['hasty', 'xh', 'lineH', 'margin', 'weight', 'seed', 'optimize'] as const;
 const saved = JSON.parse(localStorage.getItem('settings') ?? '{}');
 if (saved.v !== 2) delete saved.optimize; // v2: optimizing starts at "leicht" instead of the old default "mittel"
-for (const id of [...NUM, 'ink', 'background', 'page', 'exportAs']) if (saved[id] !== undefined) $<HTMLInputElement>(id).value = saved[id];
-$<HTMLInputElement>('crop').checked = !!saved.crop;
+for (const id of [...NUM, 'ink', 'background', 'page']) if (saved[id] !== undefined) $<HTMLInputElement>(id).value = saved[id];
 $<HTMLTextAreaElement>('text').value = localStorage.getItem('text') ?? 'Hallo, das ist ein Test meiner Handschrift.\nEs sieht hoffentlich echt aus!';
 
 // Clamp to the input's limits: a stored 0 line spacing once froze the page for good.
@@ -162,16 +161,13 @@ function settings() {
   };
   const o = {
     ink: $<HTMLInputElement>('ink').value, weight: n('weight'), background: $<HTMLInputElement>('background').value as Background,
-    crop: $<HTMLInputElement>('crop').checked,
   };
   localStorage.setItem('settings', JSON.stringify({
     ...s, ...o, optimize: n('optimize'), letterGap: undefined, wordGap: undefined, v: 2,
-    page: $<HTMLInputElement>('page').value, exportAs: exportAs(),
+    page: $<HTMLInputElement>('page').value,
   }));
   return { s, o };
 }
-
-const exportAs = () => ($<HTMLInputElement>('exportAs').value === 'png' ? 'png' : 'pdf');
 
 /** page: paper + ink for export · ink: transparent full page (preview) · clip: transparent, cut to the text (copy) */
 function renderAll(pxPerMm: number, mode: 'page' | 'ink' | 'clip') {
@@ -181,8 +177,7 @@ function renderAll(pxPerMm: number, mode: 'page' | 'ink' | 'clip') {
   const opts: DrawOpts = {
     ...paper,
     background: mode === 'page' ? o.background : 'transparent',
-    // PDF pages keep the full page size, otherwise GoodNotes would stretch a cropped image.
-    crop: mode === 'clip' || (mode === 'page' && o.crop && exportAs() === 'png'),
+    crop: mode === 'clip', // PDF pages keep the full page size, otherwise GoodNotes would stretch a cropped image
   };
   return { ...res, paper, canvases: res.pages.map((p) => drawPage(p, opts, (src) => bySrc.get(src)!)) };
 }
@@ -199,11 +194,6 @@ function preview() {
   }
   const rule = ruleAt();
   document.querySelectorAll<HTMLButtonElement>('[data-rule]').forEach((b) => b.classList.toggle('on', Number(b.dataset.rule) === rule));
-  const pdf = exportAs() === 'pdf';
-  $('exportHint').textContent = pdf
-    ? 'Ganze Seiten als PDF – in GoodNotes importieren, darunter weiterschreiben. Der Text bleibt in GoodNotes durchsuchbar.'
-    : 'Ein Bild pro Seite, mit Papier.';
-  $('crop').closest('label')!.hidden = pdf;
 
   $('empty').hidden = raw.length > 0;
   $('styleNote').hidden = !style;
@@ -219,7 +209,7 @@ function preview() {
   // Paper underneath, ink on top as its own transparent layer.
   box.replaceChildren(...canvases.map((ink, i) => {
     const sheet = document.createElement('div');
-    sheet.className = paper.background === 'transparent' ? 'sheet clear' : 'sheet';
+    sheet.className = paper.background === 'transparent' ? 'page-view clear' : 'page-view';
     sheet.append(drawPage({ glyphs: [], connectors: [], missing: [], lines: [] }, paper, () => { throw new Error('no glyphs'); }), ink);
     // As an image the ink can be long-pressed → Kopieren, or dragged into GoodNotes, on the iPad.
     toPng(ink).then((b) => {
@@ -242,7 +232,7 @@ document.querySelectorAll('#write input, #write textarea').forEach((el) => el.ad
 }));
 $('optimize').addEventListener('change', rebuild); // on release: rebuilding the review grid is not instant
 // Button groups that write into a hidden input: [data attribute, input id]
-const SEGS = [['ink', 'ink'], ['bg', 'background'], ['format', 'page'], ['export', 'exportAs']] as const;
+const SEGS = [['ink', 'ink'], ['bg', 'background'], ['format', 'page']] as const;
 for (const [attr, id] of SEGS) {
   document.querySelectorAll<HTMLButtonElement>(`[data-${attr}]`).forEach((b) => b.onclick = () => {
     const rule = ruleAt();
@@ -258,12 +248,10 @@ $('share').onclick = async () => {
   if (!raw.length) return toast('Erst eine Handschrift auswählen oder anlegen.');
   try {
     if (!ready) {
-      const { pages, canvases } = renderAll(EXPORT_PX_PER_MM, 'page');
+      const { canvases } = renderAll(EXPORT_PX_PER_MM, 'page');
       const pngs = await Promise.all(canvases.map(toPng));
       const { w, h } = pageSize();
-      ready = exportAs() === 'pdf'
-        ? [new File([await toPdf(pngs, w, h, pages.map((p) => p.lines))], 'handschrift.pdf', { type: 'application/pdf' })]
-        : asFiles(pngs);
+      ready = [new File([await toPdf(pngs, w, h)], 'handschrift.pdf', { type: 'application/pdf' })];
     }
     await shareFiles(ready);
     ready = null;
@@ -284,7 +272,7 @@ $('copy').onclick = () => {
     return toPng(canvases[0]);
   });
   copyPng(blob).then(
-    () => toast(more ? 'Seite 1 kopiert – für längere Texte „Teilen“ nutzen.' : 'Kopiert – in GoodNotes tippen → Einsetzen.'),
+    () => toast(more ? 'Seite 1 kopiert – für längere Texte „Als PDF teilen“ nutzen.' : 'Kopiert – in GoodNotes auf die Seite tippen → Einsetzen.'),
     (e) => toast(`Kopieren nicht möglich: ${e.message}`),
   );
 };
@@ -339,8 +327,8 @@ function renderStyle() {
   r.hidden = !style;
   $('styleReset').hidden = !style;
   if (style) {
-    r.textContent = `Gelernt für „${active}“ aus ${style.lines} Zeilen: Schriftgröße ${style.xh.toFixed(1)} mm, Zeilenabstand ${style.lineH.toFixed(1)} mm, `
-      + `Wortabstand ${style.wordGap.toFixed(2)} × und Buchstabenabstand ${style.letterGap.toFixed(2)} × x-Höhe.`;
+    r.textContent = `Gelernt für „${active}“ aus ${style.lines} Zeilen: Schriftgröße ${style.xh.toFixed(1)} mm, Zeilenabstand ${style.lineH.toFixed(1)} mm`
+      + (style.wordGap && style.letterGap ? `, Wortabstand ${style.wordGap.toFixed(2)} × und Buchstabenabstand ${style.letterGap.toFixed(2)} × x-Höhe.` : '.');
   }
 }
 
@@ -354,20 +342,41 @@ $<HTMLInputElement>('notes').onchange = async (ev) => {
     for (const file of input.files ?? []) {
       for await (const { img, pxPerMm } of pagesOf(file)) lines.push(...measureLines(img, pxPerMm, page++));
     }
-  } catch (e) { toast(`Konnte nicht gelesen werden: ${(e as Error).message}`); }
+  } catch (e) { input.value = ''; return toast(`Konnte nicht gelesen werden: ${(e as Error).message}`); }
   input.value = '';
   const found = summarize(lines);
-  if (!found) { toast('Zu wenig erkennbarer Text – bitte mehr oder größere Seiten wählen.'); return; }
+  if (!found) {
+    return toast(lines.length ? `Nur ${lines.length} Textzeilen erkannt – bitte Seiten mit mehr Fließtext wählen.` : 'Keine Schrift erkannt – bitte beschriebene Seiten wählen.');
+  }
+  // Measure our own rendering at known settings the same way; the ratios cancel what the measurement adds (stroke width, rounding).
+  const ref = probeStyle();
+  if (ref) {
+    found.xh *= PROBE_XH / ref.xh;
+    if (found.wordGap && ref.wordGap) found.wordGap *= DEFAULT_WORD_GAP / ref.wordGap;
+    if (found.letterGap && ref.letterGap) found.letterGap *= DEFAULT_LETTER_GAP / ref.letterGap;
+  }
   style = found;
   localStorage.setItem(`style:${active}`, JSON.stringify(found));
   // Measured size and spacing go straight into the sliders; they stay adjustable.
   $<HTMLInputElement>('xh').value = String(Math.round(found.xh * 10) / 10);
-  $<HTMLInputElement>('lineH').value = String(Math.round(found.lineH * 2) / 2);
+  $<HTMLInputElement>('lineH').value = String(Math.round(found.lineH * 10) / 10);
   for (const id of ['xh', 'lineH']) $<HTMLInputElement>(id).value = String(n(id));
   renderStyle();
   schedule();
-  toast('Schreibstil übernommen.');
+  toast(found.wordGap ? 'Schreibstil übernommen.' : 'Größe und Zeilenabstand übernommen – die Abstände waren nicht messbar.');
 };
+
+const PROBE_XH = 3;
+const PROBE = 'Die Zellatmung findet in den Mitochondrien statt. Dabei wird Traubenzucker mit Sauerstoff zu Wasser und Kohlenstoffdioxid abgebaut, die Zelle gewinnt Energie. ';
+function probeStyle() {
+  const s: Settings = {
+    xh: PROBE_XH, lineH: 10, margin: 15, pageW: 210, pageH: 297, hasty: n('hasty'), seed: 1, letterGap: DEFAULT_LETTER_GAP, wordGap: DEFAULT_WORD_GAP,
+  };
+  const text = [...PROBE.repeat(8)].filter((ch) => ch === ' ' || lib.has(ch)).join('');
+  const o: DrawOpts = { pxPerMm: 10, ink: '#000', weight: 0, background: 'blank', pageW: 210, pageH: 297, lineH: 10, margin: 15, crop: false };
+  const c = drawPage(layout(text, lib, s).pages[0], o, (src) => bySrc.get(src)!);
+  return summarize(measureLines(c.getContext('2d')!.getImageData(0, 0, c.width, c.height), 10));
+}
 $('styleReset').onclick = () => { localStorage.removeItem(`style:${active}`); style = null; renderStyle(); schedule(); };
 
 $<HTMLInputElement>('restore').onchange = async (ev) => {

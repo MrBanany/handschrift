@@ -93,15 +93,17 @@ export function optimize(vs: Variant[], strength = 1): Tuned {
 
 export type Decision = 'accept' | 'reject';
 
-/** Characters where the strong pass visibly changes something, to be reviewed side by side. */
+/** Characters where the strong pass visibly changes something, biggest change first, to be reviewed side by side. */
 export function reviewKeys(raw: Variant[], strong: Tuned): string[] {
   const t = new Map(strong.variants.map((v) => [v.src, v]));
-  const keys = new Set<string>();
+  const impact = new Map<string, number>();
   for (const v of raw) {
     const s = t.get(v.src);
-    if (!s || Math.abs(s.baseline - v.baseline) > 2 || Math.abs((s.scale ?? 1) - 1) > 0.04) keys.add(v.key);
+    // Shift in x-heights or relative size change; a dropped variant counts most.
+    const d = s ? Math.max(Math.abs(s.baseline - v.baseline) / xhPx, Math.abs((s.scale ?? 1) - 1)) : 1;
+    if (d > 0.04) impact.set(v.key, Math.max(impact.get(v.key) ?? 0, d));
   }
-  return [...keys];
+  return [...impact.keys()].sort((a, b) => impact.get(b)! - impact.get(a)!);
 }
 
 /** Per character: approved → strong, rejected → original, not reviewed → automatic. */

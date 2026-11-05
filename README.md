@@ -13,13 +13,15 @@ Deine Handschrift-Proben liegen nur im Browser-Speicher deines Geräts und komme
    Mehrere Handschriften sind möglich; unter **Schreiben** umschalten.
 4. Reiter **Zeichen**: Kontrolle. Schlechte Varianten antippen und löschen.
 5. **Schreiben**: Text einfügen. Dann
-   - *Teilen* → PDF-Seiten mit Linien in GoodNotes importieren und darunter weiterschreiben (der Text bleibt durchsuchbar), oder
-   - *Schrift kopieren* bzw. die Schrift in der Vorschau lange drücken → in GoodNotes einsetzen (nur die Schrift, ohne Papier).
-     In Split View lässt sie sich auch direkt hinüberziehen.
+   - *Handschrift kopieren* bzw. die Schrift in der Vorschau lange drücken → in GoodNotes einsetzen (nur die Schrift, ohne Papier).
+     Dort mit dem Lasso verschieben, größer/kleiner ziehen oder zuschneiden. In Split View lässt sie sich auch direkt hinüberziehen.
+     Echte, radierbare GoodNotes-Tinte kann keine andere App erzeugen (GoodNotes' Format ist geschlossen); es ist ein Bild.
+   - *Als PDF teilen* → PDF-Seiten mit Linien in GoodNotes importieren und darunter weiterschreiben.
    *Linien* (Eng/Mittel/Weit) stellt Zeilenabstand und passende Schriftgröße ein.
    *Optimieren* ist immer mindestens leicht an: Buchstaben sitzen auf der Grundlinie, kleine Buchstaben werden gleich hoch,
    Ausreißer und zu weit geschriebene Paare fallen weg, Buchstabenabstände kommen aus deinen Proben.
    Stärker geht's über den Regler oder einzeln im Reiter *Zeichen* → *Optimierung prüfen*.
+   (Die Prüfung zeigt die Zeichen mit der größten Änderung zuerst.)
 6. Ab und zu **Sichern** (Backup-Datei), z. B. für ein neues Gerät.
 
 ## Entwickeln

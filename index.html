@@ -32,6 +32,11 @@
         </label>
         <textarea id="text" rows="6" placeholder="Text eintippen oder einfügen"></textarea>
         <p id="missing" class="note warn" hidden></p>
+        <div class="actions">
+          <button id="copy" class="primary">Handschrift kopieren</button>
+          <button id="share">Als PDF teilen</button>
+        </div>
+        <p class="muted small hint">Kopieren bringt nur die Schrift, ohne Papier – in GoodNotes einsetzen, dann mit dem Lasso verschieben oder größer ziehen. Das PDF enthält ganze Seiten mit Linien.</p>
 
         <details id="opts" class="group-box">
           <summary>Aussehen</summary>
@@ -83,24 +88,9 @@
             <label class="field"><span>Zeilenabstand</span><input id="lineH" type="range" min="6" max="30" step="0.1" value="8.7" /><output data-for="lineH"></output></label>
             <label class="field"><span>Strichstärke</span><input id="weight" type="range" min="0" max="3" step="0.25" value="0" /><output data-for="weight"></output></label>
             <label class="field"><span>Ränder</span><input id="margin" type="range" min="0" max="40" step="1" value="15" /><output data-for="margin"></output></label>
-            <label class="check"><input id="crop" type="checkbox" /> <span>Export auf Text zuschneiden</span></label>
             <div class="field"><span>Variante</span><span class="inline"><input id="seed" type="number" step="1" value="1" /><button id="dice" type="button">Neu mischen</button></span></div>
           </details>
         </details>
-
-        <div class="field export">
-          <span>Exportieren als</span>
-          <span class="seg small">
-            <button type="button" data-export="pdf">PDF-Seiten</button>
-            <button type="button" data-export="png">Bild</button>
-          </span>
-          <input id="exportAs" type="hidden" value="pdf" />
-        </div>
-        <p id="exportHint" class="muted small hint"></p>
-        <div class="actions">
-          <button id="share" class="primary">Teilen</button>
-          <button id="copy">Schrift kopieren</button>
-        </div>
       </aside>
 
       <div class="stage">
@@ -112,7 +102,7 @@
             <button data-goto="manage">Eigene anlegen</button>
           </div>
         </div>
-        <p id="previewHint" class="muted small preview-hint">Die Schrift auf der Seite lange drücken → <b>Kopieren</b>, oder in Split View direkt in GoodNotes ziehen. Sie kommt ohne Papier an.</p>
+        <p id="previewHint" class="muted small preview-hint">Tipp: Die Schrift auf der Seite lange drücken → <b>Kopieren</b>, oder in Split View direkt in GoodNotes ziehen.</p>
         <div id="preview" class="preview"></div>
       </div>
     </section>

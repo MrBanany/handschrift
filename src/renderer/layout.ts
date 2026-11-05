@@ -2,6 +2,9 @@ import { connectionModel, makeConnector, type Connector, type Library } from '..
 import type { Anchor, GlyphMeta } from '../glyphstore/types';
 import { MM, XH } from '../template/layout';
 
+/** Gap between words (x-heights, ink to ink) when none was learned. */
+export const DEFAULT_WORD_GAP = 1.1;
+
 export interface Settings {
   xh: number; // x-height on the page (mm)
   lineH: number; // line spacing (mm)
@@ -17,8 +20,8 @@ export interface Settings {
 export type Mat = [number, number, number, number, number, number];
 export interface Placed { g: GlyphMeta; m: Mat }
 export interface Missing { ch: string; x: number; y: number; w: number; h: number }
-/** A written line as plain text, for an invisible, searchable text layer (mm, y = baseline). */
-export interface Line { text: string; x: number; y: number; w: number }
+/** A written line as plain text (alt text of the preview). */
+export interface Line { text: string }
 export interface Page { glyphs: Placed[]; connectors: Connector[]; missing: Missing[]; lines: Line[] }
 
 export function mulberry32(seed: number) {
@@ -199,8 +202,7 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
       if (lineX > lineStart && lineX - wd.inkL + wd.inkR > s.pageW - s.margin) newLine();
       const ox = lineX - wd.inkL;
       if (rec) rec.text += ` ${word}`;
-      else page!.lines.push(rec = { text: word, x: lineX, y, w: 0 });
-      rec.w = ox + wd.inkR - rec.x;
+      else page!.lines.push(rec = { text: word });
       let prevM: Mat | null = null, prevG: GlyphMeta | null = null;
       for (const it of wd.items) {
         const m: Mat = [...it.m];
@@ -218,7 +220,7 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
       }
       for (const ms of wd.missing) page!.missing.push({ ...ms, x: ms.x + ox, y: ms.y + y + drift(ms.x + ox) });
       const sentenceEnd = /[.!?]["“”»)]*$/u.test(word) ? 0.3 * xh : 0; // people leave a bit more room after a full stop
-      lineX = ox + wd.inkR + sentenceEnd + Math.max(0.6 * xh, ((s.wordGap ?? 1.1) - 0.15 * h) * xh * (1 + gauss() * 0.1 * sig));
+      lineX = ox + wd.inkR + sentenceEnd + Math.max(0.6 * xh, ((s.wordGap ?? DEFAULT_WORD_GAP) - 0.15 * h) * xh * (1 + gauss() * 0.1 * sig));
     }
   });
   return { pages, missing: missingSet };

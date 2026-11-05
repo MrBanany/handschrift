@@ -15,7 +15,9 @@ Deine Handschrift-Proben liegen nur im Browser-Speicher deines Geräts und komme
    Pfeile und Symbole (→ ⇒ ≈ ✓ ² …) stehen auf der letzten Seite; *nur Pfeile & Symbole* lädt sie einzeln.
    Mit demselben Namen importiert, kommen sie zu den vorhandenen Zeichen dazu.
 4. Reiter **Zeichen**: Kontrolle. Schlechte Varianten antippen und löschen.
-5. **Schreiben**: Text einfügen. Dann
+5. **Schreiben**: Text einfügen. KI-Antworten werden automatisch umgewandelt (Markdown, Formeln, Pfeile, Chemie).
+   Strukturformeln: `[[Ethanol]]` (Name) oder `[[CCO]]` (SMILES), z. B. die KI bitten:
+   „Gib Strukturformeln als SMILES in doppelten eckigen Klammern an.“ Dann
    - *Handschrift kopieren* bzw. die Schrift in der Vorschau lange drücken → in GoodNotes einsetzen (nur die Schrift, ohne Papier).
      Dort mit dem Lasso verschieben, größer/kleiner ziehen oder zuschneiden. In Split View lässt sie sich auch direkt hinüberziehen.
      Echte, radierbare GoodNotes-Tinte kann keine andere App erzeugen (GoodNotes' Format ist geschlossen); es ist ein Bild.

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { connectionModel } from '../src/connectors/connect';
 import type { GlyphMeta } from '../src/glyphstore/types';
 import { layout, segment, type Settings } from '../src/renderer/layout';
-import { EMPH, HEAD, MARK } from '../src/renderer/clean';
+import { EMPH, HEAD, MARK, STRUCT } from '../src/renderer/clean';
 import { extractPage } from '../src/segmentation/extract';
 import { readPageCode, register, type Affine } from '../src/segmentation/register';
 import { PDFDocument } from 'pdf-lib';
@@ -190,6 +190,18 @@ describe('layout', () => {
     const [head, body] = [pages[0].glyphs[0], pages[0].glyphs[5]];
     expect(head.m[3] / body.m[3]).toBeGreaterThan(1.2);
     expect(pages[0].lines.map((l) => l.text)).toEqual(['titel', 'text']);
+  });
+
+  it('draws a structural formula with pen-stroke bonds and letters, then continues below it', () => {
+    const plain = new Map([...'abcdefghijklmnopqrstuvwxyzCHO'].map((k) => [k, [{ ...glyph(k, 0), entry: null, exit: null }]]));
+    const { pages } = layout(`eins\n${STRUCT[0]}Ethanol${STRUCT[1]}\nzwei`, plain, { ...S, hasty: 0 });
+    const pg = pages[0];
+    expect(pg.connectors).toHaveLength(8); // 8 single bonds
+    expect(pg.glyphs.length).toBe(4 + 9 + 4); // eins, C C O + 6 H, zwei
+    expect(pg.lines.map((l) => l.text)).toEqual(['eins', 'Ethanol', 'zwei']);
+    const bottom = Math.max(...pg.connectors.flatMap((c) => c.p.map((q) => q[1])));
+    expect(pg.glyphs.at(-1)!.m[5]).toBeGreaterThan(bottom + S.xh);
+    expect(layout(`${STRUCT[0]}Quatsch${STRUCT[1]}`, plain, S).pages[0].lines[0].text).toBe('Quatsch');
   });
 
   it('puts one highlighter stroke behind marked words, centred on the x-height', () => {

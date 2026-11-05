@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EMPH, HEAD, MARK, clean } from '../src/renderer/clean';
+import { EMPH, HEAD, MARK, STRUCT, clean } from '../src/renderer/clean';
 import { chem } from '../src/renderer/latex';
 
 describe('clean pasted AI text', () => {
@@ -8,6 +8,11 @@ describe('clean pasted AI text', () => {
     const md = '## Ergebnis\n\n**Photosynthese** → *Glucose* 🌱\n\n- Licht -> Energie\n* `CO2` + Wasser\n\n\n[Quelle](https://x.de)';
     const [b, e] = EMPH; // headings and bold stay marked, the layout underlines them
     expect(clean(md, has)).toBe(`${HEAD}${b}Ergebnis${e}\n\n${b}Photosynthese${e} -> Glucose\n\n- Licht -> Energie\n- CO2 + Wasser\n\nQuelle`);
+  });
+  it('puts [[structures]] on their own line and leaves SMILES untouched', () => {
+    const [a, z] = STRUCT;
+    expect(clean('Ethanol: [[Ethanol]] brennt.', has)).toBe(`Ethanol:\n${a}Ethanol${z}\nbrennt.`);
+    expect(clean('[[CC(=O)O]] und [[C/C=C\\C]]', has)).toBe(`${a}CC(=O)O${z}\nund\n${a}C/C=C\\C${z}`);
   });
   it('keeps arrows the handwriting has', () => {
     expect(clean('a → b', (c) => c !== '>' )).toBe('a → b');

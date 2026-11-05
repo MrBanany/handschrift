@@ -11,7 +11,8 @@
   },
   "dependencies": {
     "pdf-lib": "^1.17.1",
-    "pdfjs-dist": "^6.5.438"
+    "pdfjs-dist": "^6.5.438",
+    "smiles-drawer": "2.4.1"
   },
   "devDependencies": {
     "typescript": "^7.0.2",

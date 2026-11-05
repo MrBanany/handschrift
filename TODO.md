@@ -17,6 +17,7 @@ Stand: 5. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
 
 ## Erledigt am 5. November 2026
 
+- [x] **Chemie-Strukturformeln**: `[[Ethanol]]` (Name aus einer Liste von gut 60 Schulmolekülen) oder `[[CCO]]` (SMILES) zeichnet das Molekül auf eigenen Zeilen. Die Bindungen sind Stiftstriche, die Atome stehen in der eigenen Handschrift. Kleine Ketten ohne Ring kommen als Valenzstrichformel mit allen H, Ringe und größere Moleküle als Skelettformel. `[[Essigsäure skelett]]` oder `[[Benzol voll]]` wählt die Form selbst. Unbekannte Namen werden einfach als Text geschrieben. Die Bibliothek smiles-drawer wird nur für die Lage der Atome genutzt.
 - [x] **Überschriften** (`## …` aus KI-Antworten) werden 1,3× größer geschrieben und unterstrichen.
 - [x] **KI-Formeln**: LaTeX (`\frac`, `\sqrt`, `\cdot`, `\pm`, `\approx`, `^\circ`, griechische Buchstaben, Pfeile) und Chemie (`\ce{…}`, `H2SO4`, `6CO2`, `⇌`) werden in schreibbare Zeichen umgewandelt (`src/renderer/latex.ts`). „A4“ oder „MP3“ bleiben unverändert.
 - [x] **Mehr Abwechslung**: Buchstabenbreite schwankt leicht, die Größe wandert langsam von Zeile zu Zeile, zum Seitenende wird die Schrift minimal lockerer.
@@ -53,7 +54,7 @@ Stand: 5. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
 3. [ ] **Eigene Schriftart erzeugen** (Idee aus dieser Runde): aus der Handschrift eine Schrift (TTF) bauen und per Profil auf dem iPad installieren. Dann ist Text in GoodNotes echter Text in eigener Handschrift-Optik (mit der Tastatur änderbar, aber nicht radierbar und ohne Varianten). Großer Aufwand.
 4. [ ] **Kurzbefehl „In Handschrift“**: iOS-Kurzbefehl öffnet die App mit `?text=…` vorbefüllt. Achtung: Links öffnen Safari, nicht die Home-Bildschirm-App, und die beiden haben getrennten Speicher (Handschrift wäre in Safari nicht da). Erst klären, ob das trotzdem lohnt.
 5. [ ] **Mathe**: Buchstaben als Hochzahl (xⁿ), Minus in Hochzahlen (10⁻³), echte Bruchstriche (Zähler über Nenner statt a/b). (Ziffern hoch/tief und LaTeX aus KI-Antworten sind erledigt.)
-6. [ ] **Chemie-Strukturformeln** (Wunsch): Skelettformeln zeichnen (z. B. aus SMILES). Großer Aufwand, eigener Baustein.
+6. [x] **Chemie-Strukturformeln** – erledigt. Offen: mehrere Moleküle nebeneinander (Reaktionsgleichung mit Pfeil), Keilstriche (Stereo), Ladungen, eine Strukturformel mitten im Satz.
 7. [ ] **Lernzettel-Layouts**: Cornell-Notizen, Karteikarten (A6/A7), später Mindmap (niedrige Priorität).
 8. [ ] **Stifte**: Kuli, Füller (Strichbreite schwankt), Bleistift-Körnung; mehrere Farben (Überschrift blau, Text schwarz).
 9. [ ] **Natürlicher**: eigene Wörterliste (Fachwörter) als Vorlage-Zusatzseite. (Lockerer zum Seitenende ist erledigt.)
@@ -72,3 +73,4 @@ Hinweis aus der Recherche: Manche Schulen haben Regeln zu „generierter Handsch
 - Ausfüllen in der App: `src/import/pencil.ts`. Die Striche liegen nur im Speicher (bis die App geschlossen wird); beim Übernehmen wird jede beschriebene Seite als Vorlage gerendert, die Striche darauf gemalt und durch dieselbe Erkennung wie ein PDF geschickt (`importInto` in main.ts).
 - Textmarker: `clean()` setzt `MARK`-Zeichen, `layout()` legt `page.marks` an, `drawPage()` malt sie vor der Tinte.
 - Hervorhebung: `clean()` markiert Fett/Überschriften mit `EMPH` (Steuerzeichen /), `layout()` zeichnet den Unterstrich als `Connector`.
+- Strukturformeln: clean() schützt [[…]] zuerst (SMILES enthält = # ( ) / \) und stellt es als STRUCT-Zeile wieder her; src/renderer/structure.ts holt mit dem Preprocessor von smiles-drawer die 2-D-Lage (ohne DOM), layout() zeichnet in drawMolecule(). Neue Namen in NAMES (structure.ts) ergänzen.

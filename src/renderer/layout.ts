@@ -1,7 +1,8 @@
 import { connectionModel, makeConnector, type Connector, type Library } from '../connectors/connect';
 import type { Anchor, GlyphMeta } from '../glyphstore/types';
 import { MM, XH } from '../template/layout';
-import { EMPH, HEAD, MARK } from './clean';
+import { EMPH, HEAD, MARK, STRUCT } from './clean';
+import { molecule, type Molecule } from './structure';
 
 /** Gap between words (x-heights, ink to ink) when none was learned. */
 export const DEFAULT_WORD_GAP = 1.1;
@@ -221,9 +222,78 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
     mark = null;
   }
 
+  /** A slightly bowed, wobbly pen stroke from (x0, y0) to (x1, y1) in mm. */
+  const stroke = (x0: number, y0: number, x1: number, y1: number) => {
+    const j = () => gauss() * 0.03 * xh;
+    x0 += j(); y0 += j(); x1 += j(); y1 += j();
+    const dx = x1 - x0, dy = y1 - y0, bow = gauss() * 0.025;
+    const nx = -dy * bow, ny = dx * bow;
+    page!.connectors.push({ p: [[x0, y0], [x0 + dx / 3 + nx, y0 + dy / 3 + ny], [x0 + (2 * dx) / 3 + nx, y0 + (2 * dy) / 3 + ny], [x1, y1]], w0: penW, w1: penW });
+  };
+
+  /** Structural formula: bonds as pen strokes, atom letters in the writer's hand. Takes as many lines as it needs. */
+  function drawMolecule(mol: Molecule, spec: string) {
+    const xs = mol.atoms.map((a) => a.x), ys = mol.atoms.map((a) => a.y);
+    const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+    const full = mol.atoms.some((a) => a.element === 'H'); // every H written: needs longer bonds to fit the letters
+    const B = Math.min((full ? 3.2 : 2.6) * xh, (s.pageW - 2 * s.margin - 2 * xh) / Math.max(1, maxX - minX)); // bond length (mm)
+    // lowest ink below this line's baseline, then as many lines as it reaches down into (next text needs ~1.6 xh above it)
+    const bottom = Math.max(...mol.atoms.map((a) => (a.y - minY) * B + (a.label ? 0.7 * xh : 0))) - 0.6 * xh;
+    const extra = Math.max(0, Math.ceil((bottom + 1.6 * xh) / s.lineH) - 1);
+    if (y + extra * s.lineH > s.pageH - s.margin && y > s.margin + s.lineH) newPage();
+    const ox = lineStart + xh - minX * B, oy = y - 0.6 * xh - minY * B;
+    const P = mol.atoms.map((a) => [ox + a.x * B, oy + a.y * B] as const);
+    for (const b of mol.bonds) {
+      let [x0, y0] = P[b.a], [x1, y1] = P[b.b];
+      const len = Math.hypot(x1 - x0, y1 - y0) || 1, ux = (x1 - x0) / len, uy = (y1 - y0) / len;
+      // bonds stop at an oval around each letter (capitals are taller than wide)
+      const gap = (i: number) => (mol.atoms[i].label ? xh / Math.hypot(ux / 0.65, uy / 1.05) : 0);
+      x0 += ux * gap(b.a); y0 += uy * gap(b.a); x1 -= ux * gap(b.b); y1 -= uy * gap(b.b);
+      const d = 0.13 * B, nx = -uy * d, ny = ux * d;
+      if (b.order === 2 && b.inner) {
+        // ring double bond: the second line sits inside the ring and is a bit shorter
+        const cx = ox + b.inner.x * B, cy = oy + b.inner.y * B, side = Math.sign(nx * (cx - x0) + ny * (cy - y0)) || 1;
+        stroke(x0, y0, x1, y1);
+        stroke(x0 + ux * 0.15 * len + side * nx * 1.4, y0 + uy * 0.15 * len + side * ny * 1.4, x1 - ux * 0.15 * len + side * nx * 1.4, y1 - uy * 0.15 * len + side * ny * 1.4);
+      } else if (b.order === 2) {
+        stroke(x0 + nx, y0 + ny, x1 + nx, y1 + ny); stroke(x0 - nx, y0 - ny, x1 - nx, y1 - ny);
+      } else if (b.order === 3) {
+        stroke(x0, y0, x1, y1);
+        stroke(x0 + nx * 1.4, y0 + ny * 1.4, x1 + nx * 1.4, y1 + ny * 1.4); stroke(x0 - nx * 1.4, y0 - ny * 1.4, x1 - nx * 1.4, y1 - ny * 1.4);
+      } else stroke(x0, y0, x1, y1);
+    }
+    for (const r of mol.rings) {
+      // aromatic ring: a circle in four pieces, like drawn in one go
+      const cx = ox + r.x * B, cy = oy + r.y * B, R = r.r * B * (1 + gauss() * 0.04), k = 0.5523 * R, t0 = rand() * Math.PI * 2;
+      for (let q = 0; q < 4; q++) {
+        const a0 = t0 + (q * Math.PI) / 2, a1 = a0 + Math.PI / 2;
+        const p0: [number, number] = [cx + R * Math.cos(a0), cy + R * Math.sin(a0)], p3: [number, number] = [cx + R * Math.cos(a1), cy + R * Math.sin(a1)];
+        page!.connectors.push({ p: [p0, [p0[0] - k * Math.sin(a0), p0[1] + k * Math.cos(a0)], [p3[0] + k * Math.sin(a1), p3[1] - k * Math.cos(a1)], p3], w0: penW, w1: penW });
+      }
+    }
+    mol.atoms.forEach((a, i) => {
+      if (!a.label) return;
+      const wd = layoutWord(a.label);
+      // the element letter sits on the atom; H's run off to the side smiles-drawer chose
+      const half = Math.min(0.4 * xh, (wd.inkR - wd.inkL) / 2);
+      const dx = a.dir === 'right' && a.label.length > a.element.length ? P[i][0] - half - wd.inkL
+        : a.dir === 'left' && a.label.length > a.element.length ? P[i][0] + half - wd.inkR
+        : P[i][0] - (wd.inkL + wd.inkR) / 2;
+      const dy = P[i][1] + 0.65 * xh; // capitals are about 1.3 x-heights tall: their middle on the atom
+      for (const it of wd.items) { const m: Mat = [...it.m]; m[4] += dx; m[5] += dy; page!.glyphs.push({ g: it.g, m }); }
+      for (const ms of wd.missing) page!.missing.push({ ...ms, x: ms.x + dx, y: ms.y + dy });
+    });
+    page!.lines.push({ text: spec });
+    y += extra * s.lineH;
+  }
+
   newLine(true);
   text.split('\n').forEach((line, li) => {
     if (li > 0) newLine();
+    const st = line.startsWith(STRUCT[0]) && line.endsWith(STRUCT[1]) ? line.slice(1, -1) : null;
+    const mol = st === null ? null : molecule(st);
+    if (mol) { drawMolecule(mol, st!); return; }
+    if (st !== null) line = st; // unknown name or broken SMILES: just write it
     let emph = false, marking = false;
     const size = line.startsWith(HEAD) ? 1.3 : 1; // headings are written a bit bigger
     for (const token of line.split(/\s+/).filter(Boolean)) {

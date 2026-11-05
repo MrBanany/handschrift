@@ -2,6 +2,7 @@ import './style.css';
 import { DEFAULT_SET, deleteSet, exportBackup, importBackup, listSets, loadSet, remove, saveMany } from './glyphstore/db';
 import { DEFAULT_LETTER_GAP, merge, optimize, reviewKeys, type Decision, type Tuned } from './glyphstore/optimize';
 import { SAMPLE_SET, buildSampleSet } from './glyphstore/sample';
+import { symbolVariants } from './glyphstore/symbols';
 import type { Variant } from './glyphstore/types';
 import { copyPng, download, shareFiles, toPng } from './export/png';
 import { toPdf } from './export/pdf';
@@ -46,10 +47,12 @@ const decisions = (): Record<string, Decision> => JSON.parse(localStorage.getIte
 function rebuild() {
   strong = optimize(raw, 1.5);
   tuned = merge(raw, optimize(raw, n('optimize')), strong, decisions());
-  for (const v of tuned.variants) v.prof = profile(v.alpha, v.w, v.h, v.baseline);
-  bySrc = new Map(tuned.variants.map((v) => [v.src, v]));
+  // Symbols the set lacks (arrows, +, =, ✓ …) are drawn as pen strokes, so pasted AI answers come out complete.
+  const all = [...tuned.variants, ...symbolVariants(tuned.variants)];
+  for (const v of all) v.prof = profile(v.alpha, v.w, v.h, v.baseline);
+  bySrc = new Map(all.map((v) => [v.src, v]));
   lib = new Map();
-  for (const v of tuned.variants) lib.set(v.key, [...(lib.get(v.key) ?? []), v]);
+  for (const v of all) lib.set(v.key, [...(lib.get(v.key) ?? []), v]);
   clearMaskCache(); // box ids repeat across sets
   schedule();
   renderGrid();

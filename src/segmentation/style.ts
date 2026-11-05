@@ -3,7 +3,7 @@ import { lum, type Raster } from './register';
 /** One text line measured on a page (mm). */
 export interface LineMeasure { page: number; baseline: number; xh: number; gaps: number[] }
 /** Writing habits learned from free text: sizes in mm, gaps in x-heights (left out when they can't be told apart). */
-export interface TextStyle { xh: number; lineH: number; wordGap?: number; letterGap?: number; lines: number }
+export interface TextStyle { xh: number; lineH: number; wordGap?: number; letterGap?: number; lines: number; pages?: number }
 
 const median = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[s.length >> 1] : NaN; };
 

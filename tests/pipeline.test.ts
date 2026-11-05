@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { connectionModel } from '../src/connectors/connect';
 import type { GlyphMeta } from '../src/glyphstore/types';
 import { layout, segment, type Settings } from '../src/renderer/layout';
-import { EMPH, MARK } from '../src/renderer/clean';
+import { EMPH, HEAD, MARK } from '../src/renderer/clean';
 import { extractPage } from '../src/segmentation/extract';
 import { readPageCode, register, type Affine } from '../src/segmentation/register';
 import { PDFDocument } from 'pdf-lib';
@@ -182,6 +182,14 @@ describe('layout', () => {
     expect(u.p[3][0]).toBeLessThan(ende.m[4]);
     expect(u.p[0][1]).toBeGreaterThan(S.margin + S.lineH);
     expect(pages[0].lines[0].text).toBe('hallo welt ende');
+  });
+
+  it('writes heading lines bigger', () => {
+    const plain = new Map([...'abcdefghijklmnopqrstuvwxyz'].map((k) => [k, [{ ...glyph(k, 0), entry: null, exit: null }]]));
+    const { pages } = layout(`${HEAD}titel\ntext`, plain, { ...S, hasty: 0 });
+    const [head, body] = [pages[0].glyphs[0], pages[0].glyphs[5]];
+    expect(head.m[3] / body.m[3]).toBeGreaterThan(1.2);
+    expect(pages[0].lines.map((l) => l.text)).toEqual(['titel', 'text']);
   });
 
   it('puts one highlighter stroke behind marked words, centred on the x-height', () => {

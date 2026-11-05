@@ -1,7 +1,7 @@
 import { connectionModel, makeConnector, type Connector, type Library } from '../connectors/connect';
 import type { Anchor, GlyphMeta } from '../glyphstore/types';
 import { MM, XH } from '../template/layout';
-import { EMPH, MARK } from './clean';
+import { EMPH, HEAD, MARK } from './clean';
 
 /** Gap between words (x-heights, ink to ink) when none was learned. */
 export const DEFAULT_WORD_GAP = 1.1;
@@ -112,7 +112,8 @@ function opticalShift(pg: GlyphMeta, pm: Mat, g: GlyphMeta, m: Mat): number | nu
 export function layout(text: string, lib: Library, s: Settings): { pages: Page[]; missing: Set<string> } {
   const rand = mulberry32(s.seed);
   const gauss = () => Math.sqrt(-2 * Math.log(rand() + 1e-12)) * Math.cos(2 * Math.PI * rand());
-  const h = s.hasty, sig = 0.6 + 1.4 * h, xh = s.xh;
+  const h = s.hasty, sig0 = 0.6 + 1.4 * h, xh = s.xh;
+  let sig = sig0, lineSize = 1; // both change per line, see newLine
   const s0 = xh / (XH * MM); // glyph px -> mm
   const pConnect = connectionModel(lib);
   const lastUsed = new Map<string, string>();
@@ -127,9 +128,9 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
     return g;
   };
 
-  function layoutWord(word: string) {
+  function layoutWord(word: string, size = 1) {
     const items: WordItem[] = [], missing: Missing[] = [];
-    const wordSize = 1 + gauss() * 0.02 * sig, wordSlant = gauss() * 0.02 * sig + 0.06 * h;
+    const wordSize = size * lineSize + gauss() * 0.02 * sig, wordSlant = gauss() * 0.02 * sig + 0.06 * h;
     let cursor = 0, walk = gauss() * 0.04 * xh * sig;
     let prev: { g: GlyphMeta; m: Mat; right: number; last: string } | null = null;
 
@@ -148,7 +149,8 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
       const rot = gauss() * 0.012 * sig;
       const cs = Math.cos(rot), sn = Math.sin(rot);
       // L = Rotate * Shear * Scale; shear leans the top to the right
-      const a = cs * k, b = sn * k, c = (-sl * cs - sn) * k, d = (-sl * sn + cs) * k;
+      const kx = k * (1 + gauss() * 0.03 * sig); // a letter is never exactly as wide as last time
+      const a = cs * kx, b = sn * kx, c = (-sl * cs - sn) * k, d = (-sl * sn + cs) * k;
       walk = 0.55 * walk + gauss() * 0.03 * xh * sig;
       const base: Mat = [a, b, c, d, -c * g.baseline, -d * g.baseline];
       const xs = [[0, 0], [g.w, 0], [0, g.h], [g.w, g.h]].map(([x, y]) => tf(base, x, y)[0]);
@@ -189,6 +191,9 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
     rec = null;
     if (!first) y += s.lineH;
     if (first || y > s.pageH - s.margin) newPage();
+    // Writing gets a little looser towards the end of a page, and its size wanders slowly from line to line.
+    sig = sig0 * (1 + 0.35 * Math.max(0, (y - s.margin) / (s.pageH - 2 * s.margin)));
+    lineSize = 0.7 * lineSize + 0.3 + gauss() * 0.012 * sig;
     lineStart = lineX = s.margin + Math.abs(gauss()) * 0.4 * sig;
     slope = gauss() * 0.006 * sig;
     amp = 0.06 * xh * sig * rand();
@@ -220,8 +225,9 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
   text.split('\n').forEach((line, li) => {
     if (li > 0) newLine();
     let emph = false, marking = false;
+    const size = line.startsWith(HEAD) ? 1.3 : 1; // headings are written a bit bigger
     for (const token of line.split(/\s+/).filter(Boolean)) {
-      const word = token.replace(/[\u0002-\u0005]/g, '');
+      const word = token.replace(/[\u0002-\u0006]/g, '');
       if (token.includes(EMPH[0])) emph = true;
       if (token.includes(MARK[0])) marking = true;
       const close = () => {
@@ -229,7 +235,7 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
         if (token.includes(MARK[1])) { closeMark(); marking = false; }
       };
       if (!word) { close(); continue; }
-      const wd = layoutWord(word);
+      const wd = layoutWord(word, size);
       // lineX is where the next word's ink starts
       if (lineX > lineStart && lineX - wd.inkL + wd.inkR > s.pageW - s.margin) newLine();
       const ox = lineX - wd.inkL;
@@ -255,7 +261,7 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
       if (marking) mark = { x0: mark?.x0 ?? ox + wd.inkL, x1: ox + wd.inkR };
       close();
       const sentenceEnd = /[.!?]["“”»)]*$/u.test(word) ? 0.3 * xh : 0; // people leave a bit more room after a full stop
-      lineX = ox + wd.inkR + sentenceEnd + Math.max(0.6 * xh, ((s.wordGap ?? DEFAULT_WORD_GAP) - 0.15 * h) * xh * (1 + gauss() * 0.1 * sig));
+      lineX = ox + wd.inkR + sentenceEnd + Math.max(0.6 * xh, ((s.wordGap ?? DEFAULT_WORD_GAP) - 0.15 * h) * xh * size * (1 + gauss() * 0.1 * sig));
     }
   });
   closeUnderline(); closeMark();

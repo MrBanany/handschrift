@@ -134,7 +134,9 @@
       <div class="card">
         <h2>Schreibstil aus Notizen lernen</h2>
         <p class="muted">Lade normal geschriebene Seiten hoch (aus GoodNotes als PDF exportiert, oder Fotos/Screenshots). Die App misst daraus Schriftgröße, Zeilenabstand sowie Wort- und Buchstabenabstände und nutzt sie für die aktive Handschrift.</p>
+        <p class="muted small">Wähl ruhig mehrere Seiten oder Dateien auf einmal – je mehr Text, desto natürlicher werden die Abstände.</p>
         <p id="styleResult" class="note info" hidden></p>
+        <div id="styleCompare" class="style-compare" hidden></div>
         <div class="row">
           <label class="button primary">Notizen auswählen<input id="notes" type="file" accept="application/pdf,image/png,image/jpeg" multiple hidden /></label>
           <button id="styleReset" hidden>Gelernten Stil entfernen</button>
@@ -186,6 +188,23 @@
     </div>
   </div>
 
+  <div id="welcome" class="overlay" hidden>
+    <div class="sheet welcome">
+      <h2>Willkommen!</h2>
+      <p>Diese App schreibt getippten Text in <b>deiner eigenen Handschrift</b> – zum Einfügen in GoodNotes. Alles bleibt auf deinem Gerät.</p>
+      <ol class="steps">
+        <li><b>Handschrift einmal anlegen:</b> die Vorlage mit dem Pencil ausfüllen (direkt hier in der App).</li>
+        <li><b>Text eintippen</b> oder eine KI-Antwort einfügen – Formeln, Pfeile und Überschriften werden mit umgewandelt.</li>
+        <li><b>„Handschrift kopieren“</b> und in GoodNotes einsetzen.</li>
+      </ol>
+      <div class="row">
+        <button id="welcomeOwn" class="primary">Meine Handschrift anlegen</button>
+        <button id="welcomeSample">Erst mit Muster ausprobieren</button>
+      </div>
+      <button id="welcomeLater" class="link">Später</button>
+    </div>
+  </div>
+
   <div id="pencil" class="pencil" hidden>
     <header class="pencil-bar">
       <button id="pencilClose">Schließen</button>
@@ -196,7 +215,8 @@
       </span>
       <span class="pencil-nav">
         <button id="pencilUndo">Rückgängig</button>
-        <button id="pencilZoom">Größer</button>
+        <button id="pencilZoom">Kästchen-Ansicht</button>
+        <button id="pencilNextBox" hidden>Weiter ›</button>
         <button id="pencilDone" class="primary">Übernehmen</button>
       </span>
     </header>

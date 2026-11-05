@@ -1,7 +1,11 @@
+import { latex } from './latex';
+
 /** Start and end of emphasised text (Markdown bold, headings); the layout underlines it. */
 export const EMPH = ['\u0002', '\u0003'] as const;
 /** Start and end of highlighted text (Markdown ==text==); the layout puts a highlighter stroke behind it. */
 export const MARK = ['\u0004', '\u0005'] as const;
+/** Starts a heading line; the layout writes it bigger. */
+export const HEAD = '\u0006';
 /** Superscript and subscript digits 0–9. */
 export const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹', SUB = '₀₁₂₃₄₅₆₇₈₉';
 const digits = (d: string, set: string) => [...d].map((c) => set[+c]).join('');
@@ -13,11 +17,10 @@ const digits = (d: string, set: string) => [...d].map((c) => set[+c]).join('');
 export function clean(text: string, has: (ch: string) => boolean): string {
   const pick = (...opts: string[]) => opts.find((o) => [...o].every((c) => c === ' ' || has(c))) ?? opts.at(-1)!;
   const arrow = pick('→', '->', '-');
-  return text
-    .replace(/\r\n?/g, '\n')
+  return latex(text.replace(/\r\n?/g, '\n'))
     .replace(/^\s*```.*$/gm, '') // code fences
     .replace(/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/gm, '') // horizontal rules
-    .replace(/^[ \t]{0,3}#{1,6}[ \t]+(.*\S)[ \t]*$/gm, (_, t: string) => EMPH[0] + t.replace(/\*\*|__/g, '') + EMPH[1]) // headings: underlined
+    .replace(/^[ \t]{0,3}#{1,6}[ \t]+(.*\S)[ \t]*$/gm, (_, t: string) => HEAD + EMPH[0] + t.replace(/\*\*|__/g, '') + EMPH[1]) // headings: bigger, underlined
     .replace(/^\s*>\s?/gm, '') // quotes
     .replace(/^(\s*)[-*+•●▪◦]\s+/gm, `$1${pick('•', '-')} `) // bullets
     .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1') // links -> their text

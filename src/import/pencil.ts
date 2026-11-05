@@ -71,18 +71,38 @@ export function setupPencil(onImport: (pages: AsyncIterable<{ img: ImageData }>)
     overlay.hidden = false;
     fit();
     void show(page);
-    toast('Mit dem Pencil in die Kästchen schreiben – mit dem Finger verschiebst du die Seite.');
+    toast('Mit dem Pencil schreiben, mit dem Finger verschieben. „Kästchen-Ansicht“ zeigt die Kästchen groß.');
   };
   $('pencilClose').onclick = () => { overlay.hidden = true; };
-  $('pencilPrev').onclick = () => void show(page - 1);
-  $('pencilNext').onclick = () => void show(page + 1);
+  const flip = async (p: number) => { await show(p); if (zoom > 1) goTo(spot = 0); else scroller.scrollTop = 0; };
+  $('pencilPrev').onclick = () => void flip(page - 1);
+  $('pencilNext').onclick = () => void flip(page + 1);
   $('pencilUndo').onclick = () => { strokes[page].pop(); redraw(); };
-  $('pencilZoom').onclick = (e) => {
-    const top = scroller.scrollTop / scroller.scrollHeight, left = scroller.scrollLeft / scroller.scrollWidth;
-    zoom = zoom === 1 ? 2.5 : 1;
-    (e.target as HTMLElement).textContent = zoom === 1 ? 'Größer' : 'Kleiner';
+  // Box view: about four boxes fill the screen; "Weiter" moves on to the next four (and the next page at the end).
+  const VIEW_MM = 66;
+  let spot = 0;
+  const spots = () => {
+    const out: number[] = [];
+    TEMPLATE_PAGES[page].forEach((b, i, bs) => { const s = bs[out.at(-1) ?? -1]; if (!s || b.y !== s.y || b.x + b.w - s.x > VIEW_MM - 4) out.push(i); });
+    return out;
+  };
+  const goTo = (i: number) => {
+    const b = TEMPLATE_PAGES[page][spots()[i]], k = canvas.clientWidth / PAGE.w;
+    scroller.scrollTo({ left: (b.x - 2) * k, top: (b.y - 7) * k, behavior: 'smooth' });
+  };
+  const setZoom = (z: number) => {
+    zoom = z;
+    $('pencilZoom').textContent = z === 1 ? 'Kästchen-Ansicht' : 'Ganze Seite';
+    $('pencilNextBox').hidden = z === 1;
     fit();
-    scroller.scrollTop = top * scroller.scrollHeight; scroller.scrollLeft = left * scroller.scrollWidth;
+    if (z > 1) goTo(spot = 0);
+  };
+  $('pencilZoom').onclick = () => setZoom(zoom === 1 ? PAGE.w / VIEW_MM : 1);
+  $('pencilNextBox').onclick = async () => {
+    if (spot + 1 < spots().length) return goTo(++spot);
+    if (page + 1 >= strokes.length) return toast('Das war das letzte Kästchen – jetzt „Übernehmen“.');
+    await show(page + 1);
+    goTo(spot = 0);
   };
   $('pencilDone').onclick = async () => {
     if (!strokes.some((s) => s.length)) { toast('Noch nichts geschrieben.'); return; }

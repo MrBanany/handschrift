@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { EMPH, MARK, clean } from '../src/renderer/clean';
+import { EMPH, HEAD, MARK, clean } from '../src/renderer/clean';
+import { chem } from '../src/renderer/latex';
 
 describe('clean pasted AI text', () => {
   const has = (ch: string) => /[\p{L}\p{N} .,:!?'"\-–>]/u.test(ch);
   it('strips Markdown and maps arrows, bullets and emoji to writable characters', () => {
     const md = '## Ergebnis\n\n**Photosynthese** → *Glucose* 🌱\n\n- Licht -> Energie\n* `CO2` + Wasser\n\n\n[Quelle](https://x.de)';
     const [b, e] = EMPH; // headings and bold stay marked, the layout underlines them
-    expect(clean(md, has)).toBe(`${b}Ergebnis${e}\n\n${b}Photosynthese${e} -> Glucose\n\n- Licht -> Energie\n- CO2 + Wasser\n\nQuelle`);
+    expect(clean(md, has)).toBe(`${HEAD}${b}Ergebnis${e}\n\n${b}Photosynthese${e} -> Glucose\n\n- Licht -> Energie\n- CO2 + Wasser\n\nQuelle`);
   });
   it('keeps arrows the handwriting has', () => {
     expect(clean('a → b', (c) => c !== '>' )).toBe('a → b');
@@ -16,6 +17,16 @@ describe('clean pasted AI text', () => {
     expect(clean('✅ Vorteil\n❌ Nachteil 🌱', (c) => c !== '🌱')).toBe('✓ Vorteil\n✗ Nachteil');
     expect(clean('x^{10} + H_2O, a_1', () => true)).toBe('x¹⁰ + H₂O, a₁');
     expect(clean('x^4', (c) => c !== '⁴')).toBe('x^4');
+  });
+  it('turns LaTeX and chemistry from AI answers into writable characters', () => {
+    const all = () => true;
+    expect(clean('$\\frac{a+b}{2} \\cdot \\sqrt{x} \\approx 3,5 \\pm 0,1$', all)).toBe('(a+b)/2 · √x ≈ 3,5 ± 0,1');
+    expect(clean('\\[ v = \\frac{\\Delta s}{\\Delta t} \\]', all)).toBe('v = (Δ s)/(Δ t)');
+    expect(clean('Winkel $90^\\circ$, $x^{2}$, $\\text{km}^2$', all)).toBe('Winkel 90°, x², km²');
+    expect(clean('$\\ce{6CO2 + 6H2O -> C6H12O6 + 6O2}$', all)).toBe('6CO₂ + 6H₂O → C₆H₁₂O₆ + 6O₂');
+    expect(clean('CO2 und H2SO4 auf A4, MP3, Ca(OH)2', all)).toBe('CO₂ und H₂SO₄ auf A4, MP3, Ca(OH)₂');
+    expect(clean('N2 + 3H2 \\rightleftharpoons 2NH3', all)).toBe('N₂ + 3H₂ ⇌ 2NH₃');
+    expect(chem('Seite2')).toBe('Seite2');
   });
   it('marks ==highlighted== text, but leaves a == b alone', () => {
     expect(clean('Das ist ==sehr wichtig== und a == b', () => true)).toBe(`Das ist ${MARK[0]}sehr wichtig${MARK[1]} und a == b`);

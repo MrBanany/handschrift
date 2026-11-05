@@ -342,7 +342,7 @@ function renderStyle() {
   r.hidden = !style;
   $('styleReset').hidden = !style;
   if (style) {
-    r.textContent = `Gelernt für „${active}“ aus ${style.lines} Zeilen: Schriftgröße ${style.xh.toFixed(1)} mm, Zeilenabstand ${style.lineH.toFixed(1)} mm`
+    r.textContent = `Gelernt für „${active}“ aus ${style.lines} Zeilen${style.pages ? ` auf ${style.pages} Seite${style.pages > 1 ? "n" : ""}` : ""}: Schriftgröße ${style.xh.toFixed(1)} mm, Zeilenabstand ${style.lineH.toFixed(1)} mm`
       + (style.wordGap && style.letterGap ? `, Wortabstand ${style.wordGap.toFixed(2)} × und Buchstabenabstand ${style.letterGap.toFixed(2)} × x-Höhe.` : '.');
   }
 }
@@ -351,11 +351,15 @@ $<HTMLInputElement>('notes').onchange = async (ev) => {
   const input = ev.target as HTMLInputElement;
   if (!active) { toast('Erst eine Handschrift auswählen.'); input.value = ''; return; }
   const lines: LineMeasure[] = [];
-  let page = 0;
+  let page = 0, first: { img: ImageData; px: number; base: number } | null = null;
   toast('Notizen werden analysiert …');
   try {
     for (const file of input.files ?? []) {
-      for await (const { img, pxPerMm } of pagesOf(file)) lines.push(...measureLines(img, pxPerMm, page++));
+      for await (const { img, pxPerMm } of pagesOf(file)) {
+        const found = measureLines(img, pxPerMm, page++);
+        if (!first && found.length >= 3) first = { img, px: pxPerMm, base: found[0].baseline }; // kept for the comparison
+        lines.push(...found);
+      }
     }
   } catch (e) { input.value = ''; return toast(`Konnte nicht gelesen werden: ${(e as Error).message}`); }
   input.value = '';
@@ -370,8 +374,10 @@ $<HTMLInputElement>('notes').onchange = async (ev) => {
     if (found.wordGap && ref.wordGap) found.wordGap *= DEFAULT_WORD_GAP / ref.wordGap;
     if (found.letterGap && ref.letterGap) found.letterGap *= DEFAULT_LETTER_GAP / ref.letterGap;
   }
+  found.pages = page;
   style = found;
   localStorage.setItem(`style:${active}`, JSON.stringify(found));
+  renderCompare(first, found);
   // Measured size and spacing go straight into the sliders; they stay adjustable.
   $<HTMLInputElement>('xh').value = String(Math.round(found.xh * 10) / 10);
   $<HTMLInputElement>('lineH').value = String(Math.round(found.lineH * 10) / 10);
@@ -380,6 +386,34 @@ $<HTMLInputElement>('notes').onchange = async (ev) => {
   schedule();
   toast(found.wordGap ? 'Schreibstil übernommen.' : 'Größe und Zeilenabstand übernommen – die Abstände waren nicht messbar.');
 };
+
+/** Side by side: a few lines of the uploaded page and the same amount of text written by the app with the learned style. */
+function renderCompare(first: { img: ImageData; px: number; base: number } | null, st: TextStyle) {
+  const box = $('styleCompare');
+  box.hidden = !first;
+  if (!first) return;
+  const W = 900, top = 10, Hmm = top + 4.6 * st.lineH, y0 = Math.max(0, first.base - st.lineH - top);
+  const mine = document.createElement('canvas');
+  mine.width = first.img.width; mine.height = first.img.height;
+  mine.getContext('2d')!.putImageData(first.img, 0, 0);
+  const crop = document.createElement('canvas');
+  crop.width = W; crop.height = Math.round((W * Hmm) / 210);
+  crop.getContext('2d')!.drawImage(mine, 0, y0 * first.px, mine.width, Hmm * first.px, 0, 0, W, crop.height);
+  mine.width = 0;
+  const { s: cur, o: look } = settings();
+  const s: Settings = { ...cur, xh: st.xh, lineH: st.lineH, margin: top, pageW: 210, pageH: Hmm + st.lineH + top, wordGap: st.wordGap, letterGap: st.letterGap };
+  const text = [...PROBE.repeat(3)].filter((ch) => ch === ' ' || lib.has(ch)).join('');
+  const o: DrawOpts = { pxPerMm: W / 210, ink: look.ink, weight: look.weight, background: 'lined', pageW: 210, pageH: Hmm, lineH: st.lineH, margin: top, crop: false };
+  const app = drawPage(layout(text, lib, s).pages[0], o, (src) => bySrc.get(src)!);
+  const fig = (c: HTMLCanvasElement, cap: string) => {
+    const f = document.createElement('figure');
+    const img = new Image(); img.src = c.toDataURL('image/png'); img.alt = cap;
+    const t = document.createElement('figcaption'); t.textContent = cap;
+    f.append(t, img);
+    return f;
+  };
+  box.replaceChildren(fig(crop, 'Deine Seite'), fig(app, 'So schreibt die App jetzt'));
+}
 
 const PROBE_XH = 3;
 const PROBE = 'Die Zellatmung findet in den Mitochondrien statt. Dabei wird Traubenzucker mit Sauerstoff zu Wasser und Kohlenstoffdioxid abgebaut, die Zelle gewinnt Energie. ';
@@ -590,4 +624,12 @@ $('installClose').onclick = () => { localStorage.setItem('installHidden', '1'); 
 
 navigator.storage?.persist?.();
 if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('./sw.js');
-listSets().then((s) => { sets = s; return useSet(sets.includes(active) ? active : sets[0] ?? ''); });
+listSets().then((s) => {
+  sets = s;
+  if (!sets.length && !localStorage.getItem('welcomed')) $('welcome').hidden = false; // first start
+  return useSet(sets.includes(active) ? active : sets[0] ?? '');
+});
+const welcomed = () => { localStorage.setItem('welcomed', '1'); $('welcome').hidden = true; };
+$('welcomeOwn').onclick = () => { welcomed(); show('manage'); $('pencilOpen').click(); };
+$('welcomeSample').onclick = () => { welcomed(); void useSet(SAMPLE_SET); };
+$('welcomeLater').onclick = welcomed;

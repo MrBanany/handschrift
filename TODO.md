@@ -17,6 +17,13 @@ Stand: 5. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
 
 ## Erledigt am 5. November 2026
 
+- [x] **Überschriften** (`## …` aus KI-Antworten) werden 1,3× größer geschrieben und unterstrichen.
+- [x] **KI-Formeln**: LaTeX (`\frac`, `\sqrt`, `\cdot`, `\pm`, `\approx`, `^\circ`, griechische Buchstaben, Pfeile) und Chemie (`\ce{…}`, `H2SO4`, `6CO2`, `⇌`) werden in schreibbare Zeichen umgewandelt (`src/renderer/latex.ts`). „A4“ oder „MP3“ bleiben unverändert.
+- [x] **Mehr Abwechslung**: Buchstabenbreite schwankt leicht, die Größe wandert langsam von Zeile zu Zeile, zum Seitenende wird die Schrift minimal lockerer.
+- [x] **Notizen lernen**: mehrere Seiten/Dateien auf einmal (Hinweis in der App), Ergebnis nennt die Seitenzahl, danach **Vergleich** „Deine Seite“ / „So schreibt die App jetzt“. Getestet mit 3 Seiten: eingestellt 2,6 mm / 7,1 mm / Wort 1,4 / Buchstabe 0,22 → gemessen 2,7 / 7,1 / 1,43 / 0,21.
+- [x] **Pencil-Ausfüllen**: „Kästchen-Ansicht“ zeigt vier Kästchen groß, „Weiter ›“ springt zu den nächsten (am Seitenende auf die nächste Seite).
+- [x] **Erster Start**: Willkommen-Fenster mit 3 Schritten und „Meine Handschrift anlegen“ / „Erst mit Muster ausprobieren“.
+
 - [x] Prüf-Fenster: Das ganze Fenster war der Knopf „Alle übernehmen“ (CSS-Namenskonflikt `.sheet`). Repariert. Die Zeichen kommen jetzt mit der größten Änderung zuerst.
 - [x] „Text kopieren“ war als Buchstaben-Kopieren gebaut (unsichtbare Textebene im PDF). Die Ebene ist entfernt, damit GoodNotes nicht mehr Buchstaben statt Handschrift kopiert. Kopiert wird die Handschrift als Bild.
   - **Grenze**: Echte, radierbare GoodNotes-Tinte kann keine fremde App erzeugen. Der Radierer löscht nur Stift- und Marker-Striche, keine Bilder oder PDFs; das `.goodnotes`-Format ist nicht offen. Bilder lassen sich aber mit dem Lasso verschieben, skalieren, kopieren, löschen und zuschneiden.
@@ -41,15 +48,15 @@ Stand: 5. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
 **Wo wir besser sind:** eigene Handschrift mit mehreren Varianten pro Zeichen plus Paaren und Wörtern, kostenlos, ohne Konto, offline, Daten bleiben auf dem Gerät, direkt für GoodNotes (Kopieren als Bild oder PDF-Seiten mit Linien), KI-Antworten einfach einfügen (Pfeile, Symbole, Unterstreichungen).
 
 **Feature-Ideen, grob nach Wirkung sortiert:**
-1. [x] **Vorlage direkt in der App ausfüllen** – erledigt (siehe oben). Später vielleicht: Kästchen einzeln groß zum Schreiben (Zoom auf ein Kästchen).
-2. [ ] **Weitere Hervorhebungen**: Überschriften etwas größer, Einkreisen, Markerfarbe wählbar. (Unterstreichen, Textmarker `==Text==` und Aufzählungspunkte sind erledigt.)
+1. [x] **Vorlage direkt in der App ausfüllen** – erledigt, mit Kästchen-Ansicht.
+2. [ ] **Weitere Hervorhebungen**: Einkreisen, Markerfarbe wählbar. (Unterstreichen, größere Überschriften, Textmarker `==Text==` und Aufzählungspunkte sind erledigt.)
 3. [ ] **Eigene Schriftart erzeugen** (Idee aus dieser Runde): aus der Handschrift eine Schrift (TTF) bauen und per Profil auf dem iPad installieren. Dann ist Text in GoodNotes echter Text in eigener Handschrift-Optik (mit der Tastatur änderbar, aber nicht radierbar und ohne Varianten). Großer Aufwand.
 4. [ ] **Kurzbefehl „In Handschrift“**: iOS-Kurzbefehl öffnet die App mit `?text=…` vorbefüllt. Achtung: Links öffnen Safari, nicht die Home-Bildschirm-App, und die beiden haben getrennten Speicher (Handschrift wäre in Safari nicht da). Erst klären, ob das trotzdem lohnt.
-5. [ ] **Mathe**: Buchstaben als Hochzahl (xⁿ), Minus in Hochzahlen (10⁻³), einfache Brüche, `$…$`-Formeln aus KI-Antworten. (Ziffern hoch und tief sind erledigt.)
-6. [ ] **Lernzettel-Layouts**: Cornell-Notizen, Karteikarten (A6/A7), später Mindmap (niedrige Priorität).
-7. [ ] **Stifte**: Kuli, Füller (Strichbreite schwankt), Bleistift-Körnung; mehrere Farben (Überschrift blau, Text schwarz).
-8. [ ] **Natürlicher**: zum Seitenende minimal unordentlicher werdend; eigene Wörterliste (Fachwörter) als Vorlage-Zusatzseite.
-9. [ ] **Erster Start**: 3-Schritte-Assistent (Muster ausprobieren → Vorlage → Import).
+5. [ ] **Mathe**: Buchstaben als Hochzahl (xⁿ), Minus in Hochzahlen (10⁻³), echte Bruchstriche (Zähler über Nenner statt a/b). (Ziffern hoch/tief und LaTeX aus KI-Antworten sind erledigt.)
+6. [ ] **Chemie-Strukturformeln** (Wunsch): Skelettformeln zeichnen (z. B. aus SMILES). Großer Aufwand, eigener Baustein.
+7. [ ] **Lernzettel-Layouts**: Cornell-Notizen, Karteikarten (A6/A7), später Mindmap (niedrige Priorität).
+8. [ ] **Stifte**: Kuli, Füller (Strichbreite schwankt), Bleistift-Körnung; mehrere Farben (Überschrift blau, Text schwarz).
+9. [ ] **Natürlicher**: eigene Wörterliste (Fachwörter) als Vorlage-Zusatzseite. (Lockerer zum Seitenende ist erledigt.)
 10. [ ] Alte offene Punkte: Ein-/Austrittspunkte in der Prüf-Ansicht verschieben, SVG-Export.
 
 Hinweis aus der Recherche: Manche Schulen haben Regeln zu „generierter Handschrift“ bei Abgaben. Die App ist vor allem für eigene Notizen und Lernzettel gedacht.

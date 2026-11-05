@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { connectionModel } from '../src/connectors/connect';
 import type { GlyphMeta } from '../src/glyphstore/types';
 import { layout, segment, type Settings } from '../src/renderer/layout';
+import { EMPH } from '../src/renderer/clean';
 import { extractPage } from '../src/segmentation/extract';
 import { readPageCode, register, type Affine } from '../src/segmentation/register';
 import { MM, TEMPLATE_PAGES, TEMPLATE_KEYS, SINGLES } from '../src/template/layout';
@@ -146,6 +147,18 @@ describe('layout', () => {
     expect(gT2.m[4] - (gE.m[0] * 40 + gE.m[4])).toBeGreaterThan(0.7 * S.xh); // word gap measured ink to ink
     expect(gT2.m[4] - (gE.m[0] * 40 + gE.m[4])).toBeLessThan(1.3 * S.xh); // … not from the empty bitmap edge
     expect(pages[0].lines).toEqual([expect.objectContaining({ text: 'Te Te' })]);
+  });
+
+  it('underlines emphasised words with one pen stroke below the baseline', () => {
+    const plain = new Map([...'abcdefghijklmnopqrstuvwxyz'].map((k) => [k, [{ ...glyph(k, 0), entry: null, exit: null }]]));
+    const { pages } = layout(`${EMPH[0]}hallo welt${EMPH[1]} ende`, plain, { ...S, hasty: 0 });
+    const [u, ...more] = pages[0].connectors;
+    expect(more).toHaveLength(0);
+    const first = pages[0].glyphs[0], ende = pages[0].glyphs[9]; // "hallo" + "welt" = 9 letters
+    expect(Math.abs(u.p[0][0] - first.m[4])).toBeLessThan(1);
+    expect(u.p[3][0]).toBeLessThan(ende.m[4]);
+    expect(u.p[0][1]).toBeGreaterThan(S.margin + S.lineH);
+    expect(pages[0].lines[0].text).toBe('hallo welt ende');
   });
 
   it('wraps lines inside the margins, breaks pages and flags missing characters', () => {

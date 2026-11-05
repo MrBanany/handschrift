@@ -1,6 +1,7 @@
 import { connectionModel, makeConnector, type Connector, type Library } from '../connectors/connect';
 import type { Anchor, GlyphMeta } from '../glyphstore/types';
 import { MM, XH } from '../template/layout';
+import { EMPH } from './clean';
 
 /** Gap between words (x-heights, ink to ink) when none was learned. */
 export const DEFAULT_WORD_GAP = 1.1;
@@ -182,6 +183,7 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
   let rec: Line | null = null;
   const newPage = () => { page = { glyphs: [], connectors: [], missing: [], lines: [] }; pages.push(page); y = s.margin + s.lineH; };
   const newLine = (first = false) => {
+    closeUnderline();
     rec = null;
     if (!first) y += s.lineH;
     if (first || y > s.pageH - s.margin) newPage();
@@ -193,10 +195,26 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
   };
   const drift = (x: number) => slope * (x - lineStart) + amp * Math.sin((2 * Math.PI * x) / lambda + phase);
 
+  // Emphasised words (bold, headings) are underlined: one slightly bowed pen stroke per line, just below the baseline.
+  const ws = [...lib.values()].flat().map((g) => g.strokeW).sort((a, b) => a - b);
+  const penW = (ws[ws.length >> 1] ?? 5) * s0;
+  let under: { x0: number; x1: number } | null = null;
+  function closeUnderline() {
+    if (!under) return;
+    const { x0, x1 } = under, d = x1 - x0, bow = gauss() * 0.04 * xh;
+    const y0 = y + drift(x0) + 0.3 * xh, y1 = y + drift(x1) + 0.3 * xh + gauss() * 0.04 * xh;
+    page!.connectors.push({ p: [[x0, y0], [x0 + d / 3, y0 + (y1 - y0) / 3 + bow], [x0 + (2 * d) / 3, y0 + (2 * (y1 - y0)) / 3 + bow], [x1, y1]], w0: penW, w1: penW });
+    under = null;
+  }
+
   newLine(true);
   text.split('\n').forEach((line, li) => {
     if (li > 0) newLine();
-    for (const word of line.split(/\s+/).filter(Boolean)) {
+    let emph = false;
+    for (const token of line.split(/\s+/).filter(Boolean)) {
+      const word = token.replaceAll(EMPH[0], '').replaceAll(EMPH[1], '');
+      if (token.includes(EMPH[0])) emph = true;
+      if (!word) { if (token.includes(EMPH[1])) { closeUnderline(); emph = false; } continue; }
       const wd = layoutWord(word);
       // lineX is where the next word's ink starts
       if (lineX > lineStart && lineX - wd.inkL + wd.inkR > s.pageW - s.margin) newLine();
@@ -219,9 +237,12 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
         prevM = m; prevG = it.g;
       }
       for (const ms of wd.missing) page!.missing.push({ ...ms, x: ms.x + ox, y: ms.y + y + drift(ms.x + ox) });
+      if (emph) under = { x0: under?.x0 ?? ox + wd.inkL, x1: ox + wd.inkR };
+      if (token.includes(EMPH[1])) { closeUnderline(); emph = false; }
       const sentenceEnd = /[.!?]["“”»)]*$/u.test(word) ? 0.3 * xh : 0; // people leave a bit more room after a full stop
       lineX = ox + wd.inkR + sentenceEnd + Math.max(0.6 * xh, ((s.wordGap ?? DEFAULT_WORD_GAP) - 0.15 * h) * xh * (1 + gauss() * 0.1 * sig));
     }
   });
+  closeUnderline();
   return { pages, missing: missingSet };
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { connectionModel } from '../src/connectors/connect';
 import type { GlyphMeta } from '../src/glyphstore/types';
 import { layout, segment, type Settings } from '../src/renderer/layout';
-import { EMPH } from '../src/renderer/clean';
+import { EMPH, MARK } from '../src/renderer/clean';
 import { extractPage } from '../src/segmentation/extract';
 import { readPageCode, register, type Affine } from '../src/segmentation/register';
 import { PDFDocument } from 'pdf-lib';
@@ -182,6 +182,19 @@ describe('layout', () => {
     expect(u.p[3][0]).toBeLessThan(ende.m[4]);
     expect(u.p[0][1]).toBeGreaterThan(S.margin + S.lineH);
     expect(pages[0].lines[0].text).toBe('hallo welt ende');
+  });
+
+  it('puts one highlighter stroke behind marked words, centred on the x-height', () => {
+    const plain = new Map([...'abcdefghijklmnopqrstuvwxyz'].map((k) => [k, [{ ...glyph(k, 0), entry: null, exit: null }]]));
+    const { pages } = layout(`eins ${MARK[0]}zwei drei${MARK[1]} vier`, plain, { ...S, hasty: 0 });
+    const [k, ...more] = pages[0].marks;
+    expect(more).toHaveLength(0);
+    const zwei = pages[0].glyphs[4], vier = pages[0].glyphs[13];
+    expect(k.x0).toBeLessThan(zwei.m[4]);
+    expect(k.x1).toBeLessThan(vier.m[4]);
+    expect(Math.abs(k.y0 - (S.margin + S.lineH - 0.5 * S.xh))).toBeLessThan(0.5);
+    expect(pages[0].lines[0].text).toBe('eins zwei drei vier');
+    expect(pages[0].connectors).toHaveLength(0);
   });
 
   it('wraps lines inside the margins, breaks pages and flags missing characters', () => {

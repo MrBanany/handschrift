@@ -7,6 +7,7 @@ import type { Variant } from './glyphstore/types';
 import { copyPng, download, shareFiles, toPng } from './export/png';
 import { toPdf } from './export/pdf';
 import { pagesOf } from './import/load';
+import { setupPencil } from './import/pencil';
 import { clearMaskCache, drawPage, type Background, type DrawOpts } from './renderer/draw';
 import { DEFAULT_WORD_GAP, layout, profile, type Settings } from './renderer/layout';
 import { extractPage } from './segmentation/extract';
@@ -213,7 +214,7 @@ function preview() {
   box.replaceChildren(...canvases.map((ink, i) => {
     const sheet = document.createElement('div');
     sheet.className = paper.background === 'transparent' ? 'page-view clear' : 'page-view';
-    sheet.append(drawPage({ glyphs: [], connectors: [], missing: [], lines: [] }, paper, () => { throw new Error('no glyphs'); }), ink);
+    sheet.append(drawPage({ glyphs: [], connectors: [], missing: [], lines: [], marks: [] }, paper, () => { throw new Error('no glyphs'); }), ink);
     // As an image the ink can be long-pressed → Kopieren, or dragged into GoodNotes, on the iPad.
     toPng(ink).then((b) => {
       if (my !== gen) return;
@@ -303,31 +304,38 @@ $('templateSymbols').onclick = async () => {
   download(new Blob([pdf as BlobPart], { type: 'application/pdf' }), 'handschrift-symbole.pdf');
 };
 
-$<HTMLInputElement>('file').onchange = async (ev) => {
-  const input = ev.target as HTMLInputElement;
+/** Cut out and save every page of the given sources into the set named in the form; false if nothing was found. */
+async function importInto(sources: [label: string, pages: () => AsyncIterable<{ img: ImageData }>][]): Promise<boolean> {
   const name = $<HTMLInputElement>('setName').value.trim() || DEFAULT_SET;
   $('log').textContent = '';
-  if (name === SAMPLE_SET) { log('Bitte einen anderen Namen als „Muster“ wählen.'); input.value = ''; return; }
+  if (name === SAMPLE_SET) { log('Bitte einen anderen Namen als „Muster“ wählen.'); return false; }
   let total = 0;
-  for (const file of input.files ?? []) {
+  for (const [label, pages] of sources) {
     let n = 0;
     try {
-      for await (const { img } of pagesOf(file)) {
+      for await (const { img } of pages()) {
         n++;
         try {
           const { page, variants: vs } = extractPage(img);
           await saveMany(name, vs);
           total += vs.length;
-          log(`${file.name}, Seite ${n}: Vorlagenseite ${page + 1} erkannt, ${vs.length} Proben übernommen.`);
-        } catch (e) { log(`${file.name}, Seite ${n}: ${(e as Error).message}`); }
+          log(`${label}, Seite ${n}: Vorlagenseite ${page + 1} erkannt, ${vs.length} Proben übernommen.`);
+        } catch (e) { log(`${label}, Seite ${n}: ${(e as Error).message}`); }
       }
-    } catch (e) { log(`${file.name}: konnte nicht gelesen werden (${(e as Error).message})`); }
+    } catch (e) { log(`${label}: konnte nicht gelesen werden (${(e as Error).message})`); }
   }
-  input.value = '';
   sets = await listSets();
   if (total) { await useSet(name); log(`Fertig – „${name}“ ist jetzt aktiv.`); toast(`„${name}“ importiert.`); }
   else log('Keine Proben gefunden.');
+  return total > 0;
+}
+
+$<HTMLInputElement>('file').onchange = async (ev) => {
+  const input = ev.target as HTMLInputElement;
+  await importInto([...input.files ?? []].map((f) => [f.name, () => pagesOf(f)]));
+  input.value = '';
 };
+setupPencil((pages) => importInto([['Mit dem Pencil ausgefüllt', () => pages]]), toast);
 
 function renderStyle() {
   const r = $('styleResult');

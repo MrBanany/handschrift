@@ -1,4 +1,5 @@
 import { MM, XH } from '../template/layout';
+import { SUB, SUP } from '../renderer/clean';
 import type { Variant } from './types';
 
 type Pt = [number, number];
@@ -78,13 +79,15 @@ export function symbolVariants(have: Variant[], n = 3): Variant[] {
       out.push(rasterize(`sym:${key}:${i}`, key, lines, pen));
     }
   }
-  // ² ³ not filled in: the writer's own 2 and 3, smaller and raised to sit 0.8 x-heights above the line.
-  for (const [sup, digit] of [['²', '2'], ['³', '3']]) {
-    if (keys.has(sup)) continue;
-    for (const v of have) {
-      const k = (v.scale ?? 1) * 0.6;
-      if (v.key === digit) out.push({ ...v, src: `sup:${v.src}`, key: sup, scale: k, baseline: v.baseline + (0.8 * X) / k, entry: null, exit: null });
-    }
+  // Exponents and indices not filled in: the writer's own digits, smaller, raised (x²) or lowered (CO₂).
+  for (const [chars, lift, tag] of [[SUP, 0.8, 'sup'], [SUB, -0.25, 'sub']] as const) {
+    [...chars].forEach((ch, d) => {
+      if (keys.has(ch)) return;
+      for (const v of have) {
+        const k = (v.scale ?? 1) * 0.6;
+        if (v.key === String(d)) out.push({ ...v, src: `${tag}:${v.src}`, key: ch, scale: k, baseline: v.baseline + (lift * X) / k, entry: null, exit: null });
+      }
+    });
   }
   return out;
 }

@@ -8,7 +8,8 @@ Deine Handschrift-Proben liegen nur im Browser-Speicher deines Geräts und komme
 1. App-Adresse in **Safari** öffnen → Teilen → **Zum Home-Bildschirm**. Danach immer über das Home-Bildschirm-Symbol öffnen –
    es hat einen eigenen Speicher, getrennt von Safari.
 2. Zum Ausprobieren unter **Schreiben** die Handschrift *Muster* wählen (wird aus einer Systemschrift erzeugt).
-3. Eigene Handschrift: Reiter **Handschriften** → *Vorlage herunterladen* → in GoodNotes ausfüllen
+3. Eigene Handschrift: Reiter **Handschriften** → *Hier mit dem Pencil ausfüllen* (direkt in der App) → *Übernehmen*.
+   Oder: *Vorlage herunterladen* → in GoodNotes ausfüllen
    (schwarzer oder dunkelblauer Stift, auf der durchgezogenen Linie) → als PDF exportieren → mit Namen importieren.
    Mehrere Handschriften sind möglich; unter **Schreiben** umschalten.
    Pfeile und Symbole (→ ⇒ ≈ ✓ ² …) stehen auf der letzten Seite; *nur Pfeile & Symbole* lädt sie einzeln.

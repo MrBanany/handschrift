@@ -28,6 +28,7 @@ function bounds(page: Page) {
   const add = (x: number, y: number) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); };
   for (const { g, m } of page.glyphs) for (const [x, y] of [[0, 0], [g.w, 0], [0, g.h], [g.w, g.h]]) add(m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]);
   for (const ms of page.missing) { add(ms.x, ms.y); add(ms.x + ms.w, ms.y + ms.h); }
+  for (const k of page.marks) { add(k.x0, k.y0 - k.h / 2); add(k.x1, k.y1 + k.h / 2); }
   return { x0, y0, x1, y1 };
 }
 
@@ -92,6 +93,16 @@ export function drawPage(page: Page, o: DrawOpts, variant: (src: string) => Vari
       for (let x = first(ox, o.margin); x < Wmm; x += cell) { c.moveTo(x * px, 0); c.lineTo(x * px, H); }
       for (let y = first(oy, o.margin + o.lineH); y < Hmm; y += cell) { c.moveTo(0, y * px); c.lineTo(W, y * px); }
     }
+    c.stroke();
+  }
+  // Highlighter behind the ink: translucent, flat-ended like a chisel tip.
+  c.lineCap = 'butt';
+  c.strokeStyle = 'rgba(255, 212, 0, 0.42)';
+  for (const k of page.marks) {
+    c.lineWidth = k.h * px;
+    c.beginPath();
+    c.moveTo((k.x0 - ox) * px, (k.y0 - oy) * px);
+    c.lineTo((k.x1 - ox) * px, (k.y1 - oy) * px);
     c.stroke();
   }
   c.drawImage(ink, 0, 0);

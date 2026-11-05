@@ -1,7 +1,7 @@
 import { connectionModel, makeConnector, type Connector, type Library } from '../connectors/connect';
 import type { Anchor, GlyphMeta } from '../glyphstore/types';
 import { MM, XH } from '../template/layout';
-import { EMPH } from './clean';
+import { EMPH, MARK } from './clean';
 
 /** Gap between words (x-heights, ink to ink) when none was learned. */
 export const DEFAULT_WORD_GAP = 1.1;
@@ -23,7 +23,9 @@ export interface Placed { g: GlyphMeta; m: Mat }
 export interface Missing { ch: string; x: number; y: number; w: number; h: number }
 /** A written line as plain text (alt text of the preview). */
 export interface Line { text: string }
-export interface Page { glyphs: Placed[]; connectors: Connector[]; missing: Missing[]; lines: Line[] }
+/** Highlighter stroke behind text: from (x0, y0) to (x1, y1) along its middle, h tall (mm). */
+export interface Mark { x0: number; y0: number; x1: number; y1: number; h: number }
+export interface Page { glyphs: Placed[]; connectors: Connector[]; missing: Missing[]; lines: Line[]; marks: Mark[] }
 
 export function mulberry32(seed: number) {
   let a = seed >>> 0;
@@ -181,9 +183,9 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
   const pages: Page[] = [];
   let page: Page, y = 0, lineX = 0, lineStart = 0, slope = 0, amp = 0, phase = 0, lambda = 1;
   let rec: Line | null = null;
-  const newPage = () => { page = { glyphs: [], connectors: [], missing: [], lines: [] }; pages.push(page); y = s.margin + s.lineH; };
+  const newPage = () => { page = { glyphs: [], connectors: [], missing: [], lines: [], marks: [] }; pages.push(page); y = s.margin + s.lineH; };
   const newLine = (first = false) => {
-    closeUnderline();
+    closeUnderline(); closeMark();
     rec = null;
     if (!first) y += s.lineH;
     if (first || y > s.pageH - s.margin) newPage();
@@ -206,15 +208,27 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
     page!.connectors.push({ p: [[x0, y0], [x0 + d / 3, y0 + (y1 - y0) / 3 + bow], [x0 + (2 * d) / 3, y0 + (2 * (y1 - y0)) / 3 + bow], [x1, y1]], w0: penW, w1: penW });
     under = null;
   }
+  let mark: { x0: number; x1: number } | null = null;
+  function closeMark() {
+    if (!mark) return;
+    const x0 = mark.x0 - 0.25 * xh, x1 = mark.x1 + 0.25 * xh;
+    page!.marks.push({ x0, x1, y0: y + drift(x0) - 0.5 * xh, y1: y + drift(x1) - 0.5 * xh + gauss() * 0.05 * xh, h: 1.5 * xh });
+    mark = null;
+  }
 
   newLine(true);
   text.split('\n').forEach((line, li) => {
     if (li > 0) newLine();
-    let emph = false;
+    let emph = false, marking = false;
     for (const token of line.split(/\s+/).filter(Boolean)) {
-      const word = token.replaceAll(EMPH[0], '').replaceAll(EMPH[1], '');
+      const word = token.replace(/[\u0002-\u0005]/g, '');
       if (token.includes(EMPH[0])) emph = true;
-      if (!word) { if (token.includes(EMPH[1])) { closeUnderline(); emph = false; } continue; }
+      if (token.includes(MARK[0])) marking = true;
+      const close = () => {
+        if (token.includes(EMPH[1])) { closeUnderline(); emph = false; }
+        if (token.includes(MARK[1])) { closeMark(); marking = false; }
+      };
+      if (!word) { close(); continue; }
       const wd = layoutWord(word);
       // lineX is where the next word's ink starts
       if (lineX > lineStart && lineX - wd.inkL + wd.inkR > s.pageW - s.margin) newLine();
@@ -238,11 +252,12 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
       }
       for (const ms of wd.missing) page!.missing.push({ ...ms, x: ms.x + ox, y: ms.y + y + drift(ms.x + ox) });
       if (emph) under = { x0: under?.x0 ?? ox + wd.inkL, x1: ox + wd.inkR };
-      if (token.includes(EMPH[1])) { closeUnderline(); emph = false; }
+      if (marking) mark = { x0: mark?.x0 ?? ox + wd.inkL, x1: ox + wd.inkR };
+      close();
       const sentenceEnd = /[.!?]["“”»)]*$/u.test(word) ? 0.3 * xh : 0; // people leave a bit more room after a full stop
       lineX = ox + wd.inkR + sentenceEnd + Math.max(0.6 * xh, ((s.wordGap ?? DEFAULT_WORD_GAP) - 0.15 * h) * xh * (1 + gauss() * 0.1 * sig));
     }
   });
-  closeUnderline();
+  closeUnderline(); closeMark();
   return { pages, missing: missingSet };
 }

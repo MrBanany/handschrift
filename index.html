@@ -116,14 +116,17 @@
 
       <div class="card">
         <h2>Neue Handschrift anlegen oder ergänzen</h2>
+        <label class="field"><span>Name</span><input id="setName" type="text" autocomplete="off" /></label>
+        <div class="row">
+          <button id="pencilOpen" class="primary">Hier mit dem Pencil ausfüllen</button>
+        </div>
+        <p class="muted small">Schreib direkt in der App in die Kästchen. Gleicher Name = die Zeichen kommen zur Handschrift dazu.</p>
+        <h3 class="or">Oder über GoodNotes</h3>
         <ol class="steps">
           <li><button id="template">Vorlage herunterladen</button> oder <button id="templateSymbols">nur Pfeile &amp; Symbole</button> und in GoodNotes öffnen.</li>
           <li>Jedes Kästchen mit schwarzem oder dunkelblauem Stift auf der durchgezogenen Linie ausfüllen. Der graue Buchstabe im ersten Kästchen zeigt die Größe – einfach in deiner Art darüberschreiben. Leere Kästchen sind erlaubt.</li>
           <li>In GoodNotes: Teilen → Exportieren → PDF.</li>
-          <li>
-            <label class="field"><span>Name</span><input id="setName" type="text" autocomplete="off" /></label>
-            <label class="button primary">PDF oder Bilder importieren<input id="file" type="file" accept="application/pdf,image/png,image/jpeg" multiple hidden /></label>
-          </li>
+          <li><label class="button">PDF oder Bilder importieren<input id="file" type="file" accept="application/pdf,image/png,image/jpeg" multiple hidden /></label></li>
         </ol>
         <pre id="log"></pre>
       </div>
@@ -181,6 +184,23 @@
       </footer>
       <button id="reviewAll">Alle offenen übernehmen</button>
     </div>
+  </div>
+
+  <div id="pencil" class="pencil" hidden>
+    <header class="pencil-bar">
+      <button id="pencilClose">Schließen</button>
+      <span class="pencil-nav">
+        <button id="pencilPrev" aria-label="Vorige Seite">‹</button>
+        <span id="pencilPage" class="muted small"></span>
+        <button id="pencilNext" aria-label="Nächste Seite">›</button>
+      </span>
+      <span class="pencil-nav">
+        <button id="pencilUndo">Rückgängig</button>
+        <button id="pencilZoom">Größer</button>
+        <button id="pencilDone" class="primary">Übernehmen</button>
+      </span>
+    </header>
+    <div id="pencilScroll" class="pencil-scroll"><canvas id="pencilCanvas"></canvas></div>
   </div>
 
   <nav class="tabbar" aria-label="Bereiche">

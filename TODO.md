@@ -12,6 +12,7 @@ Stand: 5. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
   - Hell/Dunkel, Linien Eng/Mittel/Weit, Kariert, Prüf-Ansicht (Zeichen → „Optimierung prüfen“)
 - [ ] **Notizen erneut hochladen**: Die Erkennung ist neu (siehe unten). Bitte die vollgeschriebene GoodNotes-Datei noch einmal unter „Schreibstil aus Notizen lernen“ wählen und sagen, was herauskommt.
 - [ ] **GoodNotes-Linien abgleichen**: Linien auf einer GoodNotes-Seite (liniert schmal/breit) zählen und die Werte in `RULES` (src/main.ts) anpassen. Aktuell 6,4 / 7,1 / 8,7 mm – nicht bestätigt.
+- [ ] **Ausfüllen in der App am iPad testen** (neu, nur mit Maus und simuliertem Stift getestet): Handschriften → „Hier mit dem Pencil ausfüllen“. Fühlt sich das Schreiben gut an? Verschiebt die Hand beim Schreiben die Seite? Ist „Größer“ zum Schreiben nötig?
 - [ ] **Pfeile & Symbole selbst schreiben**: Handschriften → „nur Pfeile & Symbole“ herunterladen (1 Seite), in GoodNotes ausfüllen, als PDF exportieren und mit **demselben Namen** importieren. Danach im Reiter Zeichen unter „Pfeile & Symbole“ prüfen, ob alles drin ist.
 
 ## Erledigt am 5. November 2026
@@ -25,6 +26,9 @@ Stand: 5. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
 - [x] **Fett** und Überschriften aus KI-Antworten werden unterstrichen statt entfernt.
 - [x] Neue Vorlagenseite 8 **Pfeile & Symbole** (36 Zeichen je 3×: `→ ← ↑ ↓ ⇒ ⇔ ↔ + = ≠ ≈ < > ≤ ≥ ± × ÷ · ² ³ √ π ° Δ ∞ ✓ ✗ • * § ~ [ ] # |`), auch einzeln herunterladbar. Seiten 1–7 sind unverändert, alte ausgefüllte Vorlagen gehen weiter. Selbst geschriebene Symbole ersetzen die gezeichneten.
 - [x] Hochzahlen: `x^2`/`m^3` werden zu `²`/`³`; ohne eigene Hochzahlen nimmt die App die eigenen Ziffern 2 und 3, verkleinert und angehoben.
+- [x] **Vorlage direkt in der App ausfüllen**: Handschriften → „Hier mit dem Pencil ausfüllen“. Alle 8 Seiten, blättern, Rückgängig, „Größer“ (2,5×). Pencil schreibt, ein Finger verschiebt die Seite; ohne Pencil schreibt ein Finger und zwei Finger verschieben. „Übernehmen“ liest die Seiten wie einen PDF-Import ein.
+- [x] **Textmarker**: `==Text==` bekommt einen gelben Marker-Strich hinter die Schrift.
+- [x] Hoch- und Tiefzahlen für alle Ziffern aus den eigenen Ziffern: `x^4`, `10^{12}`, `CO_2`, `H_2O`, `a_1` und direkt eingefügte `x⁴ CO₂`.
 - [x] KI-Antworten: `=>` bleibt `⇒`, `<=>` wird `⇔`, `<->` wird `↔`, ✅ wird ✓, ❌ wird ✗, das Minuszeichen `−` wird `-`.
 
 ## Ideen (aus der Recherche)
@@ -37,11 +41,11 @@ Stand: 5. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
 **Wo wir besser sind:** eigene Handschrift mit mehreren Varianten pro Zeichen plus Paaren und Wörtern, kostenlos, ohne Konto, offline, Daten bleiben auf dem Gerät, direkt für GoodNotes (Kopieren als Bild oder PDF-Seiten mit Linien), KI-Antworten einfach einfügen (Pfeile, Symbole, Unterstreichungen).
 
 **Feature-Ideen, grob nach Wirkung sortiert:**
-1. [ ] **Vorlage direkt in der App ausfüllen** mit dem Apple Pencil (Zeichenfeld pro Kästchen) – kein Umweg über GoodNotes-Export. Größte Vereinfachung.
-2. [ ] **Weitere Hervorhebungen**: `==Text==` → Textmarker, Überschriften etwas größer, Einkreisen. (Fett/Überschriften unterstreichen und handgezeichnete Aufzählungspunkte sind erledigt.)
+1. [x] **Vorlage direkt in der App ausfüllen** – erledigt (siehe oben). Später vielleicht: Kästchen einzeln groß zum Schreiben (Zoom auf ein Kästchen).
+2. [ ] **Weitere Hervorhebungen**: Überschriften etwas größer, Einkreisen, Markerfarbe wählbar. (Unterstreichen, Textmarker `==Text==` und Aufzählungspunkte sind erledigt.)
 3. [ ] **Eigene Schriftart erzeugen** (Idee aus dieser Runde): aus der Handschrift eine Schrift (TTF) bauen und per Profil auf dem iPad installieren. Dann ist Text in GoodNotes echter Text in eigener Handschrift-Optik (mit der Tastatur änderbar, aber nicht radierbar und ohne Varianten). Großer Aufwand.
 4. [ ] **Kurzbefehl „In Handschrift“**: iOS-Kurzbefehl öffnet die App mit `?text=…` vorbefüllt. Achtung: Links öffnen Safari, nicht die Home-Bildschirm-App, und die beiden haben getrennten Speicher (Handschrift wäre in Safari nicht da). Erst klären, ob das trotzdem lohnt.
-5. [ ] **Mathe**: weitere Hochzahlen (x⁴, xⁿ), Tiefzahlen (H₂O, CO₂), einfache Brüche, `$…$`-Formeln aus KI-Antworten. (`²` `³` sind erledigt.)
+5. [ ] **Mathe**: Buchstaben als Hochzahl (xⁿ), Minus in Hochzahlen (10⁻³), einfache Brüche, `$…$`-Formeln aus KI-Antworten. (Ziffern hoch und tief sind erledigt.)
 6. [ ] **Lernzettel-Layouts**: Cornell-Notizen, Karteikarten (A6/A7), später Mindmap (niedrige Priorität).
 7. [ ] **Stifte**: Kuli, Füller (Strichbreite schwankt), Bleistift-Körnung; mehrere Farben (Überschrift blau, Text schwarz).
 8. [ ] **Natürlicher**: zum Seitenende minimal unordentlicher werdend; eigene Wörterliste (Fachwörter) als Vorlage-Zusatzseite.
@@ -58,4 +62,6 @@ Hinweis aus der Recherche: Manche Schulen haben Regeln zu „generierter Handsch
 - Alles mit Helligkeit > 180 gilt nicht als Tinte (`extract.ts`); die grauen Hilfsbuchstaben haben ~222.
 - Die eigene Test-Vorlage liegt in `samples/vorlage.pdf` (nicht im Repository).
 - Notizen-Erkennung (`segmentation/style.ts`): misst Tinte, also x-Höhe plus Strichdicke. `probeStyle()` in main.ts misst eine Probeseite in der eigenen Handschrift genauso und rechnet über das Verhältnis zurück. Test im Browser: Seite mit `layout` + `drawPage` rendern, mit `toPdf` zum PDF machen und über das Datei-Feld `#notes` laden.
+- Ausfüllen in der App: `src/import/pencil.ts`. Die Striche liegen nur im Speicher (bis die App geschlossen wird); beim Übernehmen wird jede beschriebene Seite als Vorlage gerendert, die Striche darauf gemalt und durch dieselbe Erkennung wie ein PDF geschickt (`importInto` in main.ts).
+- Textmarker: `clean()` setzt `MARK`-Zeichen, `layout()` legt `page.marks` an, `drawPage()` malt sie vor der Tinte.
 - Hervorhebung: `clean()` markiert Fett/Überschriften mit `EMPH` (Steuerzeichen /), `layout()` zeichnet den Unterstrich als `Connector`.

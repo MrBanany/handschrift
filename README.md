@@ -11,6 +11,8 @@ Deine Handschrift-Proben liegen nur im Browser-Speicher deines Geräts und komme
 3. Eigene Handschrift: Reiter **Handschriften** → *Vorlage herunterladen* → in GoodNotes ausfüllen
    (schwarzer oder dunkelblauer Stift, auf der durchgezogenen Linie) → als PDF exportieren → mit Namen importieren.
    Mehrere Handschriften sind möglich; unter **Schreiben** umschalten.
+   Pfeile und Symbole (→ ⇒ ≈ ✓ ² …) stehen auf der letzten Seite; *nur Pfeile & Symbole* lädt sie einzeln.
+   Mit demselben Namen importiert, kommen sie zu den vorhandenen Zeichen dazu.
 4. Reiter **Zeichen**: Kontrolle. Schlechte Varianten antippen und löschen.
 5. **Schreiben**: Text einfügen. Dann
    - *Handschrift kopieren* bzw. die Schrift in der Vorschau lange drücken → in GoodNotes einsetzen (nur die Schrift, ohne Papier).

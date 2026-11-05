@@ -37,6 +37,8 @@ export const PAIRS = [
   'ar', 'ra', 'or', 'el', 'al', 'ht', 'ur', 'we', 'ich', 'cht', 'ung',
 ];
 export const WORDS = ['und', 'der', 'die', 'das', 'ist', 'nicht', 'mit', 'ein', 'zu', 'auf', 'für', 'sich', 'auch', 'oder'];
+/** Arrows and symbols for notes and AI answers: their own last page, so it can be filled in and imported alone. */
+export const SYMBOL_KEYS = [...'→←↑↓⇒⇔↔', ...'+=≠≈<>≤≥±×÷·²³√π°Δ∞', ...'✓✗•*§~[]#|'];
 
 export interface Box {
   id: string; // stable id, e.g. "1-3-17" (version-page-index)
@@ -47,36 +49,45 @@ export interface Box {
 
 interface Item { key: string; cells: number; variants: number }
 
-const ITEMS: Item[] = [
-  ...SINGLES.map((key) => ({ key, cells: 1, variants: 4 })),
-  ...PAIRS.map((key) => ({ key, cells: 2, variants: 3 })),
-  ...WORDS.map((key) => ({ key, cells: key.length <= 3 ? 3 : 4, variants: 3 })),
+// Each group starts on a new page. New groups only ever go at the end: existing boxes must never move (v1 imports).
+const GROUPS: Item[][] = [
+  [
+    ...SINGLES.map((key) => ({ key, cells: 1, variants: 4 })),
+    ...PAIRS.map((key) => ({ key, cells: 2, variants: 3 })),
+    ...WORDS.map((key) => ({ key, cells: key.length <= 3 ? 3 : 4, variants: 3 })),
+  ],
+  SYMBOL_KEYS.map((key) => ({ key, cells: 1, variants: 3 })),
 ];
 
 function buildPages(): Box[][] {
-  const pages: Box[][] = [[]];
+  const pages: Box[][] = [];
   let col = 0, row = 0;
-  for (const item of ITEMS) {
-    for (let v = 0; v < item.variants; v++) {
-      if (col + item.cells > COLS) { col = 0; row++; }
-      if (row >= ROWS) { row = 0; pages.push([]); }
-      const page = pages.length - 1;
-      const list = pages[page];
-      list.push({
-        id: `${TEMPLATE_VERSION}-${page}-${list.length}`,
-        key: item.key, page,
-        x: LEFT + col * CELL.w,
-        y: TOP + row * (CELL.h + LABEL) + LABEL,
-        w: item.cells * CELL.w, h: CELL.h,
-      });
-      col += item.cells;
+  for (const group of GROUPS) {
+    pages.push([]); col = 0; row = 0;
+    for (const item of group) {
+      for (let v = 0; v < item.variants; v++) {
+        if (col + item.cells > COLS) { col = 0; row++; }
+        if (row >= ROWS) { row = 0; pages.push([]); }
+        const page = pages.length - 1;
+        const list = pages[page];
+        list.push({
+          id: `${TEMPLATE_VERSION}-${page}-${list.length}`,
+          key: item.key, page,
+          x: LEFT + col * CELL.w,
+          y: TOP + row * (CELL.h + LABEL) + LABEL,
+          w: item.cells * CELL.w, h: CELL.h,
+        });
+        col += item.cells;
+      }
     }
   }
   return pages;
 }
 
 export const TEMPLATE_PAGES = buildPages();
-export const TEMPLATE_KEYS = ITEMS.map((i) => i.key);
+export const TEMPLATE_KEYS = GROUPS.flat().map((i) => i.key);
+/** Index of the page with arrows and symbols. */
+export const SYMBOL_PAGE = TEMPLATE_PAGES.findIndex((p) => p[0].key === SYMBOL_KEYS[0]);
 
 export function pageCode(page: number): number {
   return (TEMPLATE_VERSION << 5) | page;

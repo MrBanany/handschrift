@@ -16,6 +16,14 @@ describe('stroke symbols', () => {
     expect(symbolVariants([plus])).toEqual(vs); // the same on every start
   });
 
+  it('makes ² from the writer\'s own 2, smaller and raised, unless ² was filled in', () => {
+    const two: Variant = { ...plus, src: '1-2-3', key: '2', baseline: 100, scale: 1.1 };
+    const [sq] = symbolVariants([two]).filter((v) => v.key === '²');
+    expect(sq).toMatchObject({ src: 'sup:1-2-3', scale: 0.66, entry: null, exit: null, alpha: two.alpha });
+    expect((sq.baseline - two.baseline) * sq.scale!).toBeCloseTo(0.8 * XH * MM); // raised by 0.8 x-heights on the page
+    expect(symbolVariants([two, { ...two, src: 'x', key: '²' }]).some((v) => v.key === '²')).toBe(false);
+  });
+
   it('puts the arrow shaft at half the x-height above the baseline', () => {
     const a = symbolVariants([plus]).find((v) => v.key === '→')!;
     let ink = 0, rows = 0;

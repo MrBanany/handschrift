@@ -13,7 +13,7 @@ import { extractPage } from './segmentation/extract';
 import { clean } from './renderer/clean';
 import { measureLines, summarize, type LineMeasure, type TextStyle } from './segmentation/style';
 import { buildTemplatePdf } from './template/pdf';
-import { PAIRS, SINGLES, WORDS } from './template/layout';
+import { PAIRS, SINGLES, SYMBOL_KEYS, SYMBOL_PAGE, WORDS } from './template/layout';
 
 const FORMATS: Record<string, { w: number; h: number }> = { a4: { w: 210, h: 297 }, a4q: { w: 297, h: 210 }, a5: { w: 148, h: 210 } };
 const pageSize = () => FORMATS[$<HTMLInputElement>('page').value] ?? FORMATS.a4;
@@ -298,6 +298,10 @@ $('template').onclick = async () => {
   const pdf = await buildTemplatePdf();
   download(new Blob([pdf as BlobPart], { type: 'application/pdf' }), 'handschrift-vorlage.pdf');
 };
+$('templateSymbols').onclick = async () => {
+  const pdf = await buildTemplatePdf(SYMBOL_PAGE);
+  download(new Blob([pdf as BlobPart], { type: 'application/pdf' }), 'handschrift-symbole.pdf');
+};
 
 $<HTMLInputElement>('file').onchange = async (ev) => {
   const input = ev.target as HTMLInputElement;
@@ -508,6 +512,7 @@ const GROUPS: [string, string[]][] = [
   ['Satzzeichen', SINGLES.filter((k) => !/\p{L}|\p{N}/u.test(k))],
   ['Paare & Dreier', PAIRS],
   ['Wörter', WORDS],
+  ['Pfeile & Symbole', SYMBOL_KEYS],
 ];
 
 function renderGrid() {
@@ -532,7 +537,7 @@ function renderGrid() {
       const head = document.createElement('b');
       head.textContent = key;
       const info = document.createElement('small');
-      info.textContent = !vs.length ? 'fehlt' : [...key].length > 1 ? `${vs.filter((v) => v.connected).length}/${vs.length} verbunden` : `${vs.length}×`;
+      info.textContent = !vs.length ? (lib.has(key) ? 'Ersatz' : 'fehlt') : [...key].length > 1 ? `${vs.filter((v) => v.connected).length}/${vs.length} verbunden` : `${vs.length}×`;
       head.append(info);
       const row = document.createElement('div');
       row.className = 'variants';

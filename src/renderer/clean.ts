@@ -20,15 +20,23 @@ export function clean(text: string, has: (ch: string) => boolean): string {
     .replace(/(^|[^*\w])\*(?!\s)([^*\n]+?)\*/g, '$1$2') // italic
     .replace(/`([^`]*)`/g, '$1') // inline code
     .replace(/\$([^$\n]+)\$/g, '$1') // inline math
-    .replace(/\s*(?:→|⟶|➔|➜|⇒|=>|->)\s*/g, ` ${arrow} `)
+    .replace(/\s*(?:⇔|⟺|<=>)\s*/g, ` ${pick('⇔', '↔', '<->', '-')} `)
+    .replace(/\s*(?:↔|⟷|<->)\s*/g, ` ${pick('↔', '<->', '-')} `)
+    .replace(/\s*(?:⇒|⟹|=>)\s*/g, ` ${pick('⇒', arrow)} `)
+    .replace(/\s*(?:→|⟶|➔|➜|->)\s*/g, ` ${arrow} `)
     .replace(/\s*(?:←|<-)\s*/g, ` ${pick('←', '<-', '-')} `)
     .replace(/[“”„‟″]/g, (q) => (has(q) ? q : pick('"', "'")))
     .replace(/[‘’‚′]/g, (q) => (has(q) ? q : "'"))
     .replace(/[—―]/g, pick('–', '-'))
+    .replace(/−/g, '-') // minus sign
+    .replace(/\^2(?!\d)/g, pick('²', '^2')) // x^2, m^3: the set has ² ³ whenever it has the digits 2 and 3
+    .replace(/\^3(?!\d)/g, pick('³', '^3'))
     .replace(/…/g, '...')
     .replace(/×/g, pick('×', 'x'))
     .replace(/≈/g, pick('≈', 'ca.'))
-    .replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}]/gu, '') // emoji
+    .replace(/[✅✔☑]/gu, pick('✓', ''))
+    .replace(/[❌✖❎]/gu, pick('✗', 'x'))
+    .replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}]/gu, (c) => (has(c) ? c : '')) // emoji; ↔ counts as one too
     .replace(/[ \t]+$/gm, '')
     .replace(/[ \t]{2,}/g, ' ')
     .replace(/\n{3,}/g, '\n\n')

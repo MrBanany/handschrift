@@ -7,20 +7,42 @@ const X = XH * MM; // one x-height in glyph px
 const ring = (cx: number, cy: number, r: number): Pt[] =>
   Array.from({ length: 13 }, (_, i): Pt => [cx + r * Math.cos((i / 12) * 2 * Math.PI), cy + r * Math.sin((i / 12) * 2 * Math.PI)]);
 
+const wave = (y: number): Pt[] => Array.from({ length: 9 }, (_, i): Pt => [i * 0.11, y - 0.09 * Math.sin((i / 4) * Math.PI)]);
+const infinity = Array.from({ length: 25 }, (_, i): Pt => {
+  const t = (i / 24) * 2 * Math.PI, d = 1 + Math.sin(t) ** 2;
+  return [0.75 + (0.75 * Math.cos(t)) / d, -0.5 + (0.9 * Math.sin(t) * Math.cos(t)) / d];
+});
+
 /**
- * Symbols that AI answers use but the template doesn't ask for, as pen strokes in x-heights from the left end of
- * the baseline (negative y = up). A stroke with a single point is a dot.
+ * Symbols as pen strokes in x-heights from the left end of the baseline (negative y = up); a stroke with a single
+ * point is a dot. They stand in for symbols the writer hasn't filled in yet, and the template draws its grey
+ * trace-over shapes from them where Helvetica has no such character.
  */
-const SYMBOLS: Record<string, Pt[][]> = {
+export const SYMBOLS: Record<string, Pt[][]> = {
   '→': [[[0, -0.5], [1.6, -0.5]], [[1.22, -0.85], [1.6, -0.5], [1.22, -0.15]]],
   '←': [[[1.6, -0.5], [0, -0.5]], [[0.38, -0.85], [0, -0.5], [0.38, -0.15]]],
+  '↑': [[[0.4, 0], [0.4, -1.5]], [[0.05, -1.15], [0.4, -1.5], [0.75, -1.15]]],
+  '↓': [[[0.4, -1.5], [0.4, 0]], [[0.05, -0.35], [0.4, 0], [0.75, -0.35]]],
+  '⇒': [[[0, -0.7], [1.3, -0.7]], [[0, -0.3], [1.3, -0.3]], [[1.1, -0.95], [1.6, -0.5], [1.1, -0.05]]],
+  '⇔': [[[0.35, -0.7], [1.45, -0.7]], [[0.35, -0.3], [1.45, -0.3]], [[1.3, -0.95], [1.8, -0.5], [1.3, -0.05]], [[0.5, -0.95], [0, -0.5], [0.5, -0.05]]],
+  '↔': [[[0, -0.5], [1.8, -0.5]], [[1.42, -0.85], [1.8, -0.5], [1.42, -0.15]], [[0.38, -0.85], [0, -0.5], [0.38, -0.15]]],
   '>': [[[0.1, -0.85], [0.8, -0.45], [0.1, -0.05]]],
   '<': [[[0.8, -0.85], [0.1, -0.45], [0.8, -0.05]]],
+  '≤': [[[0.8, -1.05], [0.1, -0.7], [0.8, -0.35]], [[0.1, -0.08], [0.8, -0.08]]],
+  '≥': [[[0.1, -1.05], [0.8, -0.7], [0.1, -0.35]], [[0.1, -0.08], [0.8, -0.08]]],
   '+': [[[0, -0.5], [0.9, -0.5]], [[0.45, -0.95], [0.45, -0.05]]],
   '=': [[[0, -0.7], [0.9, -0.7]], [[0, -0.3], [0.9, -0.3]]],
+  '≠': [[[0, -0.7], [0.9, -0.7]], [[0, -0.3], [0.9, -0.3]], [[0.65, -1], [0.25, 0]]],
+  '≈': [wave(-0.68), wave(-0.32)],
+  '~': [wave(-0.5)],
   '×': [[[0.1, -0.85], [0.75, -0.15]], [[0.75, -0.85], [0.1, -0.15]]],
+  '√': [[[0, -0.55], [0.18, -0.65], [0.45, 0], [0.8, -1.5], [1.5, -1.5]]],
+  'π': [[[0, -0.95], [1, -1.02]], [[0.3, -1], [0.25, 0]], [[0.72, -1.01], [0.75, -0.12], [0.88, 0]]],
+  'Δ': [[[0, 0], [0.55, -1.45], [1.1, 0], [0, 0]]],
+  '∞': [infinity],
   '*': [[[0.4, -1.6], [0.4, -0.9]], [[0.1, -1.42], [0.7, -1.08]], [[0.1, -1.08], [0.7, -1.42]]],
   '✓': [[[0, -0.6], [0.4, 0], [1.3, -1.65]]],
+  '✗': [[[0.05, -1.4], [1.05, 0.02]], [[1, -1.45], [0.05, 0]]], // taller than an x, like ✓
   '°': [ring(0.3, -1.6, 0.22)],
   '•': [[[0.25, -0.5]]],
 };
@@ -54,6 +76,14 @@ export function symbolVariants(have: Variant[], n = 3): Variant[] {
         return curve.map(([x, y]): Pt => [(cx + (x - cx) * cs - (y + 0.5) * sn) * X, (-0.5 + (x - cx) * sn + (y + 0.5) * cs) * X]);
       });
       out.push(rasterize(`sym:${key}:${i}`, key, lines, pen));
+    }
+  }
+  // ² ³ not filled in: the writer's own 2 and 3, smaller and raised to sit 0.8 x-heights above the line.
+  for (const [sup, digit] of [['²', '2'], ['³', '3']]) {
+    if (keys.has(sup)) continue;
+    for (const v of have) {
+      const k = (v.scale ?? 1) * 0.6;
+      if (v.key === digit) out.push({ ...v, src: `sup:${v.src}`, key: sup, scale: k, baseline: v.baseline + (0.8 * X) / k, entry: null, exit: null });
     }
   }
   return out;

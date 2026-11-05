@@ -5,7 +5,9 @@ import { layout, segment, type Settings } from '../src/renderer/layout';
 import { EMPH } from '../src/renderer/clean';
 import { extractPage } from '../src/segmentation/extract';
 import { readPageCode, register, type Affine } from '../src/segmentation/register';
-import { MM, TEMPLATE_PAGES, TEMPLATE_KEYS, SINGLES } from '../src/template/layout';
+import { PDFDocument } from 'pdf-lib';
+import { MM, TEMPLATE_PAGES, TEMPLATE_KEYS, SINGLES, SYMBOL_KEYS, SYMBOL_PAGE } from '../src/template/layout';
+import { buildTemplatePdf } from '../src/template/pdf';
 import { blankPage, writeU } from './synthetic';
 
 describe('template layout', () => {
@@ -13,7 +15,19 @@ describe('template layout', () => {
     for (const k of SINGLES) expect(TEMPLATE_KEYS).toContain(k);
     const ids = TEMPLATE_PAGES.flat().map((b) => b.id);
     expect(new Set(ids).size).toBe(ids.length);
-    for (const b of TEMPLATE_PAGES.flat()) expect(b.x + b.w).toBeLessThanOrEqual(198.01);
+    for (const b of TEMPLATE_PAGES.flat()) { expect(b.x + b.w).toBeLessThanOrEqual(198.01); expect(b.y + b.h).toBeLessThan(280); }
+  });
+
+  it('puts arrows and symbols on one page of their own, after the unchanged letter pages', () => {
+    expect(SYMBOL_PAGE).toBe(7);
+    expect(new Set(TEMPLATE_PAGES[SYMBOL_PAGE].map((b) => b.key))).toEqual(new Set(SYMBOL_KEYS));
+    expect(TEMPLATE_PAGES[0][0]).toEqual({ id: '1-0-0', key: 'a', page: 0, x: 12, y: 26, w: 15.5, h: 22 }); // v1 sheets stay readable
+    for (const k of SYMBOL_KEYS) expect(TEMPLATE_KEYS.filter((t) => t === k)).toHaveLength(1);
+  });
+
+  it('builds the PDF, also just the symbol page (arrows etc. drawn where Helvetica has no glyph)', async () => {
+    expect((await PDFDocument.load(await buildTemplatePdf())).getPageCount()).toBe(TEMPLATE_PAGES.length);
+    expect((await PDFDocument.load(await buildTemplatePdf(SYMBOL_PAGE))).getPageCount()).toBe(1);
   });
 });
 
@@ -51,6 +65,15 @@ describe('segmentation', () => {
     expect(v.exit!.dx).toBeGreaterThan(0.3); // leaves to the upper right
     expect(v.exit!.dy).toBeLessThan(0);
     expect(v.strokeW).toBeGreaterThan(3); expect(v.strokeW).toBeLessThan(8); // ~0.5 mm pen
+  });
+
+  it('reads the symbol page', () => {
+    const p = blankPage(SYMBOL_PAGE);
+    const b = TEMPLATE_PAGES[SYMBOL_PAGE][0];
+    writeU(p, b);
+    const { page, variants } = extractPage(p.img);
+    expect(page).toBe(SYMBOL_PAGE);
+    expect(variants.map((v) => [v.src, v.key])).toEqual([[b.id, '→']]);
   });
 
   it('ignores the grey trace-over letters of the template', () => {

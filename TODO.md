@@ -12,7 +12,7 @@ Stand: 5. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
   - Hell/Dunkel, Linien Eng/Mittel/Weit, Kariert, Prüf-Ansicht (Zeichen → „Optimierung prüfen“)
 - [ ] **Notizen erneut hochladen**: Die Erkennung ist neu (siehe unten). Bitte die vollgeschriebene GoodNotes-Datei noch einmal unter „Schreibstil aus Notizen lernen“ wählen und sagen, was herauskommt.
 - [ ] **GoodNotes-Linien abgleichen**: Linien auf einer GoodNotes-Seite (liniert schmal/breit) zählen und die Werte in `RULES` (src/main.ts) anpassen. Aktuell 6,4 / 7,1 / 8,7 mm – nicht bestätigt.
-- [ ] **Hochzahlen** `² ³` und `≈` fehlen noch (Idee: die eigenen Ziffern verkleinert und angehoben verwenden).
+- [ ] **Pfeile & Symbole selbst schreiben**: Handschriften → „nur Pfeile & Symbole“ herunterladen (1 Seite), in GoodNotes ausfüllen, als PDF exportieren und mit **demselben Namen** importieren. Danach im Reiter Zeichen unter „Pfeile & Symbole“ prüfen, ob alles drin ist.
 
 ## Erledigt am 5. November 2026
 
@@ -21,8 +21,11 @@ Stand: 5. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
   - **Grenze**: Echte, radierbare GoodNotes-Tinte kann keine fremde App erzeugen. Der Radierer löscht nur Stift- und Marker-Striche, keine Bilder oder PDFs; das `.goodnotes`-Format ist nicht offen. Bilder lassen sich aber mit dem Lasso verschieben, skalieren, kopieren, löschen und zuschneiden.
 - [x] Schreiben-Seite einfacher: zwei Knöpfe „Handschrift kopieren“ und „Als PDF teilen“ direkt unter dem Text. „Exportieren als“ und „Auf Text zuschneiden“ sind entfernt.
 - [x] Notizen-Erkennung neu: Zeilen werden an der dichten x-Höhen-Zone erkannt (Ober- und Unterlängen verbinden die Zeilen sonst). Linien, Karos und Rand werden entfernt, helle Stifte und dunkles Papier funktionieren, der Abgleich läuft über eine Probeseite in der eigenen Handschrift. Getestet mit 2 Seiten in eigener Handschrift auf engen Linien: Größe 2,5 statt 2,6 mm, Zeilenabstand 7,1 mm exakt.
-- [x] Fehlende Symbole `→ ← > < + = × * ✓ ° •` werden in der eigenen Strichstärke gezeichnet (`src/glyphstore/symbols.ts`).
+- [x] Fehlende Symbole werden in der eigenen Strichstärke gezeichnet (`src/glyphstore/symbols.ts`), im Reiter Zeichen als „Ersatz“ markiert. Ohne Ersatz (also „fehlt“): `± ÷ · § [ ] # |`.
 - [x] **Fett** und Überschriften aus KI-Antworten werden unterstrichen statt entfernt.
+- [x] Neue Vorlagenseite 8 **Pfeile & Symbole** (36 Zeichen je 3×: `→ ← ↑ ↓ ⇒ ⇔ ↔ + = ≠ ≈ < > ≤ ≥ ± × ÷ · ² ³ √ π ° Δ ∞ ✓ ✗ • * § ~ [ ] # |`), auch einzeln herunterladbar. Seiten 1–7 sind unverändert, alte ausgefüllte Vorlagen gehen weiter. Selbst geschriebene Symbole ersetzen die gezeichneten.
+- [x] Hochzahlen: `x^2`/`m^3` werden zu `²`/`³`; ohne eigene Hochzahlen nimmt die App die eigenen Ziffern 2 und 3, verkleinert und angehoben.
+- [x] KI-Antworten: `=>` bleibt `⇒`, `<=>` wird `⇔`, `<->` wird `↔`, ✅ wird ✓, ❌ wird ✗, das Minuszeichen `−` wird `-`.
 
 ## Ideen (aus der Recherche)
 
@@ -38,7 +41,7 @@ Stand: 5. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
 2. [ ] **Weitere Hervorhebungen**: `==Text==` → Textmarker, Überschriften etwas größer, Einkreisen. (Fett/Überschriften unterstreichen und handgezeichnete Aufzählungspunkte sind erledigt.)
 3. [ ] **Eigene Schriftart erzeugen** (Idee aus dieser Runde): aus der Handschrift eine Schrift (TTF) bauen und per Profil auf dem iPad installieren. Dann ist Text in GoodNotes echter Text in eigener Handschrift-Optik (mit der Tastatur änderbar, aber nicht radierbar und ohne Varianten). Großer Aufwand.
 4. [ ] **Kurzbefehl „In Handschrift“**: iOS-Kurzbefehl öffnet die App mit `?text=…` vorbefüllt. Achtung: Links öffnen Safari, nicht die Home-Bildschirm-App, und die beiden haben getrennten Speicher (Handschrift wäre in Safari nicht da). Erst klären, ob das trotzdem lohnt.
-5. [ ] **Mathe**: Hochzahlen (x²), einfache Brüche, `$…$`-Formeln aus KI-Antworten.
+5. [ ] **Mathe**: weitere Hochzahlen (x⁴, xⁿ), Tiefzahlen (H₂O, CO₂), einfache Brüche, `$…$`-Formeln aus KI-Antworten. (`²` `³` sind erledigt.)
 6. [ ] **Lernzettel-Layouts**: Cornell-Notizen, Karteikarten (A6/A7), später Mindmap (niedrige Priorität).
 7. [ ] **Stifte**: Kuli, Füller (Strichbreite schwankt), Bleistift-Körnung; mehrere Farben (Überschrift blau, Text schwarz).
 8. [ ] **Natürlicher**: zum Seitenende minimal unordentlicher werdend; eigene Wörterliste (Fachwörter) als Vorlage-Zusatzseite.
@@ -49,7 +52,8 @@ Hinweis aus der Recherche: Manche Schulen haben Regeln zu „generierter Handsch
 
 ## Technische Notizen für später
 
-- Vorlage: Kästchen-Positionen nicht verschieben, sonst passen bereits ausgefüllte Vorlagen nicht mehr (sonst `TEMPLATE_VERSION` erhöhen und alte Version weiter unterstützen).
+- Vorlage: Kästchen-Positionen nicht verschieben, sonst passen bereits ausgefüllte Vorlagen nicht mehr (sonst `TEMPLATE_VERSION` erhöhen und alte Version weiter unterstützen). Neue Zeichen nur als neue Gruppe **hinten** in `GROUPS` (template/layout.ts) anfügen; jede Gruppe beginnt auf einer eigenen Seite. Höchstens 32 Seiten (5 Bit Seitenkennung).
+- Helvetica (PDF-Standardschrift) kann `→ ≈ ✓ π …` nicht schreiben: Für solche Zeichen zeichnet `sketch()` in template/pdf.ts den grauen Hilfsbuchstaben und die Beschriftung aus den Strichen in `SYMBOLS`. Ein neues Vorlagen-Zeichen, das Helvetica nicht kann, braucht dort einen Eintrag (der Test „builds the PDF“ fällt sonst durch).
 - Dunkler Text auf der Vorlage muss mehr als 15 mm Abstand zu den Eckmarken halten (`register.ts` zählt alles mit Helligkeit < 100 im Umkreis).
 - Alles mit Helligkeit > 180 gilt nicht als Tinte (`extract.ts`); die grauen Hilfsbuchstaben haben ~222.
 - Die eigene Test-Vorlage liegt in `samples/vorlage.pdf` (nicht im Repository).

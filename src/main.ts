@@ -141,6 +141,15 @@ function button(text: string, onclick: () => unknown, cls = '') {
 
 $<HTMLSelectElement>('set').onchange = (e) => useSet((e.target as HTMLSelectElement).value);
 $('trySample').onclick = () => useSet(SAMPLE_SET);
+// dev only (left out of the build): a joined-up test set from a German school cursive; run cursiveSample() in the console
+if (import.meta.env.DEV) Object.assign(window, { cursiveSample: async () => {
+  const name = 'Test Schreibschrift';
+  const url = (await import('@fontsource/playwrite-de-va/files/playwrite-de-va-latin-400-normal.woff2?url')).default;
+  document.fonts.add(await new FontFace('Playwrite DE VA', `url(${url})`).load());
+  await saveMany(name, await buildSampleSet('"Playwrite DE VA"'));
+  sets = await listSets();
+  await useSet(name);
+} });
 $('setName').oninput = () => { delete $('setName').dataset.auto; };
 
 // ---------- settings (persisted locally) ----------

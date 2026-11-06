@@ -2,12 +2,12 @@ import { MM, XH } from '../template/layout';
 import type { Variant } from './types';
 
 const xhPx = XH * MM;
-// Characters whose ink should end on the baseline (no descenders).
-const SITS = /^[a-eh-ik-orstuvwxzäöüA-IK-PR-ZÄÖÜ0-9.:!?]+$/u;
+// Characters whose ink should end on the baseline (no descenders). No z: in German school cursive it has a tail below the line.
+const SITS = /^[a-eh-ik-orstuvwxäöüA-IK-PR-ZÄÖÜ0-9.:!?]+$/u;
 // Punctuation that sits on the line: always pulled all the way down; a floating colon or full stop looks wrong at once.
 const PUNCT = /^[.:!?]$/u;
 // Ink exactly one x-height tall (no ascenders, descenders or dots): their heights should match each other.
-const XLET = /^[acemnorsuvwxz]+$/u;
+const XLET = /^[acemnorsuvwx]+$/u;
 
 const median = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[s.length >> 1] : NaN; };
 

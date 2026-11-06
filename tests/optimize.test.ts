@@ -21,6 +21,10 @@ describe('optimize', () => {
     // a colon written high: its lower dot goes onto the line in full, even at gentle strength
     const colon = optimize([v(':', 'c1', [[10, 40, 16, 46], [10, 70, 16, 76]])], 0.4).variants[0];
     expect(colon.baseline).toBe(75);
+    // school-cursive z with its tail below the line: neither pulled up nor shrunk
+    const zu = optimize([v('zu', 'z1', [[0, 60, 30, 125], [30, 60, 70, 100]]), ...['a', 'e', 'n'].map((k) => v(k, k, [[0, 50, 30, 100]]))]).variants[0];
+    expect(zu.baseline).toBe(100);
+    expect(zu.scale ?? 1).toBe(1);
   });
 
   it('evens out sizes of one character', () => {

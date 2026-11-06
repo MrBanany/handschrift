@@ -21,6 +21,9 @@ Stand: 6. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
 
 - [x] **Eingefügter Text ohne Zeilenumbrüche** (alles klebte zusammen: „BruchrechnungAddition … machen.Aufgabe 1“): Ein langer Text ganz ohne Umbruch wird dort getrennt, wo ein Wort, Satz oder eine Formel direkt in ein großgeschriebenes Wort läuft. Kurze Zeilen ohne Punkt und Formel („Chemie: Wichtige Ionen“) werden zu Überschriften (`unflatten` in clean.ts). Texte mit Umbrüchen bleiben unverändert.
 - [x] **Platz zwischen Themen**: vor jeder Überschrift automatisch eine Leerzeile, nach einem eingerahmten Ergebnis auch. Der Kasten richtet sich nach seinem Inhalt (Brüche passen hinein).
+- [x] **Schreibschrift-Testsatz** (nur beim Entwickeln, nicht in der App): in der Konsole `cursiveSample()` füllt die Vorlage mit der Schulschrift Playwrite DE VA (Vereinfachte Ausgangsschrift, OFL) und legt „Test Schreibschrift“ an. Wird als Schreibschrift erkannt, Wörter hängen zusammen.
+  - Gefunden und behoben: Das z mit Unterlänge (Schulschrift, viele deutsche Handschriften) wurde auf die Linie hochgezogen und geschrumpft, „zu“ schwebte klein über der Zeile.
+  - Grenze: Eine Schrift ist sauberer als echte Hand. Die echten Proben bleiben der eigentliche Test.
 - [x] **Fehlersuche** (Konsole, alle Reiter, PDF- und GoodNotes-Export, Sonderfälle), behoben:
   - **Schreibschrift wurde falsch geraten**: Beim Raten zählten auch Einzelbuchstaben mit (die haben auch einen „verbunden“-Wert). „Meine Handschrift“ (Druckschrift, 13 von 171 Paaren verbunden) bekam deshalb den Haken und wurde eng verbunden geschrieben. Jetzt zählen nur Paare und Wortteile.
   - Ein hoher Kasten (Bruch im Kasten) schnitt durch die Zeile darüber. Jetzt rückt seine Zeile eine Linie nach unten, wie bei Strukturformeln.

@@ -30,6 +30,7 @@
         <span id="installText"></span>
         <span class="row"><button id="installBtn" class="primary" hidden>Installieren</button><button id="installClose">Später</button></span>
       </div>
+      <select id="history" class="history" aria-label="Verlauf: frühere Texte" hidden></select>
       <textarea id="text" rows="7" placeholder="Text eintippen oder KI-Antwort einfügen – Strukturformeln so: [[Ethanol]] oder [[CCO]]"></textarea>
       <p id="missing" class="note warn" hidden></p>
       <div class="actions">
@@ -67,7 +68,7 @@
         <p class="muted small">Schreib direkt in der App in die Kästchen. Gleicher Name = die Zeichen kommen zur Handschrift dazu.</p>
         <h3 class="or">Oder über GoodNotes</h3>
         <ol class="steps">
-          <li><button id="template">Vorlage herunterladen</button> oder <button id="templateSymbols">nur Pfeile &amp; Symbole</button> und in GoodNotes öffnen.</li>
+          <li><button id="template">Vorlage herunterladen</button> oder <button id="templateSymbols">nur Pfeile &amp; Symbole</button> und in GoodNotes öffnen. Wer verbunden schreibt: <button id="templateCursive">nur Schreibschrift</button> (die letzten Seiten der Vorlage, mehr verbundene Wortteile).</li>
           <li>Jedes Kästchen mit schwarzem oder dunkelblauem Stift auf der durchgezogenen Linie ausfüllen. Der graue Buchstabe im ersten Kästchen zeigt die Größe – einfach in deiner Art darüberschreiben. Leere Kästchen sind erlaubt.</li>
           <li>In GoodNotes: Teilen → Exportieren → PDF.</li>
           <li><label class="button">PDF oder Bilder importieren<input id="file" type="file" accept="application/pdf,image/png,image/jpeg" multiple hidden /></label></li>

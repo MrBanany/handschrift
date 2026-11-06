@@ -16,6 +16,7 @@ export interface Settings {
   seed: number;
   letterGap?: number | null; // learned gap between letters (x-heights), see glyphstore/optimize
   wordGap?: number | null; // learned gap between words (x-heights), see segmentation/style
+  cursive?: boolean; // joined-up writing: letters inside a word are always joined
 }
 
 /** Canvas-order affine: x' = a x + c y + e, y' = b x + d y + f. Glyph px -> page mm. */
@@ -58,14 +59,14 @@ function inkX(g: GlyphMeta, m: Mat): [number, number] {
   return [l, r];
 }
 
-/** Split a word into the largest available samples: whole word > trigram > pair > single letter. */
+/** Split a word into the largest available samples: whole word > word part (up to 5 letters, e.g. "keit") > pair > single letter. */
 export function segment(word: string, lib: Library): string[] {
   const out: string[] = [];
   for (const run of word.match(/\p{L}+|[^\p{L}]/gu) ?? []) {
     const chars = [...run];
     if (chars.length > 1 && lib.has(run)) { out.push(run); continue; }
     for (let i = 0; i < chars.length;) {
-      const len = [3, 2].find((n) => i + n <= chars.length && lib.has(chars.slice(i, i + n).join('')));
+      const len = [5, 4, 3, 2].find((n) => i + n <= chars.length && lib.has(chars.slice(i, i + n).join('')));
       if (len) { out.push(chars.slice(i, i + len).join('')); i += len; }
       else out.push(chars[i++]);
     }
@@ -73,7 +74,25 @@ export function segment(word: string, lib: Library): string[] {
   return out;
 }
 
-interface WordItem { g: GlyphMeta; m: Mat; join: boolean }
+interface WordItem { g: GlyphMeta; m: Mat; join: boolean; from?: Anchor; to?: Anchor }
+
+const isLetter = (c: string) => /\p{L}/u.test(c);
+
+/**
+ * Joined-up writing without a detected entry/exit stroke: join at the ink nearest the baseline,
+ * on the right ('r', leaving) or left ('l', arriving), pen moving up and to the right.
+ */
+function inkAnchor(g: GlyphMeta, side: 'l' | 'r'): Anchor | null {
+  const xs = g.prof?.[side];
+  if (!xs) return null;
+  // bands inside the x-height zone, the one closest to the baseline first
+  const order = BANDS.map((b, i) => [b, i] as const).filter(([b]) => b < 0 && b > -XH * MM).sort((a, b) => b[0] - a[0]);
+  for (const [b, i] of order) {
+    const x = xs[i];
+    if (x != null) return { x, y: g.baseline + b, dx: 0.85, dy: -0.5, w: g.strokeW };
+  }
+  return null;
+}
 
 /** Band centres of GlyphMeta.prof, relative to the baseline in glyph px (see segmentation/analyze profiles). */
 export const BAND = (XH * MM) * 0.35;
@@ -181,11 +200,14 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
       const left = Math.min(...xs), right = Math.max(...xs);
 
       const first = [...key][0];
-      const join = !!(prev && prev.g.exit && g.entry && rand() < Math.min(1, pConnect(prev.last, first) * (1 + 0.25 * h)));
+      const letters = !!prev && isLetter(prev.last) && isLetter(first);
+      const exitA = prev && (prev.g.exit ?? (s.cursive ? inkAnchor(prev.g, 'r') : null));
+      const entryA = g.entry ?? (s.cursive ? inkAnchor(g, 'l') : null);
+      const join = !!(letters && exitA && entryA && (s.cursive || rand() < Math.min(1, pConnect(prev!.last, first) * (1 + 0.25 * h))));
       let tx: number;
       if (join) {
-        const ex = tf(prev!.m, prev!.g.exit!.x, prev!.g.exit!.y);
-        const en = tf(base, g.entry!.x, g.entry!.y);
+        const ex = tf(prev!.m, exitA!.x, exitA!.y);
+        const en = tf(base, entryA!.x, entryA!.y);
         const gap = Math.max(0.05 * xh, (0.18 - 0.05 * h) * xh * (1 + gauss() * 0.2 * sig)) + 0.25 * Math.abs(en[1] + walk - ex[1]);
         tx = Math.max(ex[0] + gap - en[0], prev!.right - 0.35 * xh - left);
       } else {
@@ -196,7 +218,7 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
         tx = tuck === null ? cursor + gap - left : Math.max(tuck + own, cursor - left - 0.6 * xh);
       }
       const m: Mat = [a, b, c, d, base[4] + tx, base[5] + walk];
-      items.push({ g, m, join });
+      items.push({ g, m, join, from: join ? exitA! : undefined, to: join ? entryA! : undefined });
       cursor = Math.max(cursor, right + tx); // a letter tucked under the previous one must not shrink the word
       prev = { g, m, right: cursor, last: [...key].at(-1)! };
     }
@@ -385,11 +407,11 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
         const m: Mat = [...it.m];
         m[4] += ox;
         m[5] += y + drift(m[4]);
-        if (it.join && prevM && prevG) {
+        if (it.join && prevM && prevG && it.from && it.to) {
           page!.connectors.push(makeConnector(
-            tf(prevM, prevG.exit!.x, prevG.exit!.y), dir(prevM, prevG.exit!),
-            tf(m, it.g.entry!.x, it.g.entry!.y), dir(m, it.g.entry!),
-            prevG.exit!.w * scaleOf(prevM), it.g.entry!.w * scaleOf(m), xh,
+            tf(prevM, it.from.x, it.from.y), dir(prevM, it.from),
+            tf(m, it.to.x, it.to.y), dir(m, it.to),
+            it.from.w * scaleOf(prevM), it.to.w * scaleOf(m), xh,
           ));
         }
         page!.glyphs.push({ g: it.g, m });

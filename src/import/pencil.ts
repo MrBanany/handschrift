@@ -11,7 +11,7 @@ const strokes = TEMPLATE_PAGES.map((): Stroke[] => []);
 let page = 0, zoom = 1, penSeen = false;
 
 async function templatePage(p: number): Promise<ImageData> {
-  const pdf = await buildTemplatePdf(p);
+  const pdf = await buildTemplatePdf([p]);
   for await (const { img } of pagesOf(new File([pdf as BlobPart], 'vorlage.pdf', { type: 'application/pdf' }))) return img;
   throw new Error('Vorlage konnte nicht erzeugt werden.');
 }

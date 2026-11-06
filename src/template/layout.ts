@@ -39,6 +39,12 @@ export const PAIRS = [
 export const WORDS = ['und', 'der', 'die', 'das', 'ist', 'nicht', 'mit', 'ein', 'zu', 'auf', 'für', 'sich', 'auch', 'oder'];
 /** Arrows and symbols for notes and AI answers: their own last page, so it can be filled in and imported alone. */
 export const SYMBOL_KEYS = [...'→←↑↓⇒⇔↔', ...'+=≠≈<>≤≥±×÷·²³√π°Δ∞', ...'✓✗•*§~[]#|'];
+/** Optional pages for joined-up writing: more joined pairs and word parts, so the joins come from real samples. */
+export const CURSIVE_KEYS = [
+  'ab', 'am', 'as', 'at', 'bi', 'da', 'di', 'ed', 'em', 'et', 'fe', 'fi', 'ha', 'hi', 'ig', 'is', 'ke', 'la',
+  'ma', 'me', 'mi', 'na', 'ni', 'no', 'on', 'os', 'ri', 'ro', 'sa', 'si', 'so', 'ta', 'ti', 'tr', 've', 'wi',
+  'ver', 'gen', 'ten', 'ter', 'men', 'ent', 'ber', 'lich', 'keit', 'heit',
+];
 
 export interface Box {
   id: string; // stable id, e.g. "1-3-17" (version-page-index)
@@ -57,6 +63,7 @@ const GROUPS: Item[][] = [
     ...WORDS.map((key) => ({ key, cells: key.length <= 3 ? 3 : 4, variants: 3 })),
   ],
   SYMBOL_KEYS.map((key) => ({ key, cells: 1, variants: 3 })),
+  CURSIVE_KEYS.map((key) => ({ key, cells: Math.max(2, key.length), variants: 2 })),
 ];
 
 function buildPages(): Box[][] {
@@ -88,6 +95,8 @@ export const TEMPLATE_PAGES = buildPages();
 export const TEMPLATE_KEYS = GROUPS.flat().map((i) => i.key);
 /** Index of the page with arrows and symbols. */
 export const SYMBOL_PAGE = TEMPLATE_PAGES.findIndex((p) => p[0].key === SYMBOL_KEYS[0]);
+/** Pages with the joined-up writing extras (the last ones). */
+export const CURSIVE_PAGES = TEMPLATE_PAGES.map((_, i) => i).filter((i) => i > SYMBOL_PAGE);
 
 export function pageCode(page: number): number {
   return (TEMPLATE_VERSION << 5) | page;

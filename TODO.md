@@ -19,6 +19,12 @@ Stand: 6. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
 
 ## Erledigt am 6. November 2026
 
+- [x] **Schreibschrift** (für verbundenes Schreiben): Haken „Schreibschrift“ bei der aktiven Handschrift (Handschriften). Er wird automatisch gesetzt, wenn die Paare meist verbunden sind. Dann werden Buchstaben in einem Wort immer verbunden, notfalls an der Tinte nahe der Grundlinie. Zwei zusätzliche Vorlagenseiten („nur Schreibschrift“) mit 36 verbundenen Paaren und Wortteilen (ver, ten, lich, keit …). Getestet nur mit der Windows-Schrift Segoe Script. **Offen: echte Proben vom Freund ausprobieren.**
+- [x] **Eigene Wortteile**: unter Zeichen → „Eigene Wortteile“ ein Wort oder Wortteil eintippen und mit dem Pencil schreiben (bis 5 Buchstaben mitten im Wort, länger nur als ganzes Wort).
+- [x] **Mehr Varianten**: Zeichen zeigt häufige Buchstaben mit weniger als 3 Varianten zum direkten Ergänzen.
+- [x] **Verlauf**: die letzten 15 verschickten Texte (GoodNotes, Bild, PDF) über „Verlauf“ oberhalb des Textfelds.
+- [x] Wieder drei Reiter (Schreiben, Handschriften, Zeichen). Ein Zeichen antippen öffnet das Schreibfeld direkt.
+
 - [x] **Echte GoodNotes-Tinte**: „In GoodNotes öffnen“ erzeugt eine `.goodnotes`-Datei. Die Schrift ist darin als Kugelschreiber-Striche gespeichert, also radierbar und per Lasso kopierbar. Dafür werden die Buchstaben-Bilder zu Mittellinien verdünnt (`src/export/goodnotes.ts`). Die Seite hat die Größe der Vorlage (16 × 21 cm, Punktraster); bei mehr Text entsteht pro Seite eine Datei. Vorlage und Feldaufbau stammen von InkLift (MIT), zusätzlich mit echten GoodNotes-Dateien aus parser-for-goodnotes verglichen. Der Textmarker kommt noch nicht mit.
 - [x] **Reaktionsgleichungen**: Moleküle stehen in der Zeile, z. B. `[[Methan]] + 2 [[Sauerstoff]] → [[Kohlenstoffdioxid]] + 2 [[Wasser]]`. Hohe Moleküle schieben die Zeile nach unten.
 - [x] **Ionen und Ladungen**: `Na^+`, `SO_4^{2-}`, `\ce{Ca2+}` → Na⁺, SO₄²⁻, Ca²⁺ (aus eigenem + und -). In Strukturformeln: `[[Ammonium]]`, `[[Hydroxid]]`, `[NH4+]`. Freie Elektronenpaare als Striche an O, N, S und den Halogenen (Valenzstrichformel). Etwa 40 weitere Namen (Sauerstoff, Schwefelsäure, Sulfat, Nitrat, Anilin …).

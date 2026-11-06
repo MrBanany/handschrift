@@ -204,3 +204,10 @@ details > * + * { margin-top: 10px; }
 .swap-pad { width: min(100%, 320px); aspect-ratio: auto; background: #fff; border-radius: 8px; touch-action: none; align-self: center; }
 .page-view img, .page-view canvas { cursor: pointer; }
 #grid .glyph { cursor: pointer; }
+.list .check { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer; }
+.list .check input { width: 18px; height: 18px; accent-color: var(--accent); }
+.need { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.chip { min-height: 32px; min-width: 36px; padding: 0 10px; border-radius: 16px; font-weight: 600; }
+.add-part { display: flex; gap: 8px; margin: 0 0 10px; max-width: 460px; }
+.add-part input { flex: 1; min-width: 0; font: inherit; height: 42px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); color: var(--text); }
+.history { align-self: flex-end; font: inherit; font-size: 13px; height: 34px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); color: var(--muted); max-width: 100%; }

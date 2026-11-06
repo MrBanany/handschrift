@@ -6,7 +6,7 @@ import { EMPH, HEAD, MARK, STRUCT } from '../src/renderer/clean';
 import { extractPage } from '../src/segmentation/extract';
 import { readPageCode, register, type Affine } from '../src/segmentation/register';
 import { PDFDocument } from 'pdf-lib';
-import { MM, TEMPLATE_PAGES, TEMPLATE_KEYS, SINGLES, SYMBOL_KEYS, SYMBOL_PAGE } from '../src/template/layout';
+import { CURSIVE_KEYS, CURSIVE_PAGES, MM, TEMPLATE_PAGES, TEMPLATE_KEYS, SINGLES, SYMBOL_KEYS, SYMBOL_PAGE } from '../src/template/layout';
 import { buildTemplatePdf } from '../src/template/pdf';
 import { blankPage, writeU } from './synthetic';
 
@@ -25,9 +25,15 @@ describe('template layout', () => {
     for (const k of SYMBOL_KEYS) expect(TEMPLATE_KEYS.filter((t) => t === k)).toHaveLength(1);
   });
 
+  it('adds the joined-up writing pages last, each key once', () => {
+    expect(CURSIVE_PAGES.length).toBeGreaterThan(0);
+    expect(CURSIVE_PAGES[0]).toBe(SYMBOL_PAGE + 1);
+    for (const k of CURSIVE_KEYS) expect(TEMPLATE_KEYS.filter((t) => t === k)).toHaveLength(1);
+  });
+
   it('builds the PDF, also just the symbol page (arrows etc. drawn where Helvetica has no glyph)', async () => {
     expect((await PDFDocument.load(await buildTemplatePdf())).getPageCount()).toBe(TEMPLATE_PAGES.length);
-    expect((await PDFDocument.load(await buildTemplatePdf(SYMBOL_PAGE))).getPageCount()).toBe(1);
+    expect((await PDFDocument.load(await buildTemplatePdf([SYMBOL_PAGE]))).getPageCount()).toBe(1);
   });
 });
 
@@ -170,6 +176,14 @@ describe('layout', () => {
     expect(gT2.m[4] - (gE.m[0] * 40 + gE.m[4])).toBeGreaterThan(0.7 * S.xh); // word gap measured ink to ink
     expect(gT2.m[4] - (gE.m[0] * 40 + gE.m[4])).toBeLessThan(1.3 * S.xh); // … not from the empty bitmap edge
     expect(pages[0].lines).toEqual([expect.objectContaining({ text: 'Te Te' })]);
+  });
+
+  it('joins every letter inside a word in cursive mode, even without detected strokes, and uses word parts', () => {
+    const e: GlyphMeta = { ...glyph('e', 0), entry: null, exit: null, prof: { l: [null, null, null, null, null, 0, 0, 0, null, null], r: [null, null, null, null, null, 40, 40, 40, null, null] } };
+    const lib = new Map([['e', [e]], ['keit', [{ ...e, key: 'keit', src: 'keit' }]]]);
+    expect(layout('eee', lib, S).pages[0].connectors).toHaveLength(0);
+    expect(layout('eee ee', lib, { ...S, cursive: true }).pages[0].connectors).toHaveLength(3); // not across the space
+    expect(segment('heiterkeit', lib)).toEqual([...'heiter', 'keit']);
   });
 
   it('underlines emphasised words with one pen stroke below the baseline', () => {

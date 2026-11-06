@@ -1,7 +1,7 @@
 import { LineCapStyle, PDFDocument, StandardFonts, rgb, type Color } from 'pdf-lib';
 import { SYMBOLS } from '../glyphstore/symbols';
 import {
-  CODE_BITS, CODE_SIZE, GUIDES, MARKS, MARK_SIZE, PAGE, SYMBOL_PAGE, TEMPLATE_PAGES, XH, pageCode,
+  CODE_BITS, CODE_SIZE, CURSIVE_PAGES, GUIDES, MARKS, MARK_SIZE, PAGE, SYMBOL_PAGE, TEMPLATE_PAGES, XH, pageCode,
 } from './layout';
 
 const PT = 72 / 25.4;
@@ -18,8 +18,8 @@ const HELVETICA_XH = 0.523; // x-height per em
 // Dark text must stay this far (mm) from the corner marks, or it shifts their detected centre (see register.ts).
 const HEAD_X0 = 30, HEAD_X1 = 180;
 
-/** The whole template, or only the page with the given index (e.g. SYMBOL_PAGE). */
-export async function buildTemplatePdf(only?: number): Promise<Uint8Array> {
+/** The whole template, or only the pages with the given indices (e.g. [SYMBOL_PAGE]). */
+export async function buildTemplatePdf(only?: number[]): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const typable = (k: string) => { try { font.encodeText(k); return true; } catch { return false; } };
@@ -29,7 +29,7 @@ export async function buildTemplatePdf(only?: number): Promise<Uint8Array> {
   let prevKey = '';
 
   TEMPLATE_PAGES.forEach((boxes, p) => {
-    if (only !== undefined && p !== only) return;
+    if (only && !only.includes(p)) return;
     const page = doc.addPage([PAGE.w * PT, PAGE.h * PT]);
     const X = (mm: number) => mm * PT;
     const Y = (mm: number) => (PAGE.h - mm) * PT;
@@ -58,7 +58,9 @@ export async function buildTemplatePdf(only?: number): Promise<Uint8Array> {
         ? 'Schwarz oder dunkelblau, auf die durchgezogene Linie. Der graue Buchstabe zeigt nur die Größe – schreib in deiner Art darüber.'
         : p === SYMBOL_PAGE
           ? 'Pfeile und Symbole. Diese Seite kannst du auch allein ausfüllen und importieren – deine anderen Zeichen bleiben erhalten.'
-          : 'Schwarz oder dunkelblau, auf die durchgezogene Linie. Leere Kästchen sind in Ordnung.',
+          : CURSIVE_PAGES.includes(p)
+            ? 'Nur für Schreibschrift: verbunden schreiben, wie du es sonst tust. Wer nicht verbunden schreibt, lässt diese Seite leer.'
+            : 'Schwarz oder dunkelblau, auf die durchgezogene Linie. Leere Kästchen sind in Ordnung.',
       { x: X(HEAD_X0), y: Y(17.6), size: 7, font, color: MUTED, maxWidth: (HEAD_X1 - HEAD_X0) * PT },
     );
 

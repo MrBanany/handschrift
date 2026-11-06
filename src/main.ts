@@ -15,7 +15,7 @@ import { extractBox, extractPage } from './segmentation/extract';
 import { clean } from './renderer/clean';
 import { measureLines, summarize, type LineMeasure, type TextStyle } from './segmentation/style';
 import { buildTemplatePdf } from './template/pdf';
-import { CELL, GUIDES, MM, PAIRS, SINGLES, SYMBOL_KEYS, SYMBOL_PAGE, TEMPLATE_PAGES, WORDS } from './template/layout';
+import { CELL, CURSIVE_KEYS, CURSIVE_PAGES, GUIDES, MM, PAIRS, SINGLES, SYMBOL_KEYS, SYMBOL_PAGE, TEMPLATE_PAGES, WORDS } from './template/layout';
 
 const FORMATS: Record<string, { w: number; h: number }> = { a4: { w: 210, h: 297 }, a4q: { w: 297, h: 210 }, a5: { w: 148, h: 210 } };
 const pageSize = () => FORMATS[$<HTMLInputElement>('page').value] ?? FORMATS.a4;
@@ -89,7 +89,16 @@ function renderSets() {
     label.className = 'name';
     label.textContent = name;
     li.append(label);
-    if (name === active) { const tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = 'aktiv'; li.append(tag); }
+    if (name === active) {
+      const tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = 'aktiv';
+      const check = Object.assign(document.createElement('input'), { type: 'checkbox', checked: cursive() });
+      check.onchange = () => { localStorage.setItem(`cursive:${name}`, check.checked ? '1' : '0'); rebuild(); };
+      const lab = document.createElement('label');
+      lab.className = 'check';
+      lab.append(check, 'Schreibschrift');
+      lab.title = 'Buchstaben in einem Wort immer verbinden';
+      li.append(tag, lab);
+    }
     else li.append(button('Verwenden', () => useSet(name).then(() => show('write'))));
     li.append(
       button('Backup speichern', async () => download(await exportBackup(name), `${name}.handschrift.json`)),
@@ -108,6 +117,14 @@ function renderSets() {
     nameField.value = active && active !== SAMPLE_SET ? active : DEFAULT_SET;
     nameField.dataset.auto = '1';
   }
+}
+
+/** Joined-up writing for the active handwriting: as ticked, else guessed from the pairs (mostly joined → on). */
+function cursive() {
+  const v = localStorage.getItem(`cursive:${active}`);
+  if (v !== null) return v === '1';
+  const pairs = raw.filter((x) => x.connected !== undefined);
+  return pairs.length >= 5 && pairs.filter((x) => x.connected).length >= pairs.length / 2;
 }
 
 function button(text: string, onclick: () => unknown, cls = '') {
@@ -164,12 +181,13 @@ function settings() {
     xh: n('xh'), lineH: n('lineH'), margin: n('margin'), pageW: pageSize().w, pageH: pageSize().h, hasty: n('hasty'), seed: n('seed'),
     letterGap: style?.letterGap ?? tuned.letterGap,
     wordGap: style?.wordGap ?? null,
+    cursive: cursive(),
   };
   const o = {
     ink: $<HTMLInputElement>('ink').value, weight: n('weight'), background: $<HTMLInputElement>('background').value as Background,
   };
   localStorage.setItem('settings', JSON.stringify({
-    ...s, ...o, optimize: n('optimize'), letterGap: undefined, wordGap: undefined, v: 2,
+    ...s, ...o, optimize: n('optimize'), letterGap: undefined, wordGap: undefined, cursive: undefined, v: 2,
     page: $<HTMLInputElement>('page').value,
   }));
   return { s, o };
@@ -253,8 +271,34 @@ for (const [attr, id] of SEGS) {
 $('dice').onclick = () => { $<HTMLInputElement>('seed').value = String(Math.floor(Math.random() * 1e6)); schedule(); };
 addEventListener('resize', schedule);
 
+// ---------- history: the last texts that were sent somewhere, to send them again ----------
+const HISTORY_MAX = 15;
+const history = (): string[] => { try { return JSON.parse(localStorage.getItem('history') ?? '[]'); } catch { return []; } };
+function remember() {
+  const t = $<HTMLTextAreaElement>('text').value.trim();
+  if (!t) return;
+  localStorage.setItem('history', JSON.stringify([t, ...history().filter((h) => h !== t)].slice(0, HISTORY_MAX)));
+  renderHistory();
+}
+function renderHistory() {
+  const sel = $<HTMLSelectElement>('history'), list = history();
+  sel.hidden = !list.length;
+  sel.replaceChildren(new Option('Verlauf', '', true, true), ...list.map((t, i) => new Option(t.replace(/\s+/g, ' ').slice(0, 60), String(i))));
+  sel.options[0].disabled = true;
+}
+$<HTMLSelectElement>('history').onchange = (e) => {
+  const t = history()[Number((e.target as HTMLSelectElement).value)];
+  if (t === undefined) return;
+  const area = $<HTMLTextAreaElement>('text');
+  area.value = t;
+  area.dispatchEvent(new Event('input')); // saves it, clears letter swaps, redraws
+  renderHistory();
+};
+renderHistory();
+
 async function shareAs(kind: string, make: () => Promise<File[]>) {
   if (!raw.length) return toast('Erst eine Handschrift auswählen oder anlegen.');
+  remember();
   try {
     if (ready?.kind !== kind) ready = { kind, files: await make() };
     await shareFiles(ready.files);
@@ -287,6 +331,7 @@ $('shareGn').onclick = () => shareAs('gn', async () => {
 });
 $('copy').onclick = () => {
   if (!raw.length) return toast('Erst eine Handschrift auswählen oder anlegen.');
+  remember();
   let more = false;
   // Clipboard call must happen inside the tap; the rendering runs inside the promise it waits for.
   const blob = Promise.resolve().then(() => {
@@ -321,8 +366,12 @@ $('template').onclick = async () => {
   download(new Blob([pdf as BlobPart], { type: 'application/pdf' }), 'handschrift-vorlage.pdf');
 };
 $('templateSymbols').onclick = async () => {
-  const pdf = await buildTemplatePdf(SYMBOL_PAGE);
+  const pdf = await buildTemplatePdf([SYMBOL_PAGE]);
   download(new Blob([pdf as BlobPart], { type: 'application/pdf' }), 'handschrift-symbole.pdf');
+};
+$('templateCursive').onclick = async () => {
+  const pdf = await buildTemplatePdf(CURSIVE_PAGES);
+  download(new Blob([pdf as BlobPart], { type: 'application/pdf' }), 'handschrift-schreibschrift.pdf');
 };
 
 /** Cut out and save every page of the given sources into the set named in the form; false if nothing was found. */
@@ -516,7 +565,7 @@ const closeSwap = () => { $('swap').hidden = true; };
 $('swapClose').onclick = closeSwap;
 
 // Write the letter anew in a template box (same guides), cut out like a filled-in template.
-const boxFor = (key: string) => TEMPLATE_PAGES.flat().find((b) => b.key === key) ?? { ...TEMPLATE_PAGES[0][0], key, w: CELL.w * Math.max(1, [...key].length) };
+const boxFor = (key: string) => TEMPLATE_PAGES.flat().find((b) => b.key === key) ?? { ...TEMPLATE_PAGES[0][0], key, w: CELL.w * Math.min(6, Math.max(1, [...key].length)) };
 function drawPad() {
   const c = $<HTMLCanvasElement>('swapPad'), ctx = c.getContext('2d')!;
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
@@ -660,18 +709,45 @@ const GROUPS: [string, string[]][] = [
   ['Wörter', WORDS],
   ['Pfeile & Symbole', SYMBOL_KEYS],
 ];
+const KNOWN = new Set([...GROUPS.flatMap(([, keys]) => keys), ...CURSIVE_KEYS]);
+// Most frequent letters in German text: with few variants the same shapes repeat visibly.
+const FREQUENT = [...'enisratdhulgmocbfkwz'];
 
 function renderGrid() {
   const byKey = new Map<string, Variant[]>();
   for (const v of raw) byKey.set(v.key, [...(byKey.get(v.key) ?? []), v]);
-  const all = GROUPS.flatMap(([, keys]) => keys);
+  const own = [...byKey.keys()].filter((k) => !KNOWN.has(k));
+  const groups: [string, string[]][] = [
+    ...GROUPS,
+    ...(cursive() || CURSIVE_KEYS.some((k) => byKey.has(k)) ? [['Schreibschrift', CURSIVE_KEYS] as [string, string[]]] : []),
+    ['Eigene Wortteile', own],
+  ];
+  const all = groups.flatMap(([, keys]) => keys);
   $('glyphsTitle').textContent = active ? `Zeichen von „${active}“` : 'Keine Handschrift ausgewählt';
   $('coverage').textContent = active ? `${all.filter((k) => byKey.has(k)).length} von ${all.length} vorhanden.` : '';
   const d = decisions(), toReview = active ? reviewKeys(raw, strong) : [], open = toReview.filter((k) => !d[k]).length;
   $('reviewOpen').hidden = !toReview.length;
   $('reviewOpen').textContent = open ? `Optimierung prüfen (${open} offen)` : 'Optimierung erneut prüfen';
   $('acceptAll').hidden = !open;
-  $('grid').replaceChildren(...(!active ? [] : GROUPS.flatMap(([title, keys]) => {
+
+  const few = FREQUENT.filter((k) => (byKey.get(k)?.length ?? 0) < 3);
+  const need = document.createElement('p');
+  need.className = 'note info need';
+  need.append('Häufige Buchstaben mit wenigen Varianten – antippen und eine dazuschreiben, dann wiederholt sich die Schrift weniger: ',
+    ...few.map((k) => button(k, () => openLetter(k), 'chip')));
+
+  const add = document.createElement('form');
+  add.className = 'add-part';
+  const field = Object.assign(document.createElement('input'), { placeholder: 'z. B. sch, ung, der, dein Name', maxLength: 12, autocomplete: 'off' });
+  add.append(field, Object.assign(document.createElement('button'), { type: 'submit', textContent: 'Schreiben' }));
+  add.onsubmit = (e) => {
+    e.preventDefault();
+    const k = field.value.trim();
+    if (/\s/.test(k)) return toast('Bitte ein Wort oder Wortteil ohne Leerzeichen.');
+    if (k) openLetter(k);
+  };
+
+  $('grid').replaceChildren(...(!active ? [] : [...(few.length ? [need] : []), ...groups.flatMap(([title, keys]) => {
     const h = document.createElement('h3');
     h.textContent = title;
     const group = document.createElement('div');
@@ -685,7 +761,7 @@ function renderGrid() {
       head.textContent = key;
       const info = document.createElement('small');
       // Word parts are used whether joined or not; mention joins only when there are some (print writers saw "0/3 verbunden" as "not recognised").
-      const joined = vs.filter((v) => v.connected).length;
+      const joined = [...key].length > 1 ? vs.filter((v) => v.connected).length : 0;
       info.textContent = !vs.length ? (lib.has(key) ? 'Ersatz' : 'fehlt') : `${vs.length}×${joined ? ` · ${joined} verbunden` : ''}`;
       head.append(info);
       const row = document.createElement('div');
@@ -694,8 +770,10 @@ function renderGrid() {
       el.append(head, row);
       return el;
     }));
-    return [h, group];
-  })));
+    if (title !== 'Eigene Wortteile') return [h, group];
+    const hint = Object.assign(document.createElement('p'), { className: 'muted small', textContent: 'So, wie du sie schreibst. Sie ersetzen im Text die einzelnen Buchstaben (bis 5 Buchstaben, längere nur als ganzes Wort).' });
+    return [h, hint, add, group];
+  })]));
 }
 
 // ---------- appearance (the inline script in index.html applies it before first paint) ----------

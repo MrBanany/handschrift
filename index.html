@@ -156,6 +156,28 @@
               <input id="ink" type="color" value="#1c2340" aria-label="Eigene Farbe" />
             </span>
           </div>
+          <div class="field">
+            <span>Überschriften</span>
+            <span class="swatches">
+              <button type="button" data-head="" class="same" aria-label="Wie die Tinte" title="Wie die Tinte"></button>
+              <button type="button" data-head="#1f4fbf" style="--c:#1f4fbf" aria-label="Blau"></button>
+              <button type="button" data-head="#a3271e" style="--c:#a3271e" aria-label="Rot"></button>
+              <button type="button" data-head="#22684a" style="--c:#22684a" aria-label="Grün"></button>
+              <button type="button" data-head="#6b3fa0" style="--c:#6b3fa0" aria-label="Lila"></button>
+            </span>
+            <input id="headInk" type="hidden" value="" />
+          </div>
+          <div class="field">
+            <span>Marker</span>
+            <span class="swatches">
+              <button type="button" data-mark="" style="--c:#ffd400" aria-label="Gelb"></button>
+              <button type="button" data-mark="rgba(90, 220, 110, 0.4)" style="--c:#5adc6e" aria-label="Grün"></button>
+              <button type="button" data-mark="rgba(255, 110, 180, 0.38)" style="--c:#ff6eb4" aria-label="Pink"></button>
+              <button type="button" data-mark="rgba(80, 180, 255, 0.38)" style="--c:#50b4ff" aria-label="Blau"></button>
+              <button type="button" data-mark="rgba(255, 150, 40, 0.4)" style="--c:#ff9628" aria-label="Orange"></button>
+            </span>
+            <input id="markInk" type="hidden" value="" />
+          </div>
           <label class="field"><span>Stil</span><input id="hasty" type="range" min="0" max="1" step="0.05" value="0.3" /><output data-for="hasty"></output></label>
           <label class="field"><span>Optimieren</span><input id="optimize" type="range" min="0.2" max="1" step="0.1" value="0.4" /><output data-for="optimize"></output></label>
           <div class="field">

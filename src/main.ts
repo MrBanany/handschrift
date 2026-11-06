@@ -144,7 +144,7 @@ $('setName').oninput = () => { delete $('setName').dataset.auto; };
 const NUM = ['hasty', 'xh', 'lineH', 'margin', 'weight', 'seed', 'optimize'] as const;
 const saved = JSON.parse(localStorage.getItem('settings') ?? '{}');
 if (saved.v !== 2) delete saved.optimize; // v2: optimizing starts at "leicht" instead of the old default "mittel"
-for (const id of [...NUM, 'ink', 'background', 'page']) if (saved[id] !== undefined) $<HTMLInputElement>(id).value = saved[id];
+for (const id of [...NUM, 'ink', 'headInk', 'markInk', 'background', 'page']) if (saved[id] !== undefined) $<HTMLInputElement>(id).value = saved[id];
 $<HTMLTextAreaElement>('text').value = localStorage.getItem('text') ?? 'Hallo, das ist ein Test meiner Handschrift.\nEs sieht hoffentlich echt aus!';
 
 // Clamp to the input's limits: a stored 0 line spacing once froze the page for good.
@@ -185,11 +185,12 @@ function settings() {
     cursive: cursive(),
   };
   const o = {
-    ink: $<HTMLInputElement>('ink').value, weight: n('weight'), background: $<HTMLInputElement>('background').value as Background,
+    ink: $<HTMLInputElement>('ink').value, head: $<HTMLInputElement>('headInk').value || undefined, mark: $<HTMLInputElement>('markInk').value || undefined,
+    weight: n('weight'), background: $<HTMLInputElement>('background').value as Background,
   };
   localStorage.setItem('settings', JSON.stringify({
     ...s, ...o, optimize: n('optimize'), letterGap: undefined, wordGap: undefined, cursive: undefined, v: 2,
-    page: $<HTMLInputElement>('page').value,
+    page: $<HTMLInputElement>('page').value, headInk: $<HTMLInputElement>('headInk').value, markInk: $<HTMLInputElement>('markInk').value, head: undefined, mark: undefined,
   }));
   return { s, o };
 }
@@ -260,7 +261,7 @@ document.querySelectorAll('#write textarea, #settings input').forEach((el) => el
 }));
 $('optimize').addEventListener('change', rebuild); // on release: rebuilding the review grid is not instant
 // Button groups that write into a hidden input: [data attribute, input id]
-const SEGS = [['ink', 'ink'], ['bg', 'background'], ['format', 'page']] as const;
+const SEGS = [['ink', 'ink'], ['head', 'headInk'], ['mark', 'markInk'], ['bg', 'background'], ['format', 'page']] as const;
 for (const [attr, id] of SEGS) {
   document.querySelectorAll<HTMLButtonElement>(`[data-${attr}]`).forEach((b) => b.onclick = () => {
     const rule = ruleAt();
@@ -332,7 +333,7 @@ $('shareGn').onclick = () => shareAs('gn', async () => {
     const thumb = drawPage(p, { ...o, background: 'blank', crop: false, pxPerMm: 2, pageW: GN_PAGE.w, pageH: GN_PAGE.h, lineH: s.lineH, margin: s.margin }, get);
     const jpg = new Uint8Array(await (await new Promise<Blob>((ok) => thumb.toBlob((b) => ok(b!), 'image/jpeg', 0.8))).arrayBuffer());
     const name = res.pages.length > 1 ? `handschrift-${i + 1}.goodnotes` : 'handschrift.goodnotes';
-    return new File([goodnotesFile(p, get, o.ink, jpg) as BlobPart], name, { type: 'application/octet-stream' });
+    return new File([goodnotesFile(p, get, o.ink, jpg, o.head ?? o.ink) as BlobPart], name, { type: 'application/octet-stream' });
   }));
 });
 $('copy').onclick = () => {

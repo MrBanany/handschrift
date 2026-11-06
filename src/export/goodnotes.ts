@@ -13,7 +13,7 @@ const BALLPOINT = 24;
 const DEVICE_TAG = 1184897455800006800n, APP_TAG = 5381; // opaque constants from files GoodNotes wrote
 
 type Pt = [number, number];
-export interface InkStroke { pts: Pt[]; w: number } // mm
+export interface InkStroke { pts: Pt[]; w: number; accent?: boolean } // mm
 
 // ---------- glyph bitmap -> centre lines ----------
 
@@ -74,12 +74,12 @@ const lineCache = new Map<string, Pt[][]>();
 /** Every pen stroke on a laid-out page, in page mm. */
 export function inkStrokes(page: Page, get: (src: string) => Variant): InkStroke[] {
   const out: InkStroke[] = [];
-  for (const { g, m } of page.glyphs) {
+  for (const { g, m, accent } of page.glyphs) {
     const v = get(g.src);
     if (!lineCache.has(g.src)) lineCache.set(g.src, centerlines(v.alpha, v.w, v.h));
     const k = Math.sqrt(Math.abs(m[0] * m[3] - m[1] * m[2]));
     for (const line of lineCache.get(g.src)!) {
-      out.push({ pts: line.map(([x, y]) => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]]), w: g.strokeW * k });
+      out.push({ pts: line.map(([x, y]) => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]]), w: g.strokeW * k, accent });
     }
   }
   for (const c of page.connectors) {
@@ -88,7 +88,7 @@ export function inkStrokes(page: Page, get: (src: string) => Variant): InkStroke
       const t = i / 12, u = 1 - t;
       pts.push([u * u * u * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t * t * t * p3[0], u * u * u * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t * t * t * p3[1]]);
     }
-    out.push({ pts, w: (c.w0 + c.w1) / 2 });
+    out.push({ pts, w: (c.w0 + c.w1) / 2, accent: c.accent });
   }
   return out;
 }
@@ -179,11 +179,12 @@ export function zip(files: [string, Uint8Array][]): Uint8Array {
 
 const b64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 
-/** One page as a .goodnotes document (page laid out on GN_PAGE). ink: '#rrggbb'. */
-export function goodnotesFile(page: Page, get: (src: string) => Variant, ink: string, thumbnail?: Uint8Array): Uint8Array {
-  const rgba = [1, 3, 5].map((i) => parseInt(ink.slice(i, i + 2), 16) / 255).concat(1);
+/** One page as a .goodnotes document (page laid out on GN_PAGE). ink, head (headings): '#rrggbb'. */
+export function goodnotesFile(page: Page, get: (src: string) => Variant, ink: string, thumbnail?: Uint8Array, head = ink): Uint8Array {
+  const rgbaOf = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).concat(1);
+  const rgba = rgbaOf(ink), rgbaHead = rgbaOf(head);
   const notes: number[] = [];
-  for (const s of inkStrokes(page, get)) if (s.pts.length) notes.push(...strokeRecords(s, rgba));
+  for (const s of inkStrokes(page, get)) if (s.pts.length) notes.push(...strokeRecords(s, s.accent ? rgbaHead : rgba));
   return zip([
     ['document.info.pb', new Uint8Array()],
     ['index.search.pb', b64(TEMPLATE.search)],

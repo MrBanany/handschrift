@@ -155,6 +155,12 @@ describe('layout', () => {
     expect(pages[0].lines[0].text).toBe('x = ab/c,');
   });
 
+  it('marks heading ink (letters and underline) for the heading colour, nothing else', () => {
+    const { pages } = layout('\u0006\u0002ab\u0003\ncd', lib, S);
+    expect(pages[0].glyphs.map((g) => !!g.accent)).toEqual([true, true, false, false]);
+    expect(pages[0].connectors.every((c) => c.accent)).toBe(true); // the underline
+  });
+
   it('never repeats the same sample back to back', () => {
     const { pages } = layout('aaaaaaaaaaaa', lib, S);
     const srcs = pages[0].glyphs.map((g) => g.g.src);

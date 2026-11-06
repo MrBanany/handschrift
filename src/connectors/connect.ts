@@ -42,7 +42,7 @@ export function connectionModel(lib: Library) {
   };
 }
 
-export interface Connector { p: [Pt, Pt, Pt, Pt]; w0: number; w1: number }
+export interface Connector { p: [Pt, Pt, Pt, Pt]; w0: number; w1: number; accent?: boolean } // accent: heading colour
 
 /**
  * Cubic Bézier from an exit stroke into the next entry stroke, tangent-continuous on both

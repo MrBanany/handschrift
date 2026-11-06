@@ -4,7 +4,10 @@ import type { Page } from './layout';
 
 export type Background = 'blank' | 'lined' | 'grid' | 'transparent';
 export interface DrawOpts {
-  pxPerMm: number; ink: string; weight: number; background: Background;
+  pxPerMm: number; ink: string; weight: number;
+  head?: string; // heading colour, default: ink
+  mark?: string; // highlighter colour (CSS), default: yellow
+  background: Background;
   pageW: number; pageH: number; lineH: number; margin: number; crop: boolean;
 }
 
@@ -44,36 +47,43 @@ export function drawPage(page: Page, o: DrawOpts, variant: (src: string) => Vari
     ox = b.x0 - pad; oy = b.y0 - pad; Wmm = b.x1 - b.x0 + 2 * pad; Hmm = b.y1 - b.y0 + 2 * pad;
   }
   const W = Math.max(1, Math.round(Wmm * px)), H = Math.max(1, Math.round(Hmm * px));
-  const ink = document.createElement('canvas');
-  ink.width = W; ink.height = H;
-  const ic = ink.getContext('2d')!;
-  ic.imageSmoothingEnabled = true;
-  ic.imageSmoothingQuality = 'high';
-
   const extra = o.weight * 0.05 * px; // thicker pen: stamp the bitmap around a small circle
   const offs: [number, number][] = [[0, 0]];
   if (extra > 0.2) for (let i = 0; i < 8; i++) offs.push([Math.cos((i * Math.PI) / 4) * extra, Math.sin((i * Math.PI) / 4) * extra]);
 
-  for (const { g, m } of page.glyphs) {
-    const v = variant(g.src);
-    for (const [dx, dy] of offs) {
-      ic.setTransform(m[0] * px, m[1] * px, m[2] * px, m[3] * px, (m[4] - ox) * px + dx, (m[5] - oy) * px + dy);
-      ic.drawImage(mask(v), 0, 0);
+  /** One colour layer: these glyphs and connectors into an alpha mask, coloured once. accent null = all ink. */
+  const layer = (accent: boolean | null, colour: string) => {
+    const ink = document.createElement('canvas');
+    ink.width = W; ink.height = H;
+    const ic = ink.getContext('2d')!;
+    ic.imageSmoothingEnabled = true;
+    ic.imageSmoothingQuality = 'high';
+    for (const { g, m, accent: a } of page.glyphs) {
+      if (accent !== null && !!a !== accent) continue;
+      const v = variant(g.src);
+      for (const [dx, dy] of offs) {
+        ic.setTransform(m[0] * px, m[1] * px, m[2] * px, m[3] * px, (m[4] - ox) * px + dx, (m[5] - oy) * px + dy);
+        ic.drawImage(mask(v), 0, 0);
+      }
     }
-  }
-  ic.setTransform(1, 0, 0, 1, 0, 0);
-  ic.beginPath();
-  for (const c of page.connectors) {
-    for (const p of sampleConnector(c, Math.max(0.02, Math.min(c.w0, c.w1) * 0.25))) {
-      const x = (p.x - ox) * px, y = (p.y - oy) * px, r = Math.max(0.4, p.r * px + extra);
-      ic.moveTo(x + r, y);
-      ic.arc(x, y, r, 0, 2 * Math.PI);
+    ic.setTransform(1, 0, 0, 1, 0, 0);
+    ic.beginPath();
+    for (const c of page.connectors) {
+      if (accent !== null && !!c.accent !== accent) continue;
+      for (const p of sampleConnector(c, Math.max(0.02, Math.min(c.w0, c.w1) * 0.25))) {
+        const x = (p.x - ox) * px, y = (p.y - oy) * px, r = Math.max(0.4, p.r * px + extra);
+        ic.moveTo(x + r, y);
+        ic.arc(x, y, r, 0, 2 * Math.PI);
+      }
     }
-  }
-  ic.fill();
-  ic.globalCompositeOperation = 'source-in';
-  ic.fillStyle = o.ink;
-  ic.fillRect(0, 0, W, H);
+    ic.fill();
+    ic.globalCompositeOperation = 'source-in';
+    ic.fillStyle = colour;
+    ic.fillRect(0, 0, W, H);
+    return ink;
+  };
+  const split = !!o.head && o.head !== o.ink;
+  const inks = split ? [layer(false, o.ink), layer(true, o.head!)] : [layer(null, o.ink)];
 
   const out = document.createElement('canvas');
   out.width = W; out.height = H;
@@ -97,7 +107,7 @@ export function drawPage(page: Page, o: DrawOpts, variant: (src: string) => Vari
   }
   // Highlighter behind the ink: translucent, flat-ended like a chisel tip.
   c.lineCap = 'butt';
-  c.strokeStyle = 'rgba(255, 212, 0, 0.42)';
+  c.strokeStyle = o.mark ?? 'rgba(255, 212, 0, 0.42)';
   for (const k of page.marks) {
     c.lineWidth = k.h * px;
     c.beginPath();
@@ -105,8 +115,7 @@ export function drawPage(page: Page, o: DrawOpts, variant: (src: string) => Vari
     c.lineTo((k.x1 - ox) * px, (k.y1 - oy) * px);
     c.stroke();
   }
-  c.drawImage(ink, 0, 0);
-  ink.width = 0; // free memory early (Safari has a tight canvas budget)
+  for (const ink of inks) { c.drawImage(ink, 0, 0); ink.width = 0; } // free memory early (Safari has a tight canvas budget)
 
   // Missing characters: clearly marked, never silently replaced.
   c.strokeStyle = c.fillStyle = '#d11';

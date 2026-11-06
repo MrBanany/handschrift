@@ -22,7 +22,7 @@ export interface Settings {
 
 /** Canvas-order affine: x' = a x + c y + e, y' = b x + d y + f. Glyph px -> page mm. */
 export type Mat = [number, number, number, number, number, number];
-export interface Placed { g: GlyphMeta; m: Mat }
+export interface Placed { g: GlyphMeta; m: Mat; accent?: boolean } // accent: written in the heading colour
 export interface Missing { ch: string; x: number; y: number; w: number; h: number }
 /** A written line as plain text (alt text of the preview). */
 export interface Line { text: string }
@@ -139,7 +139,7 @@ function opticalShift(pg: GlyphMeta, pm: Mat, g: GlyphMeta, m: Mat): number | nu
 export function swapVariant(p: Placed, g: GlyphMeta): Placed {
   const [a, b, c, d, e, f] = p.m, r = (g.scale ?? 1) / (p.g.scale ?? 1);
   const x0 = c * p.g.baseline + e, y0 = d * p.g.baseline + f; // left end of the baseline on the page
-  return { g, m: [a * r, b * r, c * r, d * r, x0 - c * r * g.baseline, y0 - d * r * g.baseline] };
+  return { ...p, g, m: [a * r, b * r, c * r, d * r, x0 - c * r * g.baseline, y0 - d * r * g.baseline] };
 }
 
 /** Index of the letter whose box contains (x, y) mm, or -1. */
@@ -281,8 +281,16 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
   let lineDown = 0; // extra lines a tall structural formula on this line reaches down into
   let from = { g: 0, c: 0, m: 0, k: 0 }; // where this line's ink starts in the page lists
   const newPage = () => { page = { glyphs: [], connectors: [], missing: [], lines: [], marks: [] }; pages.push(page); y = s.margin + s.lineH; };
+  let heading = false;
+  /** Everything written on this line so far gets the heading colour. */
+  const accentLine = () => {
+    if (!heading) return;
+    for (const g of page!.glyphs.slice(from.g)) g.accent = true;
+    for (const c of page!.connectors.slice(from.c)) c.accent = true;
+  };
   const newLine = (first = false) => {
     closeUnderline(); closeMark();
+    if (!first) accentLine();
     rec = null;
     if (!first) y += s.lineH * (1 + Math.max(0, lineDown));
     lineDown = 0;
@@ -420,7 +428,8 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
   text.split('\n').forEach((line, li) => {
     if (li > 0) newLine();
     let emph = false, marking = false;
-    const size = line.startsWith(HEAD) ? 1.3 : 1; // headings are written a bit bigger
+    heading = line.startsWith(HEAD);
+    const size = heading ? 1.3 : 1; // headings are written a bit bigger
     for (let token of line.split(/\s+/).filter(Boolean)) {
       if (token.startsWith(STRUCT[0]) && token.endsWith(STRUCT[1])) { // clean() puts spaces around it
         const spec = token.slice(1, -1).replace(/\u0010/g, ' '), mol = molecule(spec);
@@ -475,6 +484,6 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
       lineX = ox + wd.inkR + sentenceEnd + Math.max(0.6 * xh, ((s.wordGap ?? DEFAULT_WORD_GAP) - 0.15 * h) * xh * size * (1 + gauss() * 0.1 * sig));
     }
   });
-  closeUnderline(); closeMark();
+  closeUnderline(); closeMark(); accentLine();
   return { pages, missing: missingSet };
 }

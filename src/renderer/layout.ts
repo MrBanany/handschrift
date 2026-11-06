@@ -175,7 +175,7 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
     const items: WordItem[] = [], missing: Missing[] = [];
     const wordSize = size * lineSize + gauss() * 0.02 * sig, wordSlant = gauss() * 0.02 * sig + 0.06 * h;
     let cursor = 0, walk = gauss() * 0.04 * xh * sig;
-    let prev: { g: GlyphMeta; m: Mat; right: number; last: string } | null = null;
+    let prev: { g: GlyphMeta; m: Mat; right: number; inkR: number; last: string } | null = null;
 
     for (const key of segment(word, lib)) {
       if (!lib.has(key)) {
@@ -201,15 +201,22 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
 
       const first = [...key][0];
       const letters = !!prev && isLetter(prev.last) && isLetter(first);
-      const exitA = prev && (prev.g.exit ?? (s.cursive ? inkAnchor(prev.g, 'r') : null));
-      const entryA = g.entry ?? (s.cursive ? inkAnchor(g, 'l') : null);
+      // Joined-up writing: join where the ink meets the baseline zone; detected stroke ends often sit inside the letter.
+      const exitA = prev && (s.cursive ? inkAnchor(prev.g, 'r') ?? prev.g.exit : prev.g.exit);
+      const entryA = s.cursive ? inkAnchor(g, 'l') ?? g.entry : g.entry;
       const join = !!(letters && exitA && entryA && (s.cursive || rand() < Math.min(1, pConnect(prev!.last, first) * (1 + 0.25 * h))));
       let tx: number;
       if (join) {
         const ex = tf(prev!.m, exitA!.x, exitA!.y);
         const en = tf(base, entryA!.x, entryA!.y);
-        const gap = Math.max(0.05 * xh, (0.18 - 0.05 * h) * xh * (1 + gauss() * 0.2 * sig)) + 0.25 * Math.abs(en[1] + walk - ex[1]);
-        tx = Math.max(ex[0] + gap - en[0], prev!.right - 0.35 * xh - left);
+        // Joined-up letters bring their own lead-in and lead-out strokes: a longer bridge would read as a hyphen.
+        const gap = s.cursive ? 0.03 * xh + 0.15 * Math.abs(en[1] + walk - ex[1])
+          : Math.max(0.05 * xh, (0.18 - 0.05 * h) * xh * (1 + gauss() * 0.2 * sig)) + 0.25 * Math.abs(en[1] + walk - ex[1]);
+        // Overlap limit from the ink, not the bitmap: word parts sit in wide boxes with empty space on the right.
+        tx = Math.max(ex[0] + gap - en[0], prev!.inkR - 0.35 * xh - inkX(g, base)[0]);
+        // Joined-up: the letters touch at the join, but a loop must not run over the previous letter's ink.
+        const tuck = s.cursive ? opticalShift(prev!.g, prev!.m, g, base) : null;
+        if (tuck !== null) tx = Math.max(tx, tuck - 0.1 * xh);
       } else {
         const punct = !/\p{L}|\p{N}/u.test(first);
         const gap = prev ? Math.max(0.04 * xh, (0.16 - 0.06 * h) * xh * (punct ? 0.6 : 1) * (1 + gauss() * 0.25 * sig)) : 0;
@@ -220,7 +227,7 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
       const m: Mat = [a, b, c, d, base[4] + tx, base[5] + walk];
       items.push({ g, m, join, from: join ? exitA! : undefined, to: join ? entryA! : undefined });
       cursor = Math.max(cursor, right + tx); // a letter tucked under the previous one must not shrink the word
-      prev = { g, m, right: cursor, last: [...key].at(-1)! };
+      prev = { g, m, right: cursor, inkR: inkX(g, m)[1], last: [...key].at(-1)! };
     }
     let inkL = Infinity, inkR = -Infinity;
     for (const it of items) { const [l, r] = inkX(it.g, it.m); inkL = Math.min(inkL, l); inkR = Math.max(inkR, r); }

@@ -184,6 +184,11 @@ describe('layout', () => {
     expect(layout('eee', lib, S).pages[0].connectors).toHaveLength(0);
     expect(layout('eee ee', lib, { ...S, cursive: true }).pages[0].connectors).toHaveLength(3); // not across the space
     expect(segment('heiterkeit', lib)).toEqual([...'heiter', 'keit']);
+    // a word part in a wide box (empty space on the right): the next letter follows its ink, not the bitmap edge
+    const wide: GlyphMeta = { ...e, key: 'ver', src: 'ver', w: 300, prof: { l: e.prof!.l, r: e.prof!.r } };
+    const lib2 = new Map([['e', [e]], ['ver', [wide]]]);
+    const [a, b] = layout('vere', lib2, { ...S, cursive: true, hasty: 0 }).pages[0].glyphs;
+    expect(b.m[4] - a.m[4]).toBeLessThan(60 * a.m[0]); // ink ends at x = 40 px, the bitmap at 300 px
   });
 
   it('underlines emphasised words with one pen stroke below the baseline', () => {

@@ -1,9 +1,11 @@
 # To-do – Handschrift-App
 
-Stand: 5. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Push auf `main` geht automatisch online).
+Stand: 6. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Push auf `main` geht automatisch online).
 
 ## Als Nächstes
 
+- [ ] **„In GoodNotes öffnen“ am iPad testen** (wichtigster Test, neu): Text eingeben → „In GoodNotes öffnen“ → im Teilen-Menü GoodNotes wählen. Öffnet sich die Datei? Lässt sich die Schrift radieren und mit dem Lasso in ein anderes Notizbuch kopieren? Hat sie dort die richtige Größe? Falls GoodNotes die Datei ablehnt: Fehlermeldung notieren. Das Format ist inoffiziell (getestet hat es nur die Mac-Version von GoodNotes 7.1 bei InkLift).
+- [ ] **Buchstaben in der Vorschau antippen** am iPad ausprobieren: andere Variante wählen, „Neu schreiben“ mit dem Pencil.
 - [ ] **iPad-Test** (bewusst ans Ende gelegt)
   - Safari → Teilen → „Zum Home-Bildschirm“, dort die Vorlage neu importieren (eigener Speicher)
   - „Handschrift kopieren“ → in GoodNotes einsetzen → mit dem Lasso verschieben/größer ziehen. Wie groß kommt sie an? (Laut Nutzerberichten hängt das vom Zoom beim Einsetzen ab.)
@@ -14,6 +16,14 @@ Stand: 5. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
 - [ ] **GoodNotes-Linien abgleichen**: Linien auf einer GoodNotes-Seite (liniert schmal/breit) zählen und die Werte in `RULES` (src/main.ts) anpassen. Aktuell 6,4 / 7,1 / 8,7 mm – nicht bestätigt.
 - [ ] **Ausfüllen in der App am iPad testen** (neu, nur mit Maus und simuliertem Stift getestet): Handschriften → „Hier mit dem Pencil ausfüllen“. Fühlt sich das Schreiben gut an? Verschiebt die Hand beim Schreiben die Seite? Ist „Größer“ zum Schreiben nötig?
 - [ ] **Pfeile & Symbole selbst schreiben**: Handschriften → „nur Pfeile & Symbole“ herunterladen (1 Seite), in GoodNotes ausfüllen, als PDF exportieren und mit **demselben Namen** importieren. Danach im Reiter Zeichen unter „Pfeile & Symbole“ prüfen, ob alles drin ist.
+
+## Erledigt am 6. November 2026
+
+- [x] **Echte GoodNotes-Tinte**: „In GoodNotes öffnen“ erzeugt eine `.goodnotes`-Datei. Die Schrift ist darin als Kugelschreiber-Striche gespeichert, also radierbar und per Lasso kopierbar. Dafür werden die Buchstaben-Bilder zu Mittellinien verdünnt (`src/export/goodnotes.ts`). Die Seite hat die Größe der Vorlage (16 × 21 cm, Punktraster); bei mehr Text entsteht pro Seite eine Datei. Vorlage und Feldaufbau stammen von InkLift (MIT), zusätzlich mit echten GoodNotes-Dateien aus parser-for-goodnotes verglichen. Der Textmarker kommt noch nicht mit.
+- [x] **Reaktionsgleichungen**: Moleküle stehen in der Zeile, z. B. `[[Methan]] + 2 [[Sauerstoff]] → [[Kohlenstoffdioxid]] + 2 [[Wasser]]`. Hohe Moleküle schieben die Zeile nach unten.
+- [x] **Ionen und Ladungen**: `Na^+`, `SO_4^{2-}`, `\ce{Ca2+}` → Na⁺, SO₄²⁻, Ca²⁺ (aus eigenem + und -). In Strukturformeln: `[[Ammonium]]`, `[[Hydroxid]]`, `[NH4+]`. Freie Elektronenpaare als Striche an O, N, S und den Halogenen (Valenzstrichformel). Etwa 40 weitere Namen (Sauerstoff, Schwefelsäure, Sulfat, Nitrat, Anilin …).
+- [x] **Buchstaben austauschen**: in der Vorschau einen Buchstaben antippen → andere Variante wählen oder mit dem Pencil neu schreiben. Ein neu geschriebener Buchstabe wird gespeichert, nie aussortiert und kommt auch sonst vor. Das Austauschen gilt, bis man den Text ändert.
+- [x] **Neues Design**: eine Seite. Oben Name, Handschrift-Auswahl, Zahnrad (Einstellungen) und Handschriften-Knopf. Darunter Textfeld, Hauptknopf „In GoodNotes öffnen“, „Als Bild kopieren“, „PDF“ und die Vorschau. Die Zeichen liegen jetzt im Bereich Handschriften, die untere Leiste ist weg.
 
 ## Erledigt am 5. November 2026
 
@@ -54,7 +64,7 @@ Stand: 5. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
 3. [ ] **Eigene Schriftart erzeugen** (Idee aus dieser Runde): aus der Handschrift eine Schrift (TTF) bauen und per Profil auf dem iPad installieren. Dann ist Text in GoodNotes echter Text in eigener Handschrift-Optik (mit der Tastatur änderbar, aber nicht radierbar und ohne Varianten). Großer Aufwand.
 4. [ ] **Kurzbefehl „In Handschrift“**: iOS-Kurzbefehl öffnet die App mit `?text=…` vorbefüllt. Achtung: Links öffnen Safari, nicht die Home-Bildschirm-App, und die beiden haben getrennten Speicher (Handschrift wäre in Safari nicht da). Erst klären, ob das trotzdem lohnt.
 5. [ ] **Mathe**: Buchstaben als Hochzahl (xⁿ), Minus in Hochzahlen (10⁻³), echte Bruchstriche (Zähler über Nenner statt a/b). (Ziffern hoch/tief und LaTeX aus KI-Antworten sind erledigt.)
-6. [x] **Chemie-Strukturformeln** – erledigt. Offen: mehrere Moleküle nebeneinander (Reaktionsgleichung mit Pfeil), Keilstriche (Stereo), Ladungen, eine Strukturformel mitten im Satz.
+6. [x] **Chemie-Strukturformeln** – erledigt, mit Reaktionen und Ladungen. Offen: Keilstriche (Stereo), Mesomerie-Pfeile, GoodNotes-Datei mit mehreren Seiten in einer Datei.
 7. [ ] **Lernzettel-Layouts**: Cornell-Notizen, Karteikarten (A6/A7), später Mindmap (niedrige Priorität).
 8. [ ] **Stifte**: Kuli, Füller (Strichbreite schwankt), Bleistift-Körnung; mehrere Farben (Überschrift blau, Text schwarz).
 9. [ ] **Natürlicher**: eigene Wörterliste (Fachwörter) als Vorlage-Zusatzseite. (Lockerer zum Seitenende ist erledigt.)
@@ -74,3 +84,5 @@ Hinweis aus der Recherche: Manche Schulen haben Regeln zu „generierter Handsch
 - Textmarker: `clean()` setzt `MARK`-Zeichen, `layout()` legt `page.marks` an, `drawPage()` malt sie vor der Tinte.
 - Hervorhebung: `clean()` markiert Fett/Überschriften mit `EMPH` (Steuerzeichen /), `layout()` zeichnet den Unterstrich als `Connector`.
 - Strukturformeln: clean() schützt [[…]] zuerst (SMILES enthält = # ( ) / \) und stellt es als STRUCT-Zeile wieder her; src/renderer/structure.ts holt mit dem Preprocessor von smiles-drawer die 2-D-Lage (ohne DOM), layout() zeichnet in drawMolecule(). Neue Namen in NAMES (structure.ts) ergänzen.
+- GoodNotes-Export (`src/export/goodnotes.ts`): ZIP mit gespeicherten Einträgen. `notes/<Seiten-UUID>` enthält pro Strich zwei Protobuf-Datensätze (Metadaten + Feld 7 mit TPL-Bild im Apple-LZ4-Rahmen `bv41…bv4$`). Einheiten: 132/25,4 GoodNotes-Einheiten pro mm. Die Vorlage in `goodnotes-template.ts` (Indizes, Ereignisprotokoll, Hintergrund-PDF) ist fest und hat genau eine Seite; mehr Seiten bräuchten neue Ereignisse. Vergleichsdateien: https://github.com/Kaih1825/parser-for-goodnotes (assets/*.goodnotes).
+- Buchstaben austauschen: `overrides` in main.ts, Schlüssel = laufende Nummer des Buchstabens im ganzen Text (seitenunabhängig, damit es auch im GoodNotes-Export gilt). Neu geschriebene Varianten haben `src` = `pen:…`, `optimize()` sortiert sie nie aus.

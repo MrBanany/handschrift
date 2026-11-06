@@ -29,6 +29,7 @@ describe('clean pasted AI text', () => {
     expect(clean('x^{10} + H_2O, a_1', () => true)).toBe('x¹⁰ + H₂O, a₁');
     expect(clean('x^4', (c) => c !== '⁴')).toBe('x^4');
     expect(clean('$10^{-3}$ m, s^-1', () => true)).toBe('10⁻³ m, s⁻¹');
+    expect(clean('Also $\\boxed{x = 4}$ und ((wichtig)), aber f((x)) nicht', () => true)).toBe('Also \u0016x = 4\u0017 und \u0014wichtig\u0015, aber f((x)) nicht');
   });
   it('turns LaTeX and chemistry from AI answers into writable characters', () => {
     const all = () => true;

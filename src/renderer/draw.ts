@@ -31,6 +31,7 @@ function bounds(page: Page) {
   const add = (x: number, y: number) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); };
   for (const { g, m } of page.glyphs) for (const [x, y] of [[0, 0], [g.w, 0], [0, g.h], [g.w, g.h]]) add(m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]);
   for (const ms of page.missing) { add(ms.x, ms.y); add(ms.x + ms.w, ms.y + ms.h); }
+  for (const c of page.connectors) for (const [x, y] of c.p) add(x, y); // rings and boxes reach past the letters
   for (const k of page.marks) { add(k.x0, k.y0 - k.h / 2); add(k.x1, k.y1 + k.h / 2); }
   return { x0, y0, x1, y1 };
 }

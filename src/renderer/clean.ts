@@ -8,6 +8,8 @@ export const MARK = ['\u0004', '\u0005'] as const;
 export const HEAD = '\u0006';
 /** Wraps a structural formula ([[Ethanol]], [[CCO]]) that stands on its own line; the layout draws the molecule. */
 export const STRUCT = ['\u000E', '\u000F'] as const;
+/** Start and end of circled text (typed as ((text))); the layout draws a ring around it by hand. */
+export const CIRC = ['\u0014', '\u0015'] as const;
 /** Superscript and subscript digits 0–9. */
 export const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹', SUB = '₀₁₂₃₄₅₆₇₈₉';
 const digits = (d: string, set: string) => [...d].map((c) => set[+c]).join('');
@@ -30,6 +32,7 @@ export function clean(text: string, has: (ch: string) => boolean): string {
     .replace(/^(\s*)[-*+•●▪◦]\s+/gm, `$1${pick('•', '-')} `) // bullets
     .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1') // links -> their text
     .replace(/==(?=\S)(.+?)(?<=\S)==/g, `${MARK[0]}$1${MARK[1]}`) // highlighter
+    .replace(/(?<![\p{L}\p{N})])\(\((?=\S)([^()\n]+?)(?<=\S)\)\)/gu, `${CIRC[0]}$1${CIRC[1]}`) // ((circled)), but not f((x))
     .replace(/(\*\*|__)(.+?)\1/g, `${EMPH[0]}$2${EMPH[1]}`) // bold: underlined
     .replace(/(^|[^*\w])\*(?!\s)([^*\n]+?)\*/g, '$1$2') // italic
     .replace(/`([^`]*)`/g, '$1') // inline code

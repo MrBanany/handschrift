@@ -1,8 +1,8 @@
 import { connectionModel, makeConnector, type Connector, type Library } from '../connectors/connect';
 import type { Anchor, GlyphMeta } from '../glyphstore/types';
 import { MM, XH } from '../template/layout';
-import { EMPH, HEAD, MARK, STRUCT } from './clean';
-import { flatFrac } from './latex';
+import { CIRC, EMPH, HEAD, MARK, STRUCT } from './clean';
+import { BOX, flatFrac } from './latex';
 import { molecule, type Molecule } from './structure';
 
 /** Gap between words (x-heights, ink to ink) when none was learned. */
@@ -288,8 +288,9 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
     for (const g of page!.glyphs.slice(from.g)) g.accent = true;
     for (const c of page!.connectors.slice(from.c)) c.accent = true;
   };
+  let marginWalk = 0, rightEdge = s.pageW - s.margin, hang = 0;
   const newLine = (first = false) => {
-    closeUnderline(); closeMark();
+    closeUnderline(); closeMark(); closeRing();
     if (!first) accentLine();
     rec = null;
     if (!first) y += s.lineH * (1 + Math.max(0, lineDown));
@@ -299,7 +300,10 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
     // Writing gets a little looser towards the end of a page, and its size wanders slowly from line to line.
     sig = sig0 * (1 + 0.35 * Math.max(0, (y - s.margin) / (s.pageH - 2 * s.margin)));
     lineSize = 0.7 * lineSize + 0.3 + gauss() * 0.012 * sig;
-    lineStart = lineX = s.margin + Math.abs(gauss()) * 0.4 * sig;
+    // Nobody starts every line at the same spot: the left edge wanders a little; the right edge ends where the next word no longer fits, sometimes earlier.
+    marginWalk = 0.6 * marginWalk + gauss() * 0.7 * sig;
+    lineStart = lineX = Math.max(s.margin - 1, s.margin + 0.6 + marginWalk);
+    rightEdge = s.pageW - s.margin - Math.abs(gauss()) * 2.5 * sig;
     slope = gauss() * 0.006 * sig;
     amp = 0.06 * xh * sig * rand();
     phase = rand() * 2 * Math.PI;
@@ -313,6 +317,8 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
     for (const k of page!.marks.slice(from.k)) { k.y0 += dy; k.y1 += dy; }
     y += dy;
   };
+  /** Line break inside a paragraph: list items continue under their text. */
+  const wrap = () => { newLine(); lineX = lineStart + hang * (1 + gauss() * 0.05); };
   const drift = (x: number) => slope * (x - lineStart) + amp * Math.sin((2 * Math.PI * x) / lambda + phase);
 
   // Emphasised words (bold, headings) are underlined: one slightly bowed pen stroke per line, just below the baseline.
@@ -325,6 +331,30 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
     const y0 = y + drift(x0) + 0.3 * xh, y1 = y + drift(x1) + 0.3 * xh + gauss() * 0.04 * xh;
     page!.connectors.push({ p: [[x0, y0], [x0 + d / 3, y0 + (y1 - y0) / 3 + bow], [x0 + (2 * d) / 3, y0 + (2 * (y1 - y0)) / 3 + bow], [x1, y1]], w0: penW, w1: penW });
     under = null;
+  }
+  // Circled ((text)) or boxed (\boxed{…}) words: drawn by hand around this line's piece of them.
+  let ring: { box: boolean; x0: number; x1: number } | null = null;
+  function closeRing() {
+    if (!ring) return;
+    const { box, x0, x1 } = ring;
+    ring = null;
+    if (box) {
+      const l = x0 - 0.35 * xh, r = x1 + 0.35 * xh, o = 0.15 * xh; // corners overshoot a little, like a quick box
+      const top = (x: number) => y + drift(x) - 1.75 * xh, bot = (x: number) => y + drift(x) + 0.7 * xh;
+      stroke(l - o, top(l), r + o, top(r));
+      stroke(r, top(r) - o, r, bot(r) + o);
+      stroke(r + o, bot(r), l - o, bot(l));
+      stroke(l, bot(l) + o, l, top(l) - o);
+      return;
+    }
+    // an ellipse in one go, a bit more than once round; it widens slightly so the ends do not meet exactly
+    const cx = (x0 + x1) / 2, cy = y + drift(cx) - 0.55 * xh, rx = (x1 - x0) / 2 + 0.6 * xh, ry = 1.35 * xh;
+    const t0 = Math.PI * (0.9 + 0.2 * rand()), total = 2 * Math.PI + 0.3 + 0.2 * rand(), n = 5, d = total / n, k = (4 / 3) * Math.tan(d / 4);
+    const at = (t: number) => { const sc = 1 + (0.07 * (t - t0)) / total; return [cx + rx * sc * Math.cos(t), cy - ry * sc * Math.sin(t), -rx * sc * Math.sin(t), -ry * sc * Math.cos(t)]; };
+    for (let i = 0; i < n; i++) {
+      const [ax, ay, adx, ady] = at(t0 + i * d), [bx, by, bdx, bdy] = at(t0 + (i + 1) * d);
+      page!.connectors.push({ p: [[ax, ay], [ax + k * adx, ay + k * ady], [bx - k * bdx, by - k * bdy], [bx, by]], w0: penW, w1: penW });
+    }
   }
   let mark: { x0: number; x1: number } | null = null;
   function closeMark() {
@@ -427,7 +457,8 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
   newLine(true);
   text.split('\n').forEach((line, li) => {
     if (li > 0) newLine();
-    let emph = false, marking = false;
+    let emph = false, marking = false, ringing = false, boxing = false;
+    hang = 0;
     heading = line.startsWith(HEAD);
     const size = heading ? 1.3 : 1; // headings are written a bit bigger
     for (let token of line.split(/\s+/).filter(Boolean)) {
@@ -435,7 +466,7 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
         const spec = token.slice(1, -1).replace(/\u0010/g, ' '), mol = molecule(spec);
         if (mol) {
           const g = molGeom(mol);
-          if (lineX > lineStart && lineX + g.width > s.pageW - s.margin) newLine();
+          if (lineX > lineStart && lineX + g.width > rightEdge) wrap();
           placeMolecule(mol, lineX);
           if (rec) rec.text += ` ${spec}`;
           else page!.lines.push(rec = { text: spec });
@@ -444,18 +475,24 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
         }
         token = spec; // unknown name or broken SMILES: just write it
       }
-      const word = token.replace(/[\u0002-\u0006]/g, '');
+      const word = token.replace(/[\u0002-\u0006\u0014-\u0017]/g, '');
       if (token.includes(EMPH[0])) emph = true;
       if (token.includes(MARK[0])) marking = true;
+      if (token.includes(CIRC[0])) ringing = true;
+      if (token.includes(BOX[0])) boxing = true;
       const close = () => {
         if (token.includes(EMPH[1])) { closeUnderline(); emph = false; }
         if (token.includes(MARK[1])) { closeMark(); marking = false; }
+        if (token.includes(CIRC[1]) || token.includes(BOX[1])) { closeRing(); ringing = boxing = false; }
       };
-      if (!word) { close(); continue; }
+      // a ring or box needs room on both sides, or it runs into the neighbouring words
+      const roomAfter = token.includes(CIRC[1]) || token.includes(BOX[1]) ? 0.5 * xh : 0;
+      if (!word) { close(); lineX += roomAfter; continue; }
+      if ((token.includes(CIRC[0]) || token.includes(BOX[0])) && lineX > lineStart) lineX += 0.5 * xh;
       const fr = /^\u0011([^\u0012]*)\u0012([^\u0013]*)\u0013([^\u0011]*)$/.exec(word);
       const wd = fr ? layoutFrac(fr[1], fr[2], fr[3], size) : layoutWord(flatFrac(word), size);
       // lineX is where the next word's ink starts
-      if (lineX > lineStart && lineX - wd.inkL + wd.inkR > s.pageW - s.margin) newLine();
+      if (lineX > lineStart && lineX - wd.inkL + wd.inkR > rightEdge) wrap();
       const ox = lineX - wd.inkL;
       const plain = flatFrac(word).replace(/\u0010/g, ' ');
       if (rec) rec.text += ` ${plain}`;
@@ -479,11 +516,15 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
       for (const ms of wd.missing) page!.missing.push({ ...ms, x: ms.x + ox, y: ms.y + y + drift(ms.x + ox) });
       if (emph) under = { x0: under?.x0 ?? ox + wd.inkL, x1: ox + wd.inkR };
       if (marking) mark = { x0: mark?.x0 ?? ox + wd.inkL, x1: ox + wd.inkR };
+      if (ringing || boxing) ring = { box: boxing, x0: ring?.x0 ?? ox + wd.inkL, x1: ox + wd.inkR };
       close();
       const sentenceEnd = /[.!?]["“”»)]*$/u.test(word) ? 0.3 * xh : 0; // people leave a bit more room after a full stop
-      lineX = ox + wd.inkR + sentenceEnd + Math.max(0.6 * xh, ((s.wordGap ?? DEFAULT_WORD_GAP) - 0.15 * h) * xh * size * (1 + gauss() * 0.1 * sig));
+      const first = lineX === lineStart;
+      lineX = ox + wd.inkR + sentenceEnd + roomAfter +Math.max(0.6 * xh, ((s.wordGap ?? DEFAULT_WORD_GAP) - 0.15 * h) * xh * size * (1 + gauss() * 0.1 * sig));
+      // a list item's wrapped lines start under its text, not under the bullet
+      if (first && /^(?:[•\-–*]|\d{1,2}[.)])$/.test(word)) hang = lineX - lineStart;
     }
   });
-  closeUnderline(); closeMark(); accentLine();
+  closeUnderline(); closeMark(); closeRing(); accentLine();
   return { pages, missing: missingSet };
 }

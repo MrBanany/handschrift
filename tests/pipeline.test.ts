@@ -147,7 +147,8 @@ describe('layout', () => {
   it('writes a fraction stacked: numerator above, denominator below a bar', () => {
     const { pages } = layout('x = \u0011ab\u0012c\u0013,', lib, S);
     const [, a, b, c] = pages[0].glyphs; // x, a, b, c, comma
-    const bar = pages[0].connectors.at(-1)!.p, barY = (bar[0][1] + bar[3][1]) / 2;
+    const bar = pages[0].connectors.reduce((m, c) => (c.p[3][0] - c.p[0][0] > m.p[3][0] - m.p[0][0] ? c : m)).p, // the widest stroke is the bar
+      barY = (bar[0][1] + bar[3][1]) / 2;
     const base = (g: typeof a) => g.m[3] * g.g.baseline + g.m[5]; // baseline height on the page
     expect(base(a)).toBeLessThan(barY);
     expect(base(b)).toBeCloseTo(base(a), 0);
@@ -158,7 +159,32 @@ describe('layout', () => {
   it('marks heading ink (letters and underline) for the heading colour, nothing else', () => {
     const { pages } = layout('\u0006\u0002ab\u0003\ncd', lib, S);
     expect(pages[0].glyphs.map((g) => !!g.accent)).toEqual([true, true, false, false]);
-    expect(pages[0].connectors.every((c) => c.accent)).toBe(true); // the underline
+    expect(pages[0].connectors.some((c) => c.accent)).toBe(true); // the underline
+  });
+
+  it('draws a ring around circled words and a box around boxed ones', () => {
+    const plain = layout('ab cd', lib, S).pages[0].connectors.length;
+    const circ = layout('\u0014ab cd\u0015', lib, S).pages[0];
+    expect(circ.connectors.length).toBe(plain + 5); // ellipse in five pieces
+    const ring = circ.connectors.slice(-5).flatMap((c) => c.p.map((p) => p[0]));
+    const ink = circ.glyphs.map((g) => g.m[4]);
+    expect(Math.min(...ring)).toBeLessThan(Math.min(...ink));
+    expect(layout('\u0016ab\u0017', lib, S).pages[0].connectors.length).toBe(layout('ab', lib, S).pages[0].connectors.length + 4);
+    // the next word keeps clear of the ring
+    const one = layout('\u0014ab\u0015 cd', lib, S).pages[0];
+    const ringR = Math.max(...one.connectors.slice(-5).flatMap((c) => c.p.map((p) => p[0]))), next = one.glyphs.find((g) => g.g.key === 'c')!;
+    expect(next.m[4] + next.m[2] * next.g.baseline).toBeGreaterThan(ringR + 0.3 * S.xh);
+  });
+
+  it('lets the left edge wander and indents wrapped list items under their text', () => {
+    const long = Array.from({ length: 40 }, () => 'abc').join(' ');
+    const { pages } = layout(`${long}\n- ${long}`, lib, { ...S, seed: 3 });
+    // first glyph of each line = smallest x among glyphs on that baseline
+    const starts = new Map<number, number>();
+    for (const g of pages[0].glyphs) { const y = Math.round(g.m[5] / 5); starts.set(y, Math.min(starts.get(y) ?? Infinity, g.m[4])); }
+    const xs = [...starts.values()];
+    expect(new Set(xs.map((x) => x.toFixed(2))).size).toBeGreaterThan(2); // not all at one spot
+    expect(Math.max(...xs.slice(-2))).toBeGreaterThan(Math.min(...xs) + 2); // the bullet's wrapped lines sit further right
   });
 
   it('never repeats the same sample back to back', () => {

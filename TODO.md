@@ -19,6 +19,8 @@ Stand: 6. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
 
 ## Erledigt am 6. November 2026
 
+- [x] **Einkreisen und Einrahmen**: `((Wort))` wird von Hand eingekreist, `\boxed{x = 4}` aus KI-Antworten (Endergebnisse) eingerahmt. Steht auch in der KI-Vorgabe. `f((x))` bleibt unverändert.
+- [x] **Natürlichere Ränder**: Der linke Zeilenanfang wandert leicht (etwa ±1 mm, langsam), rechts endet nicht jede Zeile am Rand, manche hören bis zu einige Millimeter früher auf. Umgebrochene Aufzählungspunkte (`- `, `• `, `1.`) laufen unter ihrem Text weiter statt unter dem Punkt.
 - [x] **Zeilenabstand aus Notizen gegengeprüft**: Liegt der gelernte Abstand höchstens 0,35 mm neben einer Linien-Vorgabe (Eng/Mittel/Weit), wird genau diese Vorgabe eingestellt und das Ergebnis sagt „passt zu den Linien …“. Sonst wird der gemessene Abstand genommen und das steht auch so da. Beim Wechsel zu einer anderen Handschrift mit gelernten Notizen werden deren Größe und Abstand übernommen. **Damit lassen sich auch die GoodNotes-Linienwerte prüfen: Notizen hochladen und schauen, ob „passt zu …“ kommt.**
 - [x] Schreiben-Seite ruhiger: nur noch eine kurze Hinweiszeile unter den Knöpfen.
 - [x] **Farben** (Zahnrad): Überschriften in eigener Farbe (Blau, Rot, Grün, Lila oder wie die Tinte), auch in der GoodNotes-Datei. Marker Gelb, Grün, Pink, Blau oder Orange (nur Bild/PDF, die GoodNotes-Datei hat noch keinen Marker).
@@ -73,7 +75,7 @@ Stand: 6. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
 
 **Feature-Ideen, grob nach Wirkung sortiert:**
 1. [x] **Vorlage direkt in der App ausfüllen** – erledigt, mit Kästchen-Ansicht.
-2. [ ] **Weitere Hervorhebungen**: Einkreisen. (Markerfarbe und Überschriften-Farbe sind erledigt.) (Unterstreichen, größere Überschriften, Textmarker `==Text==` und Aufzählungspunkte sind erledigt.)
+2. [x] **Weitere Hervorhebungen**: Einkreisen, Einrahmen, Markerfarbe, Überschriften-Farbe – erledigt. (Unterstreichen, größere Überschriften, Textmarker `==Text==` und Aufzählungspunkte sind erledigt.)
 3. [ ] **Eigene Schriftart erzeugen** (Idee aus dieser Runde): aus der Handschrift eine Schrift (TTF) bauen und per Profil auf dem iPad installieren. Dann ist Text in GoodNotes echter Text in eigener Handschrift-Optik (mit der Tastatur änderbar, aber nicht radierbar und ohne Varianten). Großer Aufwand.
 4. [ ] **Kurzbefehl „In Handschrift“**: iOS-Kurzbefehl öffnet die App mit `?text=…` vorbefüllt. Achtung: Links öffnen Safari, nicht die Home-Bildschirm-App, und die beiden haben getrennten Speicher (Handschrift wäre in Safari nicht da). Erst klären, ob das trotzdem lohnt.
 5. [ ] **Mathe**: Buchstaben als Hochzahl (xⁿ). (Minus in Hochzahlen, Ziffern hoch/tief, LaTeX aus KI-Antworten und echte Brüche sind erledigt.)

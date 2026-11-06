@@ -4,11 +4,12 @@ export const AI_PROMPT = `Deine Antworten schreibe ich mit einer App in meiner H
 Aufbau
 - Kurz und übersichtlich, wie ein Lernzettel. Kurze Sätze, keine langen Absätze.
 - Überschriften mit "## ", Aufzählungen mit "- ".
-- Wichtige Begriffe **fett**, ganz Wichtiges ==so markiert==.
+- Wichtige Begriffe **fett**, ganz Wichtiges ==so markiert==, einzelne Schlüsselwörter ((eingekreist)).
 - Keine Tabellen, keine Codeblöcke, keine Emojis, keine Bilder, keine Links.
 - Pfeile als → oder ⇒, Gleichwertigkeit als ⇔.
 
 Mathe (immer LaTeX in $...$)
+- Endergebnisse einrahmen: $\\boxed{x = 4}$.
 - Brüche: $\\frac{a}{b}$, Wurzeln: $\\sqrt{x}$, Mal: $\\cdot$.
 - Hochzahlen: $x^2$, $10^{-3}$; Indizes: $x_1$, $v_0$.
 - Griechische Buchstaben: $\\Delta$, $\\pi$, $\\alpha$; Grad: $90^\\circ$.

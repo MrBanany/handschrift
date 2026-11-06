@@ -19,6 +19,9 @@ Stand: 6. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
 
 ## Erledigt am 6. November 2026
 
+- [x] **Eingefügter Text ohne Zeilenumbrüche** (alles klebte zusammen: „BruchrechnungAddition … machen.Aufgabe 1“): Ein langer Text ganz ohne Umbruch wird dort getrennt, wo ein Wort, Satz oder eine Formel direkt in ein großgeschriebenes Wort läuft. Kurze Zeilen ohne Punkt und Formel („Chemie: Wichtige Ionen“) werden zu Überschriften (`unflatten` in clean.ts). Texte mit Umbrüchen bleiben unverändert.
+- [x] **Platz zwischen Themen**: vor jeder Überschrift automatisch eine Leerzeile, nach einem eingerahmten Ergebnis auch. Der Kasten richtet sich nach seinem Inhalt (Brüche passen hinein).
+- [x] **„Leeren“** über dem Textfeld: leert das Feld, der Text bleibt im Verlauf.
 - [x] **Einkreisen und Einrahmen**: `((Wort))` wird von Hand eingekreist, `\boxed{x = 4}` aus KI-Antworten (Endergebnisse) eingerahmt. Steht auch in der KI-Vorgabe. `f((x))` bleibt unverändert.
 - [x] **Natürlichere Ränder**: Der linke Zeilenanfang wandert leicht (etwa ±1 mm, langsam), rechts endet nicht jede Zeile am Rand, manche hören bis zu einige Millimeter früher auf. Umgebrochene Aufzählungspunkte (`- `, `• `, `1.`) laufen unter ihrem Text weiter statt unter dem Punkt.
 - [x] **Zeilenabstand aus Notizen gegengeprüft**: Liegt der gelernte Abstand höchstens 0,35 mm neben einer Linien-Vorgabe (Eng/Mittel/Weit), wird genau diese Vorgabe eingestellt und das Ergebnis sagt „passt zu den Linien …“. Sonst wird der gemessene Abstand genommen und das steht auch so da. Beim Wechsel zu einer anderen Handschrift mit gelernten Notizen werden deren Größe und Abstand übernommen. **Damit lassen sich auch die GoodNotes-Linienwerte prüfen: Notizen hochladen und schauen, ob „passt zu …“ kommt.**

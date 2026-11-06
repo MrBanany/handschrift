@@ -29,6 +29,10 @@ describe('clean pasted AI text', () => {
     expect(clean('x^{10} + H_2O, a_1', () => true)).toBe('x¹⁰ + H₂O, a₁');
     expect(clean('x^4', (c) => c !== '⁴')).toBe('x^4');
     expect(clean('$10^{-3}$ m, s^-1', () => true)).toBe('10⁻³ m, s⁻¹');
+    // pasted without line breaks: lines and headings come back, with room before each topic and after a boxed result
+    const flat = 'Mathe: BruchrechnungAddition: Nenner zuerst gleichnamig machen.Aufgabe 1: $\\boxed{x}$Chemie: Wichtige IonenKationen sind positiv geladen, zum Beispiel $\\ce{Al^3+}$Anionen sind negativ.';
+    expect(clean(flat, () => true)).toBe(`${HEAD}${EMPH[0]}Mathe: Bruchrechnung${EMPH[1]}\nAddition: Nenner zuerst gleichnamig machen.\nAufgabe 1: \u0016x\u0017\n\n${HEAD}${EMPH[0]}Chemie: Wichtige Ionen${EMPH[1]}\nKationen sind positiv geladen, zum Beispiel Al³⁺\nAnionen sind negativ.`);
+    expect(clean('Kurz.\nNoch eine Zeile ohne Punkt GoodNotes', () => true)).toBe('Kurz.\nNoch eine Zeile ohne Punkt GoodNotes'); // texts with line breaks stay as they are
     expect(clean('Also $\\boxed{x = 4}$ und ((wichtig)), aber f((x)) nicht', () => true)).toBe('Also \u0016x = 4\u0017 und \u0014wichtig\u0015, aber f((x)) nicht');
   });
   it('turns LaTeX and chemistry from AI answers into writable characters', () => {

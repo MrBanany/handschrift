@@ -15,6 +15,18 @@ export const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹', SUB = '₀₁₂₃₄₅₆�
 const digits = (d: string, set: string) => [...d].map((c) => set[+c]).join('');
 
 /**
+ * Some apps drop all line breaks when copying ("BruchrechnungAddition …machen.Aufgabe 1: …"). For a long text without any,
+ * break where a word, sentence or formula runs straight into a capitalised word, and treat short lines without
+ * punctuation or formulas as headings ("Chemie: Wichtige Ionen").
+ * shortcut: CamelCase names (GoodNotes, YouTube) get split too, but only in such flat pastes.
+ */
+export function unflatten(text: string): string {
+  if (text.length < 160 || text.trim().includes('\n')) return text;
+  const lines = text.replace(/([\p{Ll}.!?:$\]}])(?=\p{Lu}\p{Ll}{2,})/gu, '$1\n').split('\n');
+  return lines.map((l, i) => (i < lines.length - 1 && l.length <= 45 && !/[.!?:;,$\]]\s*$|\$|\[\[|^\s*[-•#]/.test(l) && l.split(/\s+/).length <= 5 ? '## ' + l : l)).join('\n');
+}
+
+/**
  * Turns pasted AI answers (Markdown, arrows, emoji, typographic symbols) into plain text a handwriting set can write.
  * has(ch): whether the active handwriting has that character; replacements fall back to what exists.
  */
@@ -23,7 +35,7 @@ export function clean(text: string, has: (ch: string) => boolean): string {
   const arrow = pick('→', '->', '-');
   // [[...]] is kept away from all rules below: SMILES is full of = # ( ) / \ that they would rewrite.
   const mols: string[] = [];
-  const kept = text.replace(/\r\n?/g, '\n').replace(/\[\[([^\]\n]+)\]\]/g, (_, s: string) => `${STRUCT[0]}${mols.push(s.trim()) - 1}${STRUCT[1]}`);
+  const kept = unflatten(text.replace(/\r\n?/g, '\n')).replace(/\[\[([^\]\n]+)\]\]/g, (_, s: string) => `${STRUCT[0]}${mols.push(s.trim()) - 1}${STRUCT[1]}`);
   return latex(kept)
     .replace(/^\s*```.*$/gm, '') // code fences
     .replace(/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/gm, '') // horizontal rules
@@ -46,7 +58,7 @@ export function clean(text: string, has: (ch: string) => boolean): string {
     .replace(/[‘’‚′]/g, (q) => (has(q) ? q : "'"))
     .replace(/[—―]/g, pick('–', '-'))
     .replace(/−/g, '-') // minus sign
-    .replace(/\^\{?(\d*)([+-])\}?(?=[\s,.;:)]|$)/gm, (m, d: string, q: string) => pick(digits(d, SUP) + (q === '+' ? '⁺' : '⁻'), m)) // Na^+, SO_4^{2-}
+    .replace(/\^\{?(\d*)([+-])\}?(?=[\s,.;:)]|$|\p{Lu})/gmu, (m, d: string, q: string) => pick(digits(d, SUP) + (q === '+' ? '⁺' : '⁻'), m)) // Na^+, SO_4^{2-}
     .replace(/\^\{?-(\d+)\}?/g, (m, d: string) => pick('⁻' + digits(d, SUP), m)) // 10^{-3}, s^-1
     .replace(/\^\{?(\d+)\}?/g, (m, d: string) => pick(digits(d, SUP), m)) // x^2, m^{3}
     .replace(/(\p{L}|\))_\{?(\d+)\}?/gu, (m, l: string, d: string) => l + pick(digits(d, SUB), m.slice(l.length))) // H_2O
@@ -64,6 +76,9 @@ export function clean(text: string, has: (ch: string) => boolean): string {
     .replace(/[ \t]*\u0011([^\u0012\n]*)\u0012([^\u0013\n]*)\u0013[ \t]*/g, (_, a: string, b: string) => ` \u0011${a.trim().replace(/ +/g, '\u0010')}\u0012${b.trim().replace(/ +/g, '\u0010')}\u0013 `)
     .replace(/\u0013 (?=[.,;:!?)])/g, '\u0013')
     .replace(/^ +| +$/gm, '')
+    // room between topics: an empty line before every heading, and after a boxed result
+    .replace(/\n+(?=\u0006)/g, '\n\n')
+    .replace(/^([^\n]*\u0017[^\n]*)\n(?=[^\n])/gm, '$1\n\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }

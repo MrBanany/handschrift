@@ -275,7 +275,14 @@ for (const [attr, id] of SEGS) {
 $('dice').onclick = () => { $<HTMLInputElement>('seed').value = String(Math.floor(Math.random() * 1e6)); schedule(); };
 addEventListener('resize', schedule);
 
-$('aiPrompt').onclick = () => navigator.clipboard.writeText(AI_PROMPT).then(
+$('clearText').onclick = () => {
+  const area = $<HTMLTextAreaElement>('text');
+  remember(); // still there under "Verlauf"
+  area.value = '';
+  area.dispatchEvent(new Event('input')); // saves it, clears letter swaps, redraws
+  area.focus();
+};
+$('aiPrompt').onclick =() => navigator.clipboard.writeText(AI_PROMPT).then(
   () => toast('Kopiert. Füge es einmal am Anfang des Chats ein (bei ChatGPT auch unter „Personalisierung“).'),
   () => toast('Kopieren ging nicht.'),
 );

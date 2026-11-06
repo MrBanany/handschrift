@@ -60,6 +60,13 @@ function inkX(g: GlyphMeta, m: Mat): [number, number] {
   return [l, r];
 }
 
+/** Top and bottom of the actual ink (mm), from the profile bands; the bitmap box otherwise. */
+function inkY(g: GlyphMeta, m: Mat): [number, number] {
+  const rows = BANDS.map((b, i) => (g.prof?.l[i] != null ? b : null)).filter((b): b is number => b !== null);
+  const [t, u] = rows.length ? [g.baseline + rows[0] - BAND / 2, g.baseline + rows.at(-1)! + BAND / 2] : [0, g.h];
+  return [m[3] * t + m[5], m[3] * u + m[5]];
+}
+
 /** Split a word into the largest available samples: whole word > word part (up to 5 letters, e.g. "keit") > pair > single letter. */
 export function segment(word: string, lib: Library): string[] {
   const out: string[] = [];
@@ -333,14 +340,16 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
     under = null;
   }
   // Circled ((text)) or boxed (\boxed{…}) words: drawn by hand around this line's piece of them.
-  let ring: { box: boolean; x0: number; x1: number } | null = null;
+  let ring: { box: boolean; x0: number; x1: number; top: number; bot: number } | null = null;
   function closeRing() {
     if (!ring) return;
-    const { box, x0, x1 } = ring;
+    const { box, x0, x1, top: inkTop, bot: inkBot } = ring;
     ring = null;
     if (box) {
-      const l = x0 - 0.35 * xh, r = x1 + 0.35 * xh, o = 0.15 * xh; // corners overshoot a little, like a quick box
-      const top = (x: number) => y + drift(x) - 1.75 * xh, bot = (x: number) => y + drift(x) + 0.7 * xh;
+      // roomy enough for what is inside (a fraction is taller than a word); corners overshoot a little, like a quick box
+      const l = x0 - 0.55 * xh, r = x1 + 0.55 * xh, o = 0.15 * xh;
+      const up = Math.min(-1.75 * xh, inkTop - y - 0.4 * xh), down = Math.max(0.7 * xh, inkBot - y + 0.4 * xh);
+      const top = (x: number) => y + drift(x) + up, bot = (x: number) => y + drift(x) + down;
       stroke(l - o, top(l), r + o, top(r));
       stroke(r, top(r) - o, r, bot(r) + o);
       stroke(r + o, bot(r), l - o, bot(l));
@@ -516,7 +525,11 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
       for (const ms of wd.missing) page!.missing.push({ ...ms, x: ms.x + ox, y: ms.y + y + drift(ms.x + ox) });
       if (emph) under = { x0: under?.x0 ?? ox + wd.inkL, x1: ox + wd.inkR };
       if (marking) mark = { x0: mark?.x0 ?? ox + wd.inkL, x1: ox + wd.inkR };
-      if (ringing || boxing) ring = { box: boxing, x0: ring?.x0 ?? ox + wd.inkL, x1: ox + wd.inkR };
+      if (ringing || boxing) {
+        let top = ring?.top ?? Infinity, bot = ring?.bot ?? -Infinity;
+        for (const p of wd.items.length ? page!.glyphs.slice(-wd.items.length) : []) { const [a, b] = inkY(p.g, p.m); top = Math.min(top, a); bot = Math.max(bot, b); }
+        ring = { box: boxing, x0: ring?.x0 ?? ox + wd.inkL, x1: ox + wd.inkR, top, bot };
+      }
       close();
       const sentenceEnd = /[.!?]["“”»)]*$/u.test(word) ? 0.3 * xh : 0; // people leave a bit more room after a full stop
       const first = lineX === lineStart;

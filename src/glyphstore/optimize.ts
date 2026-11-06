@@ -70,7 +70,7 @@ export function optimize(vs: Variant[], strength = 1): Tuned {
     const limit = 1.6 - 0.6 * s; // gentle settings only drop extreme outliers
     const off = size
       .map((x) => ({ v: x.v, d: Math.max(Math.abs(x.h / mh - 1) / 0.35, Math.abs(x.w / mw - 1) / 0.45) }))
-      .filter((x) => x.d > limit)
+      .filter((x) => x.d > limit && !x.v.src.startsWith('pen:')) // written anew on purpose (letter swap): always keep
       .sort((a, b) => b.d - a.d)
       .slice(0, group.length - 2);
     for (const x of off) excluded.add(x.v.src);

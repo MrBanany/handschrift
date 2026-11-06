@@ -16,7 +16,7 @@ async function templatePage(p: number): Promise<ImageData> {
   throw new Error('Vorlage konnte nicht erzeugt werden.');
 }
 
-function paint(ctx: CanvasRenderingContext2D, s: Stroke, from = 0) {
+export function paint(ctx: CanvasRenderingContext2D, s: Stroke, from = 0) {
   ctx.strokeStyle = ctx.fillStyle = INK;
   ctx.lineCap = ctx.lineJoin = 'round';
   if (s.length === 3) { ctx.beginPath(); ctx.arc(s[0], s[1], s[2] / 2, 0, 2 * Math.PI); ctx.fill(); return; }

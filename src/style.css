@@ -178,3 +178,10 @@ details > * + * { margin-top: 10px; }
 .welcome h2 { margin: 0; font-size: 22px; }
 .welcome p { margin: 0; line-height: 1.5; }
 .welcome .link { align-self: center; color: var(--muted); }
+.swap { max-width: 520px; }
+.swap h2 { margin: 0; font-size: 20px; }
+.swap .variants { display: flex; flex-wrap: wrap; gap: 8px; }
+.swap .thumb { cursor: pointer; border-radius: 8px; outline: 2px solid transparent; }
+.swap .thumb.on { outline-color: var(--accent); }
+.swap-pad { width: min(100%, 320px); aspect-ratio: auto; background: #fff; border-radius: 8px; touch-action: none; align-self: center; }
+.page-view img, .page-view canvas { cursor: pointer; }

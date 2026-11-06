@@ -110,6 +110,25 @@ function opticalShift(pg: GlyphMeta, pm: Mat, g: GlyphMeta, m: Mat): number | nu
   return need === -Infinity ? null : need;
 }
 
+/**
+ * The same placed letter written with another variant: same spot on the baseline, same slant and size.
+ * shortcut: the following letters do not move, so a much wider variant can touch its neighbour; re-run the layout per word if that bothers.
+ */
+export function swapVariant(p: Placed, g: GlyphMeta): Placed {
+  const [a, b, c, d, e, f] = p.m, r = (g.scale ?? 1) / (p.g.scale ?? 1);
+  const x0 = c * p.g.baseline + e, y0 = d * p.g.baseline + f; // left end of the baseline on the page
+  return { g, m: [a * r, b * r, c * r, d * r, x0 - c * r * g.baseline, y0 - d * r * g.baseline] };
+}
+
+/** Index of the letter whose box contains (x, y) mm, or -1. */
+export function glyphAt(page: Page, x: number, y: number): number {
+  return page.glyphs.findIndex(({ g, m }) => {
+    const xs: number[] = [], ys: number[] = [];
+    for (const [u, v] of [[0, 0], [g.w, 0], [0, g.h], [g.w, g.h]]) { const [px, py] = tf(m, u, v); xs.push(px); ys.push(py); }
+    return x >= Math.min(...xs) && x <= Math.max(...xs) && y >= Math.min(...ys) && y <= Math.max(...ys);
+  });
+}
+
 export function layout(text: string, lib: Library, s: Settings): { pages: Page[]; missing: Set<string> } {
   const rand = mulberry32(s.seed);
   const gauss = () => Math.sqrt(-2 * Math.log(rand() + 1e-12)) * Math.cos(2 * Math.PI * rand());

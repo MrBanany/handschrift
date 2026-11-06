@@ -242,3 +242,18 @@ describe('layout', () => {
     expect(pages.at(-1)!.missing).toHaveLength(1);
   });
 });
+
+describe('swap one letter', () => {
+  it('keeps the baseline start and finds the letter under a point', async () => {
+    const { swapVariant, glyphAt } = await import('../src/renderer/layout');
+    const a = { ...glyph('a', 0), entry: null, exit: null }, b = { ...a, src: 'b', baseline: a.baseline + 10, scale: 1.2 };
+    const page = { glyphs: [{ g: a, m: [0.1, 0, -0.01, 0.1, 20, 30] as [number, number, number, number, number, number] }], connectors: [], missing: [], lines: [], marks: [] };
+    const s = swapVariant(page.glyphs[0], b);
+    const base = (p: typeof s) => [p.m[2] * p.g.baseline + p.m[4], p.m[3] * p.g.baseline + p.m[5]];
+    expect(base(s)[0]).toBeCloseTo(base(page.glyphs[0])[0]);
+    expect(base(s)[1]).toBeCloseTo(base(page.glyphs[0])[1]);
+    expect(s.m[0]).toBeCloseTo(0.12);
+    expect(glyphAt(page, 20 + 0.05 * a.w, 30 + 0.05 * a.h)).toBe(0);
+    expect(glyphAt(page, 5, 5)).toBe(-1);
+  });
+});

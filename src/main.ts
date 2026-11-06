@@ -7,14 +7,14 @@ import type { Variant } from './glyphstore/types';
 import { copyPng, download, shareFiles, toPng } from './export/png';
 import { toPdf } from './export/pdf';
 import { pagesOf } from './import/load';
-import { setupPencil } from './import/pencil';
+import { paint, setupPencil } from './import/pencil';
 import { clearMaskCache, drawPage, type Background, type DrawOpts } from './renderer/draw';
-import { DEFAULT_WORD_GAP, layout, profile, type Settings } from './renderer/layout';
-import { extractPage } from './segmentation/extract';
+import { DEFAULT_WORD_GAP, glyphAt, layout, profile, swapVariant, type Page, type Settings } from './renderer/layout';
+import { extractBox, extractPage } from './segmentation/extract';
 import { clean } from './renderer/clean';
 import { measureLines, summarize, type LineMeasure, type TextStyle } from './segmentation/style';
 import { buildTemplatePdf } from './template/pdf';
-import { PAIRS, SINGLES, SYMBOL_KEYS, SYMBOL_PAGE, WORDS } from './template/layout';
+import { CELL, GUIDES, MM, PAIRS, SINGLES, SYMBOL_KEYS, SYMBOL_PAGE, TEMPLATE_PAGES, WORDS } from './template/layout';
 
 const FORMATS: Record<string, { w: number; h: number }> = { a4: { w: 210, h: 297 }, a4q: { w: 297, h: 210 }, a5: { w: 148, h: 210 } };
 const pageSize = () => FORMATS[$<HTMLInputElement>('page').value] ?? FORMATS.a4;
@@ -66,6 +66,7 @@ async function useSet(name: string) {
     sets = await listSets();
   }
   active = sets.includes(name) ? name : '';
+  overrides.clear();
   localStorage.setItem('set', active);
   raw = active ? await loadSet(active) : [];
   loadStyle();
@@ -177,6 +178,7 @@ function settings() {
 function renderAll(pxPerMm: number, mode: 'page' | 'ink' | 'clip') {
   const { s, o } = settings();
   const res = layout(clean($<HTMLTextAreaElement>('text').value, (ch) => lib.has(ch)), lib, s);
+  applyOverrides(res.pages);
   const paper: DrawOpts = { ...o, crop: false, pxPerMm, pageW: s.pageW, pageH: s.pageH, lineH: s.lineH, margin: s.margin };
   const opts: DrawOpts = {
     ...paper,
@@ -207,6 +209,7 @@ function preview() {
   if (!raw.length) { $('missing').hidden = true; return; }
   const px = Math.max(2, (box.clientWidth * devicePixelRatio) / pageSize().w);
   const { pages, canvases, paper, missing } = renderAll(Math.min(px, 8), 'ink');
+  shown = pages;
   const my = ++gen;
   urls.forEach((u) => URL.revokeObjectURL(u));
   urls = [];
@@ -232,6 +235,7 @@ function preview() {
 
 document.querySelectorAll('#write input, #write textarea').forEach((el) => el.addEventListener('input', () => {
   localStorage.setItem('text', $<HTMLTextAreaElement>('text').value);
+  if (el.id === 'text') overrides.clear();
   schedule();
 }));
 $('optimize').addEventListener('change', rebuild); // on release: rebuilding the review grid is not instant
@@ -439,6 +443,82 @@ $<HTMLInputElement>('restore').onchange = async (ev) => {
     await useSet(set);
     toast(`„${set}“ geladen (${count} Proben).`);
   } catch (e) { toast((e as Error).message); }
+};
+
+// ---------- swap one letter in the written text: tap it in the preview ----------
+// "page:glyph" -> variant src. Only valid for the text as it is; typing clears it.
+const overrides = new Map<string, { key: string; src: string }>();
+let shown: Page[] = [];
+let swapAt: { pi: number; gi: number; key: string } | null = null;
+let pad: number[][] = [];
+
+function applyOverrides(pages: Page[]) {
+  for (const [k, o] of overrides) {
+    const [pi, gi] = k.split(':').map(Number), p = pages[pi]?.glyphs[gi], g = bySrc.get(o.src);
+    if (p && g && p.g.key === o.key) pages[pi].glyphs[gi] = swapVariant(p, g);
+  }
+}
+
+$('preview').addEventListener('click', (e) => {
+  const el = e.target as HTMLElement, sheet = el.closest('.page-view');
+  if (!sheet || !(el instanceof HTMLImageElement || el instanceof HTMLCanvasElement)) return;
+  const pi = [...$('preview').children].indexOf(sheet), r = el.getBoundingClientRect(), { w, h } = pageSize();
+  const gi = shown[pi] ? glyphAt(shown[pi], ((e.clientX - r.left) / r.width) * w, ((e.clientY - r.top) / r.height) * h) : -1;
+  if (gi < 0) return;
+  swapAt = { pi, gi, key: shown[pi].glyphs[gi].g.key };
+  openSwap();
+});
+
+function openSwap() {
+  const { pi, gi, key } = swapAt!, cur = shown[pi].glyphs[gi].g.src;
+  $('swapTitle').textContent = `„${key}“ austauschen`;
+  $('swapVariants').replaceChildren(...(lib.get(key) ?? []).map((v) => {
+    const box = frame(raw.find((r) => r.src === v.src) ?? v, v);
+    box.classList.toggle('on', v.src === cur);
+    box.onclick = () => { overrides.set(`${pi}:${gi}`, { key, src: v.src }); schedule(); closeSwap(); };
+    return box;
+  }));
+  $('swapPad').hidden = $('swapSave').hidden = true;
+  $('swapWrite').hidden = !active;
+  $('swap').hidden = false;
+}
+const closeSwap = () => { $('swap').hidden = true; };
+$('swapClose').onclick = closeSwap;
+
+// Write the letter anew in a template box (same guides), cut out like a filled-in template.
+const boxFor = (key: string) => TEMPLATE_PAGES.flat().find((b) => b.key === key) ?? { ...TEMPLATE_PAGES[0][0], key, w: CELL.w * Math.max(1, [...key].length) };
+function drawPad() {
+  const c = $<HTMLCanvasElement>('swapPad'), ctx = c.getContext('2d')!;
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+  ctx.strokeStyle = '#c8d3e3'; ctx.lineWidth = 2; // lighter than ink: extraction ignores it
+  for (const yy of [GUIDES.asc, GUIDES.xh, GUIDES.base, GUIDES.desc]) { ctx.beginPath(); ctx.moveTo(0, yy * MM); ctx.lineTo(c.width, yy * MM); ctx.stroke(); }
+  for (const s of pad) paint(ctx, s);
+}
+$('swapWrite').onclick = () => {
+  const b = boxFor(swapAt!.key), c = $<HTMLCanvasElement>('swapPad');
+  c.width = b.w * MM; c.height = b.h * MM;
+  pad = [];
+  drawPad();
+  c.hidden = $('swapSave').hidden = false;
+};
+{
+  const c = $<HTMLCanvasElement>('swapPad');
+  const at = (e: PointerEvent) => { const r = c.getBoundingClientRect(); return [((e.clientX - r.left) / r.width) * c.width, ((e.clientY - r.top) / r.height) * c.height, (0.3 + 0.45 * (e.pressure || 0.5)) * MM]; };
+  c.onpointerdown = (e) => { try { c.setPointerCapture(e.pointerId); } catch { /* synthetic events */ } pad.push(at(e)); drawPad(); };
+  c.onpointermove = (e) => { if (e.buttons && pad.length) { pad.at(-1)!.push(...at(e)); drawPad(); } };
+}
+$('swapSave').onclick = async () => {
+  const { pi, gi, key } = swapAt!, c = $<HTMLCanvasElement>('swapPad');
+  const b = boxFor(key), img = c.getContext('2d')!.getImageData(0, 0, c.width, c.height);
+  const v = extractBox(img, [MM, 0, 0, 0, MM, 0], { ...b, x: 0, y: 0 });
+  if (!v) return toast('Da ist noch nichts geschrieben.');
+  const src = `pen:${key}:${Date.now()}`;
+  await saveMany(active, [{ ...v, src }]);
+  raw = await loadSet(active);
+  overrides.set(`${pi}:${gi}`, { key, src });
+  rebuild();
+  closeSwap();
+  toast(`Neues „${key}“ gespeichert – es wird ab jetzt auch sonst verwendet.`);
 };
 
 // ---------- review grid ----------

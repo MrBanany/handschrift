@@ -307,8 +307,7 @@ function show(tab: string) {
   scrollTo(0, 0);
   if (tab === 'write') schedule();
 }
-// the handwritings button goes back to writing when pressed again
-document.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach((b) => b.onclick = () => show(b.classList.contains('on') && b.dataset.tab !== 'write' ? 'write' : b.dataset.tab!));
+document.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach((b) => b.onclick = () => show(b.dataset.tab!));
 $('settingsOpen').onclick = () => { $('settings').hidden = false; };
 $('settingsClose').onclick = () => { $('settings').hidden = true; };
 $('settings').onclick = (e) => { if (e.target === $('settings')) $('settings').hidden = true; };

@@ -23,7 +23,6 @@
     <button data-tab="write" class="brand on">Handschrift</button>
     <select id="set" aria-label="Handschrift auswählen"></select>
     <button id="settingsOpen" class="icon" aria-label="Einstellungen"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1" /></svg></button>
-    <button data-tab="manage" class="icon" aria-label="Handschriften und Zeichen"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 8h8M8 12h8M8 16h5" /></svg></button>
   </header>
   <main>
     <section id="write" class="tab on">
@@ -88,13 +87,6 @@
         </div>
       </div>
 
-      <div class="card" id="glyphs">
-        <h2 id="glyphsTitle"></h2>
-        <p class="muted small"><span id="coverage"></span> So werden die Zeichen gerade verwendet. Antippen löscht eine Variante. <i class="dot in"></i> Strich-Eintritt <i class="dot out"></i> Austritt</p>
-        <div id="grid"></div>
-        <div class="dock"><button id="reviewOpen" class="primary"></button><button id="acceptAll" hidden>Alle übernehmen</button></div>
-        </div>
-
       <div class="card">
         <h2>Backup</h2>
         <p class="muted">Deine Handschriften liegen nur im Speicher dieser App auf diesem Gerät. „Backup speichern“ (bei jeder Handschrift oben) lädt sie als Datei herunter – zum Übertragen auf ein anderes Gerät oder falls der Speicher einmal gelöscht wird. Hier lädst du so eine Datei wieder.</p>
@@ -102,7 +94,28 @@
       </div>
     </section>
 
+    <section id="glyphs" class="tab">
+      <h1 id="glyphsTitle"></h1>
+      <p class="muted small"><span id="coverage"></span> So werden die Zeichen gerade verwendet. Ein Zeichen antippen: neu schreiben oder Varianten löschen. <i class="dot in"></i> Strich-Eintritt <i class="dot out"></i> Austritt</p>
+      <div id="grid"></div>
+      <div class="dock"><button id="reviewOpen" class="primary"></button><button id="acceptAll" hidden>Alle übernehmen</button></div>
+    </section>
   </main>
+
+  <nav class="tabbar" aria-label="Bereiche">
+    <button data-tab="write" class="on">
+      <svg viewBox="0 0 24 24"><path d="M4 20c3-1 5-4 7-7l6-6a2 2 0 0 0-3-3l-6 6c-3 2-6 4-7 7z" /><path d="M14 20h6" /></svg>
+      Schreiben
+    </button>
+    <button data-tab="manage">
+      <svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 8h8M8 12h8M8 16h5" /></svg>
+      Handschriften
+    </button>
+    <button data-tab="glyphs">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></svg>
+      Zeichen
+    </button>
+  </nav>
 
   <div id="settings" class="overlay" hidden>
     <div class="sheet settings">

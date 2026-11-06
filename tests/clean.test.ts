@@ -31,8 +31,10 @@ describe('clean pasted AI text', () => {
   });
   it('turns LaTeX and chemistry from AI answers into writable characters', () => {
     const all = () => true;
-    expect(clean('$\\frac{a+b}{2} \\cdot \\sqrt{x} \\approx 3,5 \\pm 0,1$', all)).toBe('(a+b)/2 · √x ≈ 3,5 ± 0,1');
-    expect(clean('\\[ v = \\frac{\\Delta s}{\\Delta t} \\]', all)).toBe('v = (Δ s)/(Δ t)');
+    expect(clean('$\\frac{a+b}{2} \\cdot \\sqrt{x} \\approx 3,5 \\pm 0,1$', all)).toBe('\u0011a+b\u00122\u0013 · √x ≈ 3,5 ± 0,1');
+    expect(clean('\\[ v = \\frac{\\Delta s}{\\Delta t} \\]', all)).toBe('v = \u0011Δ\u0010s\u0012Δ\u0010t\u0013');
+    // a fraction inside a fraction or a root stays on one line; punctuation stays attached
+    expect(clean('$\\frac{\\frac{1}{2}}{3}$, $\\sqrt{\\frac{a}{b}}$', all)).toBe('\u00111/2\u00123\u0013, √(a/b)');
     expect(clean('Winkel $90^\\circ$, $x^{2}$, $\\text{km}^2$', all)).toBe('Winkel 90°, x², km²');
     expect(clean('$\\ce{6CO2 + 6H2O -> C6H12O6 + 6O2}$', all)).toBe('6CO₂ + 6H₂O → C₆H₁₂O₆ + 6O₂');
     expect(clean('CO2 und H2SO4 auf A4, MP3, Ca(OH)2', all)).toBe('CO₂ und H₂SO₄ auf A4, MP3, Ca(OH)₂');

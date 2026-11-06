@@ -15,6 +15,11 @@ const ELEMENTS = new Set(('H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar K Ca Sc
 
 const group = (x: string) => (/^[\p{L}\p{N}.,²³]+$/u.test(x) ? x : `(${x})`);
 
+/** Stacked fraction: FRAC[0] numerator FRAC[1] denominator FRAC[2]; the layout writes it over a fraction bar. */
+export const FRAC = ['\u0011', '\u0012', '\u0013'] as const;
+/** Stacked fractions inside x back to a/b (a fraction inside a fraction or a root stays on one line). */
+export const flatFrac = (x: string) => x.replace(/\u0011([^\u0012]*)\u0012([^\u0013]*)\u0013/g, (_, a: string, b: string) => `${group(a.trim())}/${group(b.trim())}`);
+
 /** A chemical formula written with plain digits ("H2SO4", "Ca(OH)2") -> the same with _n subscript markup. */
 export function chem(word: string): string {
   const [, n, f] = /^(\d*)(.*)$/s.exec(word)!; // "6CO2": 6 molecules of CO2
@@ -43,8 +48,8 @@ export function latex(text: string): string {
   for (let prev = ''; prev !== t;) {
     prev = t;
     t = t
-      .replace(/\\[dt]?frac\{([^{}]*)\}\{([^{}]*)\}/g, (_, a: string, b: string) => `${group(a)}/${group(b)}`)
-      .replace(/\\sqrt\{([^{}]*)\}/g, (_, a: string) => `√${group(a)}`);
+      .replace(/\\[dt]?frac\{([^{}]*)\}\{([^{}]*)\}/g, (_, a: string, b: string) => FRAC[0] + flatFrac(a) + FRAC[1] + flatFrac(b) + FRAC[2])
+      .replace(/\\sqrt\{([^{}]*)\}/g, (_, a: string) => `√${group(flatFrac(a))}`);
   }
   return t
     .replace(/\\([A-Za-z]+)/g, (m, name: string) => SYMBOL[name] ?? name) // \sin -> sin

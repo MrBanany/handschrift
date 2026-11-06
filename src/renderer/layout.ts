@@ -2,6 +2,7 @@ import { connectionModel, makeConnector, type Connector, type Library } from '..
 import type { Anchor, GlyphMeta } from '../glyphstore/types';
 import { MM, XH } from '../template/layout';
 import { EMPH, HEAD, MARK, STRUCT } from './clean';
+import { flatFrac } from './latex';
 import { molecule, type Molecule } from './structure';
 
 /** Gap between words (x-heights, ink to ink) when none was learned. */
@@ -75,6 +76,8 @@ export function segment(word: string, lib: Library): string[] {
 }
 
 interface WordItem { g: GlyphMeta; m: Mat; join: boolean; from?: Anchor; to?: Anchor }
+/** Fraction bar from x0 to x1 at height y (mm, relative to the word's baseline). */
+interface Bar { x0: number; x1: number; y: number }
 
 const isLetter = (c: string) => /\p{L}/u.test(c);
 
@@ -232,7 +235,44 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
     let inkL = Infinity, inkR = -Infinity;
     for (const it of items) { const [l, r] = inkX(it.g, it.m); inkL = Math.min(inkL, l); inkR = Math.max(inkR, r); }
     for (const ms of missing) { inkL = Math.min(inkL, ms.x); inkR = Math.max(inkR, ms.x + ms.w); }
-    return { items, missing, inkL: Number.isFinite(inkL) ? inkL : 0, inkR: Number.isFinite(inkR) ? inkR : cursor };
+    return { items, missing, inkL: Number.isFinite(inkL) ? inkL : 0, inkR: Number.isFinite(inkR) ? inkR : cursor, bars: [] as Bar[] };
+  }
+  type Laid = ReturnType<typeof layoutWord>;
+
+  /** Moves a laid-out word by (dx, dy) mm and adds it to `into`. */
+  const put = (into: Laid, w: Laid, dx: number, dy: number) => {
+    for (const it of w.items) { const m: Mat = [...it.m]; m[4] += dx; m[5] += dy; into.items.push({ ...it, m }); }
+    for (const ms of w.missing) into.missing.push({ ...ms, x: ms.x + dx, y: ms.y + dy });
+    for (const b of w.bars) into.bars.push({ x0: b.x0 + dx, x1: b.x1 + dx, y: b.y + dy });
+    into.inkL = Math.min(into.inkL, w.inkL + dx); into.inkR = Math.max(into.inkR, w.inkR + dx);
+  };
+  const empty = (): Laid => ({ items: [], missing: [], inkL: Infinity, inkR: -Infinity, bars: [] });
+
+  /** Several words (separated by \u0010) on one baseline, a bit closer than normal words. */
+  function layoutRun(text: string, size: number): Laid {
+    const out = empty();
+    let x = 0;
+    for (const w of text.split('\u0010').filter(Boolean)) {
+      const wd = layoutWord(w, size);
+      put(out, wd, x - wd.inkL, 0);
+      x = out.inkR + 0.5 * xh * size;
+    }
+    if (!Number.isFinite(out.inkL)) { out.inkL = 0; out.inkR = 0; }
+    return out;
+  }
+
+  /** Numerator over denominator, smaller, centred over a pen-stroke fraction bar at mid x-height; `tail` (",") follows. */
+  function layoutFrac(num: string, den: string, tail: string, size: number): Laid {
+    const f = 0.8 * size, n = layoutRun(num, f), d = layoutRun(den, f);
+    const over = 0.15 * xh, W = Math.max(n.inkR - n.inkL, d.inkR - d.inkL, 0.6 * xh) + 2 * over;
+    const bar = -0.45 * xh * size;
+    const out = empty();
+    put(out, n, (W - (n.inkR - n.inkL)) / 2 - n.inkL, bar - 0.3 * xh * size);
+    put(out, d, (W - (d.inkR - d.inkL)) / 2 - d.inkL, bar + 0.3 * xh * size + 1.3 * xh * f); // digits are ~1.3 x-heights tall
+    out.bars.push({ x0: 0, x1: W, y: bar });
+    out.inkL = 0; out.inkR = Math.max(out.inkR, W);
+    if (tail) { const t = layoutWord(tail, size); put(out, t, out.inkR + 0.1 * xh - t.inkL, 0); }
+    return out;
   }
 
   const pages: Page[] = [];
@@ -403,12 +443,15 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
         if (token.includes(MARK[1])) { closeMark(); marking = false; }
       };
       if (!word) { close(); continue; }
-      const wd = layoutWord(word, size);
+      const fr = /^\u0011([^\u0012]*)\u0012([^\u0013]*)\u0013([^\u0011]*)$/.exec(word);
+      const wd = fr ? layoutFrac(fr[1], fr[2], fr[3], size) : layoutWord(flatFrac(word), size);
       // lineX is where the next word's ink starts
       if (lineX > lineStart && lineX - wd.inkL + wd.inkR > s.pageW - s.margin) newLine();
       const ox = lineX - wd.inkL;
-      if (rec) rec.text += ` ${word}`;
-      else page!.lines.push(rec = { text: word });
+      const plain = flatFrac(word).replace(/\u0010/g, ' ');
+      if (rec) rec.text += ` ${plain}`;
+      else page!.lines.push(rec = { text: plain });
+      for (const b of wd.bars) stroke(ox + b.x0, y + drift(ox + b.x0) + b.y, ox + b.x1, y + drift(ox + b.x1) + b.y);
       let prevM: Mat | null = null, prevG: GlyphMeta | null = null;
       for (const it of wd.items) {
         const m: Mat = [...it.m];

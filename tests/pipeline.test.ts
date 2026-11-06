@@ -144,6 +144,17 @@ describe('layout', () => {
     expect(a.pages[0].glyphs.map((g) => g.m)).not.toEqual(c.pages[0].glyphs.map((g) => g.m));
   });
 
+  it('writes a fraction stacked: numerator above, denominator below a bar', () => {
+    const { pages } = layout('x = \u0011ab\u0012c\u0013,', lib, S);
+    const [, a, b, c] = pages[0].glyphs; // x, a, b, c, comma
+    const bar = pages[0].connectors.at(-1)!.p, barY = (bar[0][1] + bar[3][1]) / 2;
+    const base = (g: typeof a) => g.m[3] * g.g.baseline + g.m[5]; // baseline height on the page
+    expect(base(a)).toBeLessThan(barY);
+    expect(base(b)).toBeCloseTo(base(a), 0);
+    expect(base(c) - c.m[3] * 70).toBeGreaterThan(barY - 0.5); // top of the denominator under the bar
+    expect(pages[0].lines[0].text).toBe('x = ab/c,');
+  });
+
   it('never repeats the same sample back to back', () => {
     const { pages } = layout('aaaaaaaaaaaa', lib, S);
     const srcs = pages[0].glyphs.map((g) => g.g.src);

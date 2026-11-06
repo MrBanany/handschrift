@@ -56,6 +56,9 @@ export function clean(text: string, has: (ch: string) => boolean): string {
     .replace(/[ \t]{2,}/g, ' ')
     // a structure is one "word" for the layout: spaces around it, its own spaces hidden
     .replace(/[ \t]*\u000E(\d+)\u000F[ \t]*/g, (_, i: string) => ` ${STRUCT[0]}${mols[+i].replace(/ /g, '\u0010')}${STRUCT[1]} `)
+    // a stacked fraction too; punctuation right after it stays attached
+    .replace(/[ \t]*\u0011([^\u0012\n]*)\u0012([^\u0013\n]*)\u0013[ \t]*/g, (_, a: string, b: string) => ` \u0011${a.trim().replace(/ +/g, '\u0010')}\u0012${b.trim().replace(/ +/g, '\u0010')}\u0013 `)
+    .replace(/\u0013 (?=[.,;:!?)])/g, '\u0013')
     .replace(/^ +| +$/gm, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim();

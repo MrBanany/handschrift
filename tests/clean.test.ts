@@ -9,10 +9,16 @@ describe('clean pasted AI text', () => {
     const [b, e] = EMPH; // headings and bold stay marked, the layout underlines them
     expect(clean(md, has)).toBe(`${HEAD}${b}Ergebnis${e}\n\n${b}Photosynthese${e} -> Glucose\n\n- Licht -> Energie\n- CO2 + Wasser\n\nQuelle`);
   });
-  it('puts [[structures]] on their own line and leaves SMILES untouched', () => {
+  it('keeps [[structures]] as one word in the line and leaves SMILES untouched', () => {
     const [a, z] = STRUCT;
-    expect(clean('Ethanol: [[Ethanol]] brennt.', has)).toBe(`Ethanol:\n${a}Ethanol${z}\nbrennt.`);
-    expect(clean('[[CC(=O)O]] und [[C/C=C\\C]]', has)).toBe(`${a}CC(=O)O${z}\nund\n${a}C/C=C\\C${z}`);
+    expect(clean('Ethanol: [[Ethanol]] brennt.', has)).toBe(`Ethanol: ${a}Ethanol${z} brennt.`);
+    expect(clean('[[CC(=O)O]] und [[C/C=C\\C]]', has)).toBe(`${a}CC(=O)O${z} und ${a}C/C=C\\C${z}`);
+    expect(clean('[[Essigsäure skelett]],', has)).toBe(`${a}Essigsäure\u0010skelett${z} ,`);
+  });
+  it('writes ion charges small and raised', () => {
+    const all = () => true;
+    expect(clean('$\\ce{Na+ + Cl-}$ und $\\ce{SO4^2-}$, $Ca^{2+}$', all)).toBe('Na⁺ + Cl⁻ und SO₄²⁻, Ca²⁺');
+    expect(clean('x^2-3', all)).toBe('x²-3');
   });
   it('keeps arrows the handwriting has', () => {
     expect(clean('a → b', (c) => c !== '>' )).toBe('a → b');

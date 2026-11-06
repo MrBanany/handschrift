@@ -186,12 +186,16 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
   const pages: Page[] = [];
   let page: Page, y = 0, lineX = 0, lineStart = 0, slope = 0, amp = 0, phase = 0, lambda = 1;
   let rec: Line | null = null;
+  let lineDown = 0; // extra lines a tall structural formula on this line reaches down into
+  let from = { g: 0, c: 0, m: 0, k: 0 }; // where this line's ink starts in the page lists
   const newPage = () => { page = { glyphs: [], connectors: [], missing: [], lines: [], marks: [] }; pages.push(page); y = s.margin + s.lineH; };
   const newLine = (first = false) => {
     closeUnderline(); closeMark();
     rec = null;
-    if (!first) y += s.lineH;
+    if (!first) y += s.lineH * (1 + Math.max(0, lineDown));
+    lineDown = 0;
     if (first || y > s.pageH - s.margin) newPage();
+    from = { g: page!.glyphs.length, c: page!.connectors.length, m: page!.missing.length, k: page!.marks.length };
     // Writing gets a little looser towards the end of a page, and its size wanders slowly from line to line.
     sig = sig0 * (1 + 0.35 * Math.max(0, (y - s.margin) / (s.pageH - 2 * s.margin)));
     lineSize = 0.7 * lineSize + 0.3 + gauss() * 0.012 * sig;
@@ -200,6 +204,14 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
     amp = 0.06 * xh * sig * rand();
     phase = rand() * 2 * Math.PI;
     lambda = 60 + 60 * rand();
+  };
+  /** Moves everything written on this line down by dy (mm), to make room above for a tall formula. */
+  const shiftLine = (dy: number) => {
+    for (const g of page!.glyphs.slice(from.g)) g.m[5] += dy;
+    for (const c of page!.connectors.slice(from.c)) for (const q of c.p) q[1] += dy;
+    for (const ms of page!.missing.slice(from.m)) ms.y += dy;
+    for (const k of page!.marks.slice(from.k)) { k.y0 += dy; k.y1 += dy; }
+    y += dy;
   };
   const drift = (x: number) => slope * (x - lineStart) + amp * Math.sin((2 * Math.PI * x) / lambda + phase);
 
@@ -231,17 +243,38 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
     page!.connectors.push({ p: [[x0, y0], [x0 + dx / 3 + nx, y0 + dy / 3 + ny], [x0 + (2 * dx) / 3 + nx, y0 + (2 * dy) / 3 + ny], [x1, y1]], w0: penW, w1: penW });
   };
 
-  /** Structural formula: bonds as pen strokes, atom letters in the writer's hand. Takes as many lines as it needs. */
-  function drawMolecule(mol: Molecule, spec: string) {
-    const xs = mol.atoms.map((a) => a.x), ys = mol.atoms.map((a) => a.y);
-    const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  /**
+   * Structural formula inside the line (reactions: "[[Ethanol]] + 3 [[Sauerstoff]] → …"): bonds as pen strokes,
+   * atom letters in the writer's hand, centred on the x-height. A tall molecule pushes the line down and keeps the
+   * next line away.
+   */
+  function molGeom(mol: Molecule) {
+    const xs = mol.atoms.map((a) => a.x), minX = Math.min(...xs), maxX = Math.max(...xs);
     const full = mol.atoms.some((a) => a.element === 'H'); // every H written: needs longer bonds to fit the letters
     const B = Math.min((full ? 3.2 : 2.6) * xh, (s.pageW - 2 * s.margin - 2 * xh) / Math.max(1, maxX - minX)); // bond length (mm)
-    // lowest ink below this line's baseline, then as many lines as it reaches down into (next text needs ~1.6 xh above it)
-    const bottom = Math.max(...mol.atoms.map((a) => (a.y - minY) * B + (a.label ? 0.7 * xh : 0))) - 0.6 * xh;
-    const extra = Math.max(0, Math.ceil((bottom + 1.6 * xh) / s.lineH) - 1);
-    if (y + extra * s.lineH > s.pageH - s.margin && y > s.margin + s.lineH) newPage();
-    const ox = lineStart + xh - minX * B, oy = y - 0.6 * xh - minY * B;
+    // how far each label sticks out left/right of its atom ("HO" runs left, "OH" right; capitals ~1.1 xh wide)
+    const ext = mol.atoms.map((a) => {
+      const w = 1.1 * xh * [...a.label].length, half = Math.min(0.4 * xh, w / 2);
+      if (!a.label) return [0, 0];
+      return a.label.length > a.element.length && a.dir === 'left' ? [w - half, half] : a.label.length > a.element.length && a.dir === 'right' ? [half, w - half] : [w / 2, w / 2];
+    });
+    const left = Math.min(...mol.atoms.map((a, i) => (a.x - minX) * B - ext[i][0]));
+    const right = Math.max(...mol.atoms.map((a, i) => (a.x - minX) * B + ext[i][1]));
+    const padL = -left;
+    return { minX, B, padL, width: Math.max(xh, right - left) };
+  }
+
+  function placeMolecule(mol: Molecule, x0: number) {
+    const ys = mol.atoms.map((a) => a.y);
+    const { minX, B, padL } = molGeom(mol);
+    // ink extent relative to the atom positions: letters reach ~0.8 xh above and ~0.7 xh below their atom
+    const top = Math.min(...mol.atoms.map((a, i) => ys[i] * B - (a.label ? 0.8 * xh : 0)));
+    const bot = Math.max(...mol.atoms.map((a, i) => ys[i] * B + (a.label ? 0.7 * xh : 0)));
+    const room = y - s.lineH + 0.9 * xh; // below the previous line's descenders
+    const up = Math.ceil((room - (y - 0.5 * xh - (bot - top) / 2)) / s.lineH);
+    if (up > 0) shiftLine(up * s.lineH); // shortcut: may run past the page bottom for huge molecules, fine for school sizes
+    const oy = y - 0.5 * xh - (top + bot) / 2, ox = x0 + padL - minX * B;
+    lineDown = Math.max(lineDown, Math.ceil((oy + bot - (y + s.lineH - 1.6 * xh)) / s.lineH));
     const P = mol.atoms.map((a) => [ox + a.x * B, oy + a.y * B] as const);
     for (const b of mol.bonds) {
       let [x0, y0] = P[b.a], [x1, y1] = P[b.b];
@@ -282,21 +315,34 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
       const dy = P[i][1] + 0.65 * xh; // capitals are about 1.3 x-heights tall: their middle on the atom
       for (const it of wd.items) { const m: Mat = [...it.m]; m[4] += dx; m[5] += dy; page!.glyphs.push({ g: it.g, m }); }
       for (const ms of wd.missing) page!.missing.push({ ...ms, x: ms.x + dx, y: ms.y + dy });
+      // free electron pairs: a short dash just outside the letter, across the direction it points to
+      for (const t of a.lone ?? []) {
+        const c = Math.cos(t), sn = Math.sin(t), r = xh / Math.hypot(c / 0.75, sn / 1.15), l = 0.32 * xh;
+        const mx = P[i][0] + c * r, my = P[i][1] - 0.1 * xh + sn * r;
+        stroke(mx - sn * l, my + c * l, mx + sn * l, my - c * l);
+      }
     });
-    page!.lines.push({ text: spec });
-    y += extra * s.lineH;
   }
 
   newLine(true);
   text.split('\n').forEach((line, li) => {
     if (li > 0) newLine();
-    const st = line.startsWith(STRUCT[0]) && line.endsWith(STRUCT[1]) ? line.slice(1, -1) : null;
-    const mol = st === null ? null : molecule(st);
-    if (mol) { drawMolecule(mol, st!); return; }
-    if (st !== null) line = st; // unknown name or broken SMILES: just write it
     let emph = false, marking = false;
     const size = line.startsWith(HEAD) ? 1.3 : 1; // headings are written a bit bigger
-    for (const token of line.split(/\s+/).filter(Boolean)) {
+    for (let token of line.split(/\s+/).filter(Boolean)) {
+      if (token.startsWith(STRUCT[0]) && token.endsWith(STRUCT[1])) { // clean() puts spaces around it
+        const spec = token.slice(1, -1).replace(/\u0010/g, ' '), mol = molecule(spec);
+        if (mol) {
+          const g = molGeom(mol);
+          if (lineX > lineStart && lineX + g.width > s.pageW - s.margin) newLine();
+          placeMolecule(mol, lineX);
+          if (rec) rec.text += ` ${spec}`;
+          else page!.lines.push(rec = { text: spec });
+          lineX += g.width + Math.max(0.6 * xh, (s.wordGap ?? DEFAULT_WORD_GAP) * xh);
+          continue;
+        }
+        token = spec; // unknown name or broken SMILES: just write it
+      }
       const word = token.replace(/[\u0002-\u0006]/g, '');
       if (token.includes(EMPH[0])) emph = true;
       if (token.includes(MARK[0])) marking = true;

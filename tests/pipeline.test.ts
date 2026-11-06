@@ -196,12 +196,24 @@ describe('layout', () => {
     const plain = new Map([...'abcdefghijklmnopqrstuvwxyzCHO'].map((k) => [k, [{ ...glyph(k, 0), entry: null, exit: null }]]));
     const { pages } = layout(`eins\n${STRUCT[0]}Ethanol${STRUCT[1]}\nzwei`, plain, { ...S, hasty: 0 });
     const pg = pages[0];
-    expect(pg.connectors).toHaveLength(8); // 8 single bonds
+    expect(pg.connectors).toHaveLength(8 + 2); // 8 single bonds, 2 free electron pairs on O
     expect(pg.glyphs.length).toBe(4 + 9 + 4); // eins, C C O + 6 H, zwei
     expect(pg.lines.map((l) => l.text)).toEqual(['eins', 'Ethanol', 'zwei']);
+    const top = Math.min(...pg.connectors.flatMap((c) => c.p.map((q) => q[1])));
     const bottom = Math.max(...pg.connectors.flatMap((c) => c.p.map((q) => q[1])));
+    expect(top).toBeGreaterThan(pg.glyphs[0].m[5]); // pushed below "eins"
     expect(pg.glyphs.at(-1)!.m[5]).toBeGreaterThan(bottom + S.xh);
     expect(layout(`${STRUCT[0]}Quatsch${STRUCT[1]}`, plain, S).pages[0].lines[0].text).toBe('Quatsch');
+  });
+
+  it('writes a reaction in one line: molecules side by side with + and arrow', () => {
+    const plain = new Map([...'abcdefghijklmnopqrstuvwxyzCHO+→2'].map((k) => [k, [{ ...glyph(k, 0), entry: null, exit: null }]]));
+    const m = (n: string) => `${STRUCT[0]}${n}${STRUCT[1]}`;
+    const { pages } = layout(`${m('Methan')} + 2 ${m('Sauerstoff')} → ${m('Kohlenstoffdioxid')} + 2 ${m('Wasser')}`, plain, { ...S, hasty: 0 });
+    expect(pages[0].lines.map((l) => l.text)).toEqual(['Methan + 2 Sauerstoff → Kohlenstoffdioxid + 2 Wasser']);
+    const plus = pages[0].glyphs.filter((g) => g.g.key === '+').map((g) => g.m[4]);
+    expect(plus).toHaveLength(2);
+    expect(plus[1]).toBeGreaterThan(plus[0] + 20); // CO2 sits between them
   });
 
   it('puts one highlighter stroke behind marked words, centred on the x-height', () => {

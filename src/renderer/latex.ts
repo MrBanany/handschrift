@@ -25,10 +25,16 @@ export function chem(word: string): string {
   return n + f.replace(/([A-Za-z)])(\d+)/g, '$1_$2');
 }
 
+/** mhchem species with charge: "Na+", "Ca2+", "SO4^2-", "SO4^{2-}" -> formula with ^{charge}. */
+function ion(tok: string): string {
+  const m = /^(.+)\^\{?(\d*[+-])\}?$/.exec(tok) ?? /^(.*[A-Za-z)\]])(\d*[+-])$/.exec(tok);
+  return m ? `${chem(m[1])}^{${m[2]}}` : chem(tok);
+}
+
 export function latex(text: string): string {
   let t = text
     .replace(/\$\$|\\\[|\\\]|\\\(|\\\)/g, ' ')
-    .replace(/\\ce\{([^{}]*)\}/g, (_, f: string) => f.replace(/<=>/g, '⇌').replace(/->/g, '→').split(/(\s+)/).map(chem).join(''))
+    .replace(/\\ce\{((?:[^{}]|\{[^{}]*\})*)\}/g, (_, f: string) => f.replace(/<=>/g, '⇌').replace(/->/g, '→').split(/(\s+)/).map(ion).join(''))
     .replace(/\\(?:text|mathrm|mathbf|mathit|operatorname)\{([^{}]*)\}/g, '$1')
     .replace(/\^\{?\\circ\}?/g, '°') // 90^\circ
     .replace(/\\(?:left|right)(?![A-Za-z])/g, '') // \left( … \right), not \rightarrow

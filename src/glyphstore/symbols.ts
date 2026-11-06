@@ -84,14 +84,20 @@ export function symbolVariants(have: Variant[], n = 3): Variant[] {
     }
   }
   // Exponents and indices not filled in: the writer's own digits, smaller, raised (x²) or lowered (CO₂).
-  for (const [chars, lift, tag] of [[SUP, 0.8, 'sup'], [SUB, -0.25, 'sub']] as const) {
-    [...chars].forEach((ch, d) => {
-      if (keys.has(ch)) return;
-      for (const v of have) {
-        const k = (v.scale ?? 1) * 0.6;
-        if (v.key === String(d)) out.push({ ...v, src: `${tag}:${v.src}`, key: ch, scale: k, baseline: v.baseline + (lift * X) / k, entry: null, exit: null });
-      }
-    });
+  // Charges (Na⁺, SO₄²⁻) the same way from + and -, own or drawn.
+  // + and - are only x-height tall to begin with, so they shrink less
+  const small: [string, string, number, string, number][] = [
+    ...[...SUP].map((ch, d) => [ch, String(d), 0.8, 'sup', 0.6] as [string, string, number, string, number]),
+    ...[...SUB].map((ch, d) => [ch, String(d), -0.25, 'sub', 0.6] as [string, string, number, string, number]),
+    ['⁺', '+', 0.75, 'sup', 0.8], ['⁻', '-', 0.75, 'sup', 0.8],
+  ];
+  const all = [...have, ...out];
+  for (const [ch, from, lift, tag, f] of small) {
+    if (keys.has(ch)) continue;
+    for (const v of all) {
+      const k = (v.scale ?? 1) * f;
+      if (v.key === from) out.push({ ...v, src: `${tag}:${v.src}`, key: ch, scale: k, baseline: v.baseline + (lift * X) / k, entry: null, exit: null });
+    }
   }
   return out;
 }

@@ -43,6 +43,7 @@ export function clean(text: string, has: (ch: string) => boolean): string {
     .replace(/[‘’‚′]/g, (q) => (has(q) ? q : "'"))
     .replace(/[—―]/g, pick('–', '-'))
     .replace(/−/g, '-') // minus sign
+    .replace(/\^\{?(\d*)([+-])\}?(?=[\s,.;:)]|$)/gm, (m, d: string, q: string) => pick(digits(d, SUP) + (q === '+' ? '⁺' : '⁻'), m)) // Na^+, SO_4^{2-}
     .replace(/\^\{?(\d+)\}?/g, (m, d: string) => pick(digits(d, SUP), m)) // x^2, m^{3}
     .replace(/(\p{L}|\))_\{?(\d+)\}?/gu, (m, l: string, d: string) => l + pick(digits(d, SUB), m.slice(l.length))) // H_2O
     .replace(/…/g, '...')
@@ -53,8 +54,9 @@ export function clean(text: string, has: (ch: string) => boolean): string {
     .replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}]/gu, (c) => (has(c) ? c : '')) // emoji; ↔ counts as one too
     .replace(/[ \t]+$/gm, '')
     .replace(/[ \t]{2,}/g, ' ')
-    .replace(/\s*\u000E(\d+)\u000F\s*/g, (_, i: string) => `\n${STRUCT[0]}${mols[+i]}${STRUCT[1]}\n`)
-    .replace(/^\n+|\n+$/g, '')
+    // a structure is one "word" for the layout: spaces around it, its own spaces hidden
+    .replace(/[ \t]*\u000E(\d+)\u000F[ \t]*/g, (_, i: string) => ` ${STRUCT[0]}${mols[+i].replace(/ /g, '\u0010')}${STRUCT[1]} `)
+    .replace(/^ +| +$/gm, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }

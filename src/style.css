@@ -196,3 +196,4 @@ details > * + * { margin-top: 10px; }
 .swap-pad { width: min(100%, 320px); aspect-ratio: auto; background: #fff; border-radius: 8px; touch-action: none; align-self: center; }
 .page-view img, .page-view canvas { cursor: pointer; }
 #glyphs.card { max-width: 1100px; }
+#grid .glyph { cursor: pointer; }

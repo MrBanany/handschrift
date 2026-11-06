@@ -121,12 +121,16 @@ export function swapVariant(p: Placed, g: GlyphMeta): Placed {
 }
 
 /** Index of the letter whose box contains (x, y) mm, or -1. */
-export function glyphAt(page: Page, x: number, y: number): number {
-  return page.glyphs.findIndex(({ g, m }) => {
+/** Index of the glyph nearest to (x, y) in mm, or -1 if none is within `reach` mm (a finger is not precise). */
+export function glyphAt(page: Page, x: number, y: number, reach = 3): number {
+  let best = -1, bestD = reach;
+  page.glyphs.forEach(({ g, m }, i) => {
     const xs: number[] = [], ys: number[] = [];
     for (const [u, v] of [[0, 0], [g.w, 0], [0, g.h], [g.w, g.h]]) { const [px, py] = tf(m, u, v); xs.push(px); ys.push(py); }
-    return x >= Math.min(...xs) && x <= Math.max(...xs) && y >= Math.min(...ys) && y <= Math.max(...ys);
+    const d = Math.hypot(Math.max(Math.min(...xs) - x, 0, x - Math.max(...xs)), Math.max(Math.min(...ys) - y, 0, y - Math.max(...ys)));
+    if (d <= bestD) { best = i; bestD = d; }
   });
+  return best;
 }
 
 export function layout(text: string, lib: Library, s: Settings): { pages: Page[]; missing: Set<string> } {

@@ -488,19 +488,31 @@ $('preview').addEventListener('click', (e) => {
   openSwap();
 });
 
+/** One dialog for a letter: from the preview (n >= 0: tap a variant to use it here) or from the
+ *  Handschriften grid (n = -1: tap a variant to delete it). The pencil pad is open right away. */
 function openSwap() {
-  const { pi, gi, n, key } = swapAt!, cur = shown[pi].glyphs[gi].g.src;
-  $('swapTitle').textContent = `„${key}“ austauschen`;
-  $('swapVariants').replaceChildren(...(lib.get(key) ?? []).map((v) => {
-    const box = frame(raw.find((r) => r.src === v.src) ?? v, v);
+  const { pi, gi, n, key } = swapAt!, inText = n >= 0, cur = inText ? shown[pi].glyphs[gi].g.src : '';
+  $('swapTitle').textContent = inText ? `„${key}“ austauschen` : `„${key}“`;
+  $('swapHint').textContent = !active ? 'Tippe eine andere Variante an.'
+    : inText ? 'Tippe eine andere Variante an – oder schreib den Buchstaben unten neu.'
+    : 'Schreib unten eine neue Variante. Eine vorhandene antippen löscht sie.';
+  $('swapVariants').replaceChildren(...(inText ? lib.get(key) ?? [] : raw.filter((v) => v.key === key)).map((v) => {
+    const box = frame(raw.find((r) => r.src === v.src) ?? v, bySrc.get(v.src) ?? v);
     box.classList.toggle('on', v.src === cur);
-    box.onclick = () => { overrides.set(n, { key, src: v.src }); schedule(); closeSwap(); };
+    box.onclick = inText ? () => { overrides.set(n, { key, src: v.src }); schedule(); closeSwap(); } : async () => {
+      if (!confirm(`Diese Variante von „${key}“ löschen?`)) return;
+      await remove(active, v.src);
+      raw = await loadSet(active);
+      rebuild();
+      openSwap();
+    };
     return box;
   }));
-  $('swapPad').hidden = $('swapSave').hidden = true;
-  $('swapWrite').hidden = !active;
+  for (const id of ['swapPad', 'swapSave', 'swapWrite']) $(id).hidden = !active;
+  if (active) clearPad();
   $('swap').hidden = false;
 }
+const openLetter = (key: string) => { swapAt = { pi: -1, gi: -1, n: -1, key }; openSwap(); };
 const closeSwap = () => { $('swap').hidden = true; };
 $('swapClose').onclick = closeSwap;
 
@@ -513,13 +525,13 @@ function drawPad() {
   for (const yy of [GUIDES.asc, GUIDES.xh, GUIDES.base, GUIDES.desc]) { ctx.beginPath(); ctx.moveTo(0, yy * MM); ctx.lineTo(c.width, yy * MM); ctx.stroke(); }
   for (const s of pad) paint(ctx, s);
 }
-$('swapWrite').onclick = () => {
+function clearPad() {
   const b = boxFor(swapAt!.key), c = $<HTMLCanvasElement>('swapPad');
   c.width = b.w * MM; c.height = b.h * MM;
   pad = [];
   drawPad();
-  c.hidden = $('swapSave').hidden = false;
-};
+}
+$('swapWrite').onclick = clearPad;
 {
   const c = $<HTMLCanvasElement>('swapPad');
   const at = (e: PointerEvent) => { const r = c.getBoundingClientRect(); return [((e.clientX - r.left) / r.width) * c.width, ((e.clientY - r.top) / r.height) * c.height, (0.3 + 0.45 * (e.pressure || 0.5)) * MM]; };
@@ -534,9 +546,9 @@ $('swapSave').onclick = async () => {
   const src = `pen:${key}:${Date.now()}`;
   await saveMany(active, [{ ...v, src }]);
   raw = await loadSet(active);
-  overrides.set(n, { key, src });
+  if (n >= 0) overrides.set(n, { key, src });
   rebuild();
-  closeSwap();
+  if (n >= 0) closeSwap(); else openSwap(); // in the grid: stay open for the next variant
   toast(`Neues „${key}“ gespeichert – es wird ab jetzt auch sonst verwendet.`);
 };
 
@@ -575,12 +587,6 @@ function thumb(v: Variant) {
   const box = frame(v, bySrc.get(v.src));
   if (tuned.excluded.has(v.src)) { box.classList.add('out'); box.title = 'beim Optimieren weggelassen'; }
   else box.title = v.connected === undefined ? '' : v.connected ? 'verbunden' : 'getrennt';
-  box.onclick = async () => {
-    if (!confirm(`Diese Variante von „${v.key}“ löschen?`)) return;
-    await remove(active, v.src);
-    raw = await loadSet(active);
-    rebuild();
-  };
   return box;
 }
 
@@ -675,6 +681,7 @@ function renderGrid() {
       const vs = byKey.get(key) ?? [];
       const el = document.createElement('div');
       el.className = vs.length ? 'glyph' : 'glyph missing';
+      el.onclick = () => openLetter(key);
       const head = document.createElement('b');
       head.textContent = key;
       const info = document.createElement('small');

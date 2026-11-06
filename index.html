@@ -190,12 +190,12 @@
   <div id="swap" class="overlay" hidden>
     <div class="sheet swap">
       <h2 id="swapTitle"></h2>
-      <p class="hint">Tippe eine andere Variante an – oder schreib den Buchstaben neu.</p>
+      <p id="swapHint" class="hint"></p>
       <div id="swapVariants" class="variants"></div>
-      <canvas id="swapPad" class="swap-pad" hidden></canvas>
+      <canvas id="swapPad" class="swap-pad"></canvas>
       <div class="row">
-        <button id="swapWrite">Neu schreiben</button>
-        <button id="swapSave" class="primary" hidden>Speichern</button>
+        <button id="swapSave" class="primary">Speichern</button>
+        <button id="swapWrite">Leeren</button>
         <button id="swapClose" class="link">Schließen</button>
       </div>
     </div>
@@ -208,7 +208,7 @@
       <ol class="steps">
         <li><b>Handschrift einmal anlegen:</b> die Vorlage mit dem Pencil ausfüllen (direkt hier in der App).</li>
         <li><b>Text eintippen</b> oder eine KI-Antwort einfügen – Formeln, Pfeile und Überschriften werden mit umgewandelt.</li>
-        <li><b>„Handschrift kopieren“</b> und in GoodNotes einsetzen.</li>
+        <li><b>„In GoodNotes öffnen“</b> – die Schrift lässt sich dort radieren und mit dem Lasso kopieren.</li>
       </ol>
       <div class="row">
         <button id="welcomeOwn" class="primary">Meine Handschrift anlegen</button>

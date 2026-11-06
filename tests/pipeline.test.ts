@@ -254,6 +254,7 @@ describe('swap one letter', () => {
     expect(base(s)[1]).toBeCloseTo(base(page.glyphs[0])[1]);
     expect(s.m[0]).toBeCloseTo(0.12);
     expect(glyphAt(page, 20 + 0.05 * a.w, 30 + 0.05 * a.h)).toBe(0);
+    expect(glyphAt(page, 20 + 0.1 * a.w + 1, 30 + 0.05 * a.h)).toBe(0); // a finger 1 mm beside it
     expect(glyphAt(page, 5, 5)).toBe(-1);
   });
 });

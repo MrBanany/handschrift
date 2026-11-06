@@ -21,6 +21,15 @@ Stand: 6. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
 
 - [x] **Eingefügter Text ohne Zeilenumbrüche** (alles klebte zusammen: „BruchrechnungAddition … machen.Aufgabe 1“): Ein langer Text ganz ohne Umbruch wird dort getrennt, wo ein Wort, Satz oder eine Formel direkt in ein großgeschriebenes Wort läuft. Kurze Zeilen ohne Punkt und Formel („Chemie: Wichtige Ionen“) werden zu Überschriften (`unflatten` in clean.ts). Texte mit Umbrüchen bleiben unverändert.
 - [x] **Platz zwischen Themen**: vor jeder Überschrift automatisch eine Leerzeile, nach einem eingerahmten Ergebnis auch. Der Kasten richtet sich nach seinem Inhalt (Brüche passen hinein).
+- [x] **Testrunde mit typischen KI-Antworten** (eigene Handschrift), behoben:
+  - Griechische Buchstaben α β γ δ λ μ σ ω θ φ ρ Ω, dazu Σ, ∫, `[ ] # | _ §` werden als Stiftstriche gezeichnet, wenn sie in der Handschrift fehlen.
+  - Hochzahlen und Indizes aus Buchstaben: `x^n` → xⁿ, `e^{2x}` → e²ˣ, `a_n` → aₙ (aus den eigenen Buchstaben, verkleinert). `snake_case` bleibt.
+  - Chemie: `H2O(l)`, `NaCl(aq)`, `CO2(g)` bekommen ihre tiefgestellten Zahlen; `->[Kat]` wird „→ (Kat)“.
+  - LaTeX: `\lim_{x\to 0}` → lim(x → 0), `\sum_{i=1}^{n}` → Σ(i=1 bis n), `\int_0^1` → ∫ von 0 bis 1, `\sqrt[3]{8}` → ³√8, `\vec{v}`, `\overline{AB}`, `\mathbb{R}` → nur der Inhalt.
+  - Markdown-Tabellen werden zu Zeilen „Stoff – Formel“, Kopfzeile unterstrichen, Trennzeile weg.
+  - Unterpunkte (2 Leerzeichen pro Stufe) werden eingerückt und mit „-“ geschrieben.
+  - Fehlende `{ }` werden zu `( )`.
+  - Die App selbst verliert keine Zeilenumbrüche; die fehlten schon im kopierten Text.
 - [x] **Doppelpunkte zu hoch**: `:` wurde beim Optimieren nicht auf die Grundlinie gezogen (fehlte in der Liste). Jetzt sitzt der untere Punkt immer ganz auf der Linie, ebenso bei `. ! ?`, unabhängig von der Optimieren-Stärke.
 - [x] **„Leeren“** über dem Textfeld: leert das Feld, der Text bleibt im Verlauf.
 - [x] **Einkreisen und Einrahmen**: `((Wort))` wird von Hand eingekreist, `\boxed{x = 4}` aus KI-Antworten (Endergebnisse) eingerahmt. Steht auch in der KI-Vorgabe. `f((x))` bleibt unverändert.

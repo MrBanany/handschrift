@@ -187,6 +187,13 @@ describe('layout', () => {
     expect(Math.max(...xs.slice(-2))).toBeGreaterThan(Math.min(...xs) + 2); // the bullet's wrapped lines sit further right
   });
 
+  it('moves nested list items to the right', () => {
+    const { pages } = layout('ab\n\u0018ab\n\u0018\u0018ab', lib, { ...S, hasty: 0 });
+    const xs = [0, 1, 2].map((i) => pages[0].glyphs[i * 2].m[4]);
+    expect(xs[1]).toBeGreaterThan(xs[0] + S.xh);
+    expect(xs[2]).toBeGreaterThan(xs[1] + S.xh);
+  });
+
   it('never repeats the same sample back to back', () => {
     const { pages } = layout('aaaaaaaaaaaa', lib, S);
     const srcs = pages[0].glyphs.map((g) => g.g.src);

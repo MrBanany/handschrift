@@ -1,7 +1,7 @@
 import { connectionModel, makeConnector, type Connector, type Library } from '../connectors/connect';
 import type { Anchor, GlyphMeta } from '../glyphstore/types';
 import { MM, XH } from '../template/layout';
-import { CIRC, EMPH, HEAD, MARK, STRUCT } from './clean';
+import { CIRC, EMPH, HEAD, INDENT, MARK, STRUCT } from './clean';
 import { BOX, flatFrac } from './latex';
 import { molecule, type Molecule } from './structure';
 
@@ -467,7 +467,9 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
   text.split('\n').forEach((line, li) => {
     if (li > 0) newLine();
     let emph = false, marking = false, ringing = false, boxing = false;
-    hang = 0;
+    const indent = line.length - line.replace(new RegExp(`^${INDENT}+`), '').length; // steps of a nested list item
+    lineX += indent * 2 * xh;
+    hang = indent * 2 * xh;
     heading = line.startsWith(HEAD);
     const size = heading ? 1.3 : 1; // headings are written a bit bigger
     for (let token of line.split(/\s+/).filter(Boolean)) {
@@ -484,7 +486,7 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
         }
         token = spec; // unknown name or broken SMILES: just write it
       }
-      const word = token.replace(/[\u0002-\u0006\u0014-\u0017]/g, '');
+      const word = token.replace(/[\u0002-\u0006\u0014-\u0018]/g, '');
       if (token.includes(EMPH[0])) emph = true;
       if (token.includes(MARK[0])) marking = true;
       if (token.includes(CIRC[0])) ringing = true;
@@ -532,7 +534,7 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
       }
       close();
       const sentenceEnd = /[.!?]["“”»)]*$/u.test(word) ? 0.3 * xh : 0; // people leave a bit more room after a full stop
-      const first = lineX === lineStart;
+      const first = lineX === lineStart + hang;
       lineX = ox + wd.inkR + sentenceEnd + roomAfter +Math.max(0.6 * xh, ((s.wordGap ?? DEFAULT_WORD_GAP) - 0.15 * h) * xh * size * (1 + gauss() * 0.1 * sig));
       // a list item's wrapped lines start under its text, not under the bullet
       if (first && /^(?:[•\-–*]|\d{1,2}[.)])$/.test(word)) hang = lineX - lineStart;

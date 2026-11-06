@@ -2,7 +2,7 @@
 
 const SYMBOL: Record<string, string> = {
   cdot: '·', times: '×', div: '÷', pm: '±', mp: '∓', approx: '≈', sim: '~', neq: '≠', ne: '≠', leq: '≤', le: '≤', geq: '≥', ge: '≥',
-  infty: '∞', pi: 'π', Delta: 'Δ', delta: 'δ', alpha: 'α', beta: 'β', gamma: 'γ', lambda: 'λ', mu: 'μ', rho: 'ρ', sigma: 'σ',
+  infty: '∞', int: '∫', sum: 'Σ', pi: 'π', Delta: 'Δ', delta: 'δ', alpha: 'α', beta: 'β', gamma: 'γ', lambda: 'λ', mu: 'μ', rho: 'ρ', sigma: 'σ',
   Sigma: 'Σ', omega: 'ω', Omega: 'Ω', theta: 'θ', varphi: 'φ', phi: 'φ', degree: '°', circ: '°', percent: '%',
   to: '→', rightarrow: '→', longrightarrow: '→', leftarrow: '←', Rightarrow: '⇒', implies: '⇒', Leftrightarrow: '⇔', iff: '⇔',
   leftrightarrow: '↔', rightleftharpoons: '⇌', uparrow: '↑', downarrow: '↓', cdots: '...', ldots: '...', dots: '...',
@@ -24,6 +24,8 @@ export const flatFrac = (x: string) => x.replace(/\u0011([^\u0012]*)\u0012([^\u0
 
 /** A chemical formula written with plain digits ("H2SO4", "Ca(OH)2") -> the same with _n subscript markup. */
 export function chem(word: string): string {
+  const state = /\((?:s|l|g|aq)\)$/.exec(word)?.[0]; // H2O(l), NaCl(aq)
+  if (state) return chem(word.slice(0, -state.length)) + state;
   const [, n, f] = /^(\d*)(.*)$/s.exec(word)!; // "6CO2": 6 molecules of CO2
   if (!/\d/.test(f) || !/^(?:[A-Z][a-z]?\d*|\(|\)\d*)+$/.test(f)) return word;
   const parts = f.match(/[A-Z][a-z]?/g) ?? [];
@@ -41,8 +43,12 @@ function ion(tok: string): string {
 export function latex(text: string): string {
   let t = text
     .replace(/\$\$|\\\[|\\\]|\\\(|\\\)/g, ' ')
-    .replace(/\\ce\{((?:[^{}]|\{[^{}]*\})*)\}/g, (_, f: string) => f.replace(/<=>/g, '⇌').replace(/->/g, '→').split(/(\s+)/).map(ion).join(''))
-    .replace(/\\(?:text|mathrm|mathbf|mathit|operatorname)\{([^{}]*)\}/g, '$1')
+    .replace(/\\ce\{((?:[^{}]|\{[^{}]*\})*)\}/g, (_, f: string) => f.replace(/<=>/g, '⇌').replace(/->\[([^\]]*)\]/g, '→ ($1)').replace(/->/g, '→').split(/(\s+)/).map(ion).join(''))
+    .replace(/\\(?:text|mathrm|mathbf|mathit|operatorname|vec|overline|bar|hat|tilde|mathbb|mathcal|boldsymbol|underline|dot)\{([^{}]*)\}/g, '$1')
+    // limits written out in words: a writer puts them under the sign, the app on the line
+    .replace(/\\lim_\{([^{}]*)\}/g, (_, a: string) => `lim(${a})`)
+    .replace(/\\(sum|int)_\{?([^{}\s^]*)\}?\^\{?([^{}\s]*)\}?/g, (_, f: string, a: string, b: string) => (f === 'sum' ? `Σ(${a} bis ${b})` :`∫ von ${a} bis ${b}: `))
+    .replace(/\\sqrt\[(\d)\]\{([^{}]*)\}/g, (_, n: string, a: string) => '⁰¹²³⁴⁵⁶⁷⁸⁹'[+n] + `√${group(a)}`)
     .replace(/\^\{?\\circ\}?/g, '°') // 90^\circ
     .replace(/\\(?:left|right)(?![A-Za-z])/g, '') // \left( … \right), not \rightarrow
     .replace(/\\[,;:! ]/g, ' ');
@@ -58,5 +64,5 @@ export function latex(text: string): string {
     .replace(/\\([A-Za-z]+)/g, (m, name: string) => SYMBOL[name] ?? name) // \sin -> sin
     .replace(/\^\{([^{}0-9][^{}]*)\}/g, '^$1')
     .replace(/_\{([^{}0-9][^{}]*)\}/g, '_$1')
-    .replace(/(^|[\s(])(\d*(?:[A-Z][a-z]?\d*|\(|\)\d*)+)(?=[\s.,;:)+]|$)/gm, (m, pre: string, f: string) => pre + chem(f));
+    .replace(/(^|[\s(])(\d*(?:[A-Z][a-z]?\d*|\(|\)\d*)+(?:\((?:s|l|g|aq)\))?)(?=[\s.,;:)+]|$)/gm, (m, pre: string, f: string) => pre + chem(f));
 }

@@ -29,6 +29,15 @@ describe('clean pasted AI text', () => {
     expect(clean('x^{10} + H_2O, a_1', () => true)).toBe('x¹⁰ + H₂O, a₁');
     expect(clean('x^4', (c) => c !== '⁴')).toBe('x^4');
     expect(clean('$10^{-3}$ m, s^-1', () => true)).toBe('10⁻³ m, s⁻¹');
+    expect(clean('$x^n$, $e^{2x}$, $a_n$, snake_case, file_name', () => true)).toBe('xⁿ, e²ˣ, aₙ, snake_case, file_name');
+    expect(clean('$\\lim_{x \\to 0}$, $\\sum_{i=1}^{n} i$, $\\sqrt[3]{8}$, $\\vec{v}$', () => true)).toBe('lim(x → 0), Σ(i=1 bis n) i, ³√8, v');
+    expect(clean('$\\ce{H2O(l) + NaCl(aq) ->[Kat] X}$', () => true)).toBe('H₂O(l) + NaCl(aq) → (Kat) X');
+    expect(clean('a [b] {c}', (c) => !'[]{}'.includes(c))).toBe('a (b) (c)'); // brackets the writer lacks
+  });
+  it('turns tables into lines and keeps nested bullets indented', () => {
+    const [b, e] = EMPH, all = () => true;
+    expect(clean('| Stoff | Formel |\n|---|:---:|\n| Wasser | H2O |\nDanach', all)).toBe(`${b}Stoff – Formel${e}\nWasser – H₂O\nDanach`);
+    expect(clean('- eins\n  - zwei\n    - drei', all)).toBe('• eins\n\u0018- zwei\n\u0018\u0018- drei');
     // pasted without line breaks: lines and headings come back, with room before each topic and after a boxed result
     const flat = 'Mathe: BruchrechnungAddition: Nenner zuerst gleichnamig machen.Aufgabe 1: $\\boxed{x}$Chemie: Wichtige IonenKationen sind positiv geladen, zum Beispiel $\\ce{Al^3+}$Anionen sind negativ.';
     expect(clean(flat, () => true)).toBe(`${HEAD}${EMPH[0]}Mathe: Bruchrechnung${EMPH[1]}\nAddition: Nenner zuerst gleichnamig machen.\nAufgabe 1: \u0016x\u0017\n\n${HEAD}${EMPH[0]}Chemie: Wichtige Ionen${EMPH[1]}\nKationen sind positiv geladen, zum Beispiel Al³⁺\nAnionen sind negativ.`);

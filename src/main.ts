@@ -6,6 +6,7 @@ import { symbolVariants } from './glyphstore/symbols';
 import type { Variant } from './glyphstore/types';
 import { copyPng, download, shareFiles, toPng } from './export/png';
 import { toPdf } from './export/pdf';
+import { GN_PAGE, goodnotesFile } from './export/goodnotes';
 import { pagesOf } from './import/load';
 import { paint, setupPencil } from './import/pencil';
 import { clearMaskCache, drawPage, type Background, type DrawOpts } from './renderer/draw';
@@ -189,7 +190,7 @@ function renderAll(pxPerMm: number, mode: 'page' | 'ink' | 'clip') {
 }
 
 let timer = 0, gen = 0, urls: string[] = [];
-let ready: File[] | null = null; // rendered export, kept if the share sheet needs a second tap
+let ready: { kind: string; files: File[] } | null = null; // rendered export, kept if the share sheet needs a second tap
 function schedule() { ready = null; clearTimeout(timer); timer = window.setTimeout(preview, 150); }
 
 function preview() {
@@ -233,7 +234,7 @@ function preview() {
   $('missing').textContent = `Fehlt in dieser Handschrift (rot markiert): ${[...missing].join(' ')}`;
 }
 
-document.querySelectorAll('#write input, #write textarea').forEach((el) => el.addEventListener('input', () => {
+document.querySelectorAll('#write textarea, #settings input').forEach((el) => el.addEventListener('input', () => {
   localStorage.setItem('text', $<HTMLTextAreaElement>('text').value);
   if (el.id === 'text') overrides.clear();
   schedule();
@@ -252,24 +253,38 @@ for (const [attr, id] of SEGS) {
 $('dice').onclick = () => { $<HTMLInputElement>('seed').value = String(Math.floor(Math.random() * 1e6)); schedule(); };
 addEventListener('resize', schedule);
 
-$('share').onclick = async () => {
+async function shareAs(kind: string, make: () => Promise<File[]>) {
   if (!raw.length) return toast('Erst eine Handschrift auswählen oder anlegen.');
   try {
-    if (!ready) {
-      const { canvases } = renderAll(EXPORT_PX_PER_MM, 'page');
-      const pngs = await Promise.all(canvases.map(toPng));
-      const { w, h } = pageSize();
-      ready = [new File([await toPdf(pngs, w, h)], 'handschrift.pdf', { type: 'application/pdf' })];
-    }
-    await shareFiles(ready);
+    if (ready?.kind !== kind) ready = { kind, files: await make() };
+    await shareFiles(ready.files);
     ready = null;
   } catch (e) {
     const err = e as Error;
     // iPad only opens the share sheet right after a tap; rendering can take longer than that.
-    if (err.name === 'NotAllowedError') toast('Export ist fertig – bitte noch einmal auf „Teilen“ tippen.');
+    if (err.name === 'NotAllowedError') toast('Export ist fertig – bitte noch einmal tippen.');
     else if (err.name !== 'AbortError') { ready = null; toast(err.message); }
   }
-};
+}
+$('share').onclick = () => shareAs('pdf', async () => {
+  const { canvases } = renderAll(EXPORT_PX_PER_MM, 'page');
+  const pngs = await Promise.all(canvases.map(toPng));
+  const { w, h } = pageSize();
+  return [new File([await toPdf(pngs, w, h)], 'handschrift.pdf', { type: 'application/pdf' })];
+});
+// Real GoodNotes ink: laid out on the template's page size, one file per page.
+$('shareGn').onclick = () => shareAs('gn', async () => {
+  const { s, o } = settings();
+  const res = layout(clean($<HTMLTextAreaElement>('text').value, (ch) => lib.has(ch)), lib, { ...s, pageW: GN_PAGE.w, pageH: GN_PAGE.h, margin: Math.min(s.margin, 12) });
+  applyOverrides(res.pages);
+  const get = (src: string) => bySrc.get(src)!;
+  return Promise.all(res.pages.map(async (p, i) => {
+    const thumb = drawPage(p, { ...o, background: 'blank', crop: false, pxPerMm: 2, pageW: GN_PAGE.w, pageH: GN_PAGE.h, lineH: s.lineH, margin: s.margin }, get);
+    const jpg = new Uint8Array(await (await new Promise<Blob>((ok) => thumb.toBlob((b) => ok(b!), 'image/jpeg', 0.8))).arrayBuffer());
+    const name = res.pages.length > 1 ? `handschrift-${i + 1}.goodnotes` : 'handschrift.goodnotes';
+    return new File([goodnotesFile(p, get, o.ink, jpg) as BlobPart], name, { type: 'application/octet-stream' });
+  }));
+});
 $('copy').onclick = () => {
   if (!raw.length) return toast('Erst eine Handschrift auswählen oder anlegen.');
   let more = false;
@@ -287,13 +302,16 @@ $('copy').onclick = () => {
 
 // ---------- tabs ----------
 function show(tab: string) {
-  document.querySelectorAll('.tabbar button, .tab').forEach((el) => el.classList.remove('on'));
-  document.querySelector(`.tabbar [data-tab=${tab}]`)!.classList.add('on');
-  $(tab).classList.add('on');
+  document.querySelectorAll('.tab').forEach((el) => el.classList.toggle('on', el.id === tab));
+  document.querySelectorAll<HTMLElement>('[data-tab]').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
   scrollTo(0, 0);
   if (tab === 'write') schedule();
 }
-document.querySelectorAll<HTMLButtonElement>('.tabbar button').forEach((b) => b.onclick = () => show(b.dataset.tab!));
+// the handwritings button goes back to writing when pressed again
+document.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach((b) => b.onclick = () => show(b.classList.contains('on') && b.dataset.tab !== 'write' ? 'write' : b.dataset.tab!));
+$('settingsOpen').onclick = () => { $('settings').hidden = false; };
+$('settingsClose').onclick = () => { $('settings').hidden = true; };
+$('settings').onclick = (e) => { if (e.target === $('settings')) $('settings').hidden = true; };
 document.querySelectorAll<HTMLButtonElement>('[data-goto]').forEach((b) => b.onclick = () => show(b.dataset.goto!));
 
 // ---------- capture ----------
@@ -446,17 +464,18 @@ $<HTMLInputElement>('restore').onchange = async (ev) => {
 };
 
 // ---------- swap one letter in the written text: tap it in the preview ----------
-// "page:glyph" -> variant src. Only valid for the text as it is; typing clears it.
-const overrides = new Map<string, { key: string; src: string }>();
+// n-th letter of the text (across pages, so any page size keeps it) -> variant src. Typing clears it.
+const overrides = new Map<number, { key: string; src: string }>();
 let shown: Page[] = [];
-let swapAt: { pi: number; gi: number; key: string } | null = null;
+let swapAt: { pi: number; gi: number; n: number; key: string } | null = null;
 let pad: number[][] = [];
 
 function applyOverrides(pages: Page[]) {
-  for (const [k, o] of overrides) {
-    const [pi, gi] = k.split(':').map(Number), p = pages[pi]?.glyphs[gi], g = bySrc.get(o.src);
-    if (p && g && p.g.key === o.key) pages[pi].glyphs[gi] = swapVariant(p, g);
-  }
+  let n = 0;
+  for (const page of pages) page.glyphs.forEach((p, i) => {
+    const o = overrides.get(n++), g = o && bySrc.get(o.src);
+    if (g && p.g.key === o.key) page.glyphs[i] = swapVariant(p, g);
+  });
 }
 
 $('preview').addEventListener('click', (e) => {
@@ -465,17 +484,17 @@ $('preview').addEventListener('click', (e) => {
   const pi = [...$('preview').children].indexOf(sheet), r = el.getBoundingClientRect(), { w, h } = pageSize();
   const gi = shown[pi] ? glyphAt(shown[pi], ((e.clientX - r.left) / r.width) * w, ((e.clientY - r.top) / r.height) * h) : -1;
   if (gi < 0) return;
-  swapAt = { pi, gi, key: shown[pi].glyphs[gi].g.key };
+  swapAt = { pi, gi, n: shown.slice(0, pi).reduce((s, p) => s + p.glyphs.length, gi), key: shown[pi].glyphs[gi].g.key };
   openSwap();
 });
 
 function openSwap() {
-  const { pi, gi, key } = swapAt!, cur = shown[pi].glyphs[gi].g.src;
+  const { pi, gi, n, key } = swapAt!, cur = shown[pi].glyphs[gi].g.src;
   $('swapTitle').textContent = `„${key}“ austauschen`;
   $('swapVariants').replaceChildren(...(lib.get(key) ?? []).map((v) => {
     const box = frame(raw.find((r) => r.src === v.src) ?? v, v);
     box.classList.toggle('on', v.src === cur);
-    box.onclick = () => { overrides.set(`${pi}:${gi}`, { key, src: v.src }); schedule(); closeSwap(); };
+    box.onclick = () => { overrides.set(n, { key, src: v.src }); schedule(); closeSwap(); };
     return box;
   }));
   $('swapPad').hidden = $('swapSave').hidden = true;
@@ -508,14 +527,14 @@ $('swapWrite').onclick = () => {
   c.onpointermove = (e) => { if (e.buttons && pad.length) { pad.at(-1)!.push(...at(e)); drawPad(); } };
 }
 $('swapSave').onclick = async () => {
-  const { pi, gi, key } = swapAt!, c = $<HTMLCanvasElement>('swapPad');
+  const { n, key } = swapAt!, c = $<HTMLCanvasElement>('swapPad');
   const b = boxFor(key), img = c.getContext('2d')!.getImageData(0, 0, c.width, c.height);
   const v = extractBox(img, [MM, 0, 0, 0, MM, 0], { ...b, x: 0, y: 0 });
   if (!v) return toast('Da ist noch nichts geschrieben.');
   const src = `pen:${key}:${Date.now()}`;
   await saveMany(active, [{ ...v, src }]);
   raw = await loadSet(active);
-  overrides.set(`${pi}:${gi}`, { key, src });
+  overrides.set(n, { key, src });
   rebuild();
   closeSwap();
   toast(`Neues „${key}“ gespeichert – es wird ab jetzt auch sonst verwendet.`);

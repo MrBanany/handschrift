@@ -19,92 +19,37 @@
   <title>Handschrift</title>
 </head>
 <body>
+  <header class="topbar">
+    <button data-tab="write" class="brand on">Handschrift</button>
+    <select id="set" aria-label="Handschrift auswählen"></select>
+    <button id="settingsOpen" class="icon" aria-label="Einstellungen"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1" /></svg></button>
+    <button data-tab="manage" class="icon" aria-label="Handschriften und Zeichen"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 8h8M8 12h8M8 16h5" /></svg></button>
+  </header>
   <main>
     <section id="write" class="tab on">
-      <aside class="panel">
-        <div id="install" class="note info install" hidden>
-          <span id="installText"></span>
-          <span class="row"><button id="installBtn" class="primary" hidden>Installieren</button><button id="installClose">Später</button></span>
-        </div>
-        <label class="field">
-          <span>Handschrift</span>
-          <select id="set"></select>
-        </label>
-        <textarea id="text" rows="6" placeholder="Text eintippen oder einfügen – Strukturformeln so: [[Ethanol]] oder [[CCO]]"></textarea>
-        <p id="missing" class="note warn" hidden></p>
-        <div class="actions">
-          <button id="copy" class="primary">Handschrift kopieren</button>
-          <button id="share">Als PDF teilen</button>
-        </div>
-        <p class="muted small hint">Kopieren bringt nur die Schrift, ohne Papier – in GoodNotes einsetzen, dann mit dem Lasso verschieben oder größer ziehen. Das PDF enthält ganze Seiten mit Linien.</p>
-
-        <details id="opts" class="group-box">
-          <summary>Aussehen</summary>
-          <div class="field">
-            <span>Papier</span>
-            <span class="seg small" id="paper">
-              <button type="button" data-bg="lined">Liniert</button>
-              <button type="button" data-bg="grid">Kariert</button>
-              <button type="button" data-bg="blank">Weiß</button>
-              <button type="button" data-bg="transparent">Ohne</button>
-            </span>
-            <input id="background" type="hidden" value="lined" />
-          </div>
-          <div class="field">
-            <span>Linien</span>
-            <span class="seg small" id="rule">
-              <button type="button" data-rule="0">Eng</button>
-              <button type="button" data-rule="1">Mittel</button>
-              <button type="button" data-rule="2">Weit</button>
-            </span>
-          </div>
-          <label class="field"><span>Größe</span><input id="xh" type="range" min="1.5" max="8" step="0.1" value="2.6" /><output data-for="xh"></output></label>
-          <div class="field">
-            <span>Tinte</span>
-            <span class="swatches">
-              <button type="button" data-ink="#1c2340" style="--c:#1c2340" aria-label="Dunkelblau"></button>
-              <button type="button" data-ink="#151515" style="--c:#151515" aria-label="Schwarz"></button>
-              <button type="button" data-ink="#1f4fbf" style="--c:#1f4fbf" aria-label="Blau"></button>
-              <button type="button" data-ink="#a3271e" style="--c:#a3271e" aria-label="Rot"></button>
-              <button type="button" data-ink="#22684a" style="--c:#22684a" aria-label="Grün"></button>
-              <button type="button" data-ink="#55565c" style="--c:#55565c" aria-label="Bleistift"></button>
-              <input id="ink" type="color" value="#1c2340" aria-label="Eigene Farbe" />
-            </span>
-          </div>
-          <label class="field"><span>Stil</span><input id="hasty" type="range" min="0" max="1" step="0.05" value="0.3" /><output data-for="hasty"></output></label>
-          <label class="field"><span>Optimieren</span><input id="optimize" type="range" min="0.2" max="1" step="0.1" value="0.4" /><output data-for="optimize"></output></label>
-          <p id="styleNote" class="note info" hidden></p>
-          <div class="field">
-            <span>Seite</span>
-            <span class="seg small" id="format">
-              <button type="button" data-format="a4">A4</button>
-              <button type="button" data-format="a4q">A4 quer</button>
-              <button type="button" data-format="a5">A5</button>
-            </span>
-            <input id="page" type="hidden" value="a4" />
-          </div>
-          <details class="more">
-            <summary>Weitere Einstellungen</summary>
-            <label class="field"><span>Zeilenabstand</span><input id="lineH" type="range" min="6" max="30" step="0.1" value="8.7" /><output data-for="lineH"></output></label>
-            <label class="field"><span>Strichstärke</span><input id="weight" type="range" min="0" max="3" step="0.25" value="0" /><output data-for="weight"></output></label>
-            <label class="field"><span>Ränder</span><input id="margin" type="range" min="0" max="40" step="1" value="15" /><output data-for="margin"></output></label>
-            <div class="field"><span>Variante</span><span class="inline"><input id="seed" type="number" step="1" value="1" /><button id="dice" type="button">Neu mischen</button></span></div>
-          </details>
-        </details>
-      </aside>
-
-      <div class="stage">
-        <div id="empty" class="card empty" hidden>
-          <h2>Noch keine Handschrift auf diesem Gerät</h2>
-          <p class="muted">Probiere die Muster-Handschrift aus oder lege deine eigene an.</p>
-          <div class="row">
-            <button id="trySample" class="primary">Muster ausprobieren</button>
-            <button data-goto="manage">Eigene anlegen</button>
-          </div>
-        </div>
-        <p id="previewHint" class="muted small preview-hint">Tipp: Die Schrift auf der Seite lange drücken → <b>Kopieren</b>, oder in Split View direkt in GoodNotes ziehen.</p>
-        <div id="preview" class="preview"></div>
+      <div id="install" class="note info install" hidden>
+        <span id="installText"></span>
+        <span class="row"><button id="installBtn" class="primary" hidden>Installieren</button><button id="installClose">Später</button></span>
       </div>
+      <textarea id="text" rows="7" placeholder="Text eintippen oder KI-Antwort einfügen – Strukturformeln so: [[Ethanol]] oder [[CCO]]"></textarea>
+      <p id="missing" class="note warn" hidden></p>
+      <div class="actions">
+        <button id="shareGn" class="primary">In GoodNotes öffnen</button>
+        <button id="copy">Als Bild kopieren</button>
+        <button id="share">PDF</button>
+      </div>
+      <p class="muted small hint">„In GoodNotes öffnen“ gibt echte Stift-Schrift: radierbar und mit dem Lasso in deine Notizen kopierbar (neu, bitte testen). Bild und PDF gehen wie bisher.</p>
+      <p id="styleNote" class="note info" hidden></p>
+      <div id="empty" class="card empty" hidden>
+        <h2>Noch keine Handschrift auf diesem Gerät</h2>
+        <p class="muted">Probiere die Muster-Handschrift aus oder lege deine eigene an.</p>
+        <div class="row">
+          <button id="trySample" class="primary">Muster ausprobieren</button>
+          <button data-goto="manage">Eigene anlegen</button>
+        </div>
+      </div>
+      <p id="previewHint" class="muted small preview-hint">Einen Buchstaben antippen, um ihn auszutauschen · lange drücken → Kopieren</p>
+      <div id="preview" class="preview"></div>
     </section>
 
     <section id="manage" class="tab">
@@ -143,14 +88,12 @@
         </div>
       </div>
 
-      <div class="card">
-        <h2>Darstellung</h2>
-        <span class="seg" id="theme">
-          <button type="button" data-theme="dark">Dunkel</button>
-          <button type="button" data-theme="light">Hell</button>
-          <button type="button" data-theme="auto">Wie Gerät</button>
-        </span>
-      </div>
+      <div class="card" id="glyphs">
+        <h2 id="glyphsTitle"></h2>
+        <p class="muted small"><span id="coverage"></span> So werden die Zeichen gerade verwendet. Antippen löscht eine Variante. <i class="dot in"></i> Strich-Eintritt <i class="dot out"></i> Austritt</p>
+        <div id="grid"></div>
+        <div class="dock"><button id="reviewOpen" class="primary"></button><button id="acceptAll" hidden>Alle übernehmen</button></div>
+        </div>
 
       <div class="card">
         <h2>Backup</h2>
@@ -159,13 +102,69 @@
       </div>
     </section>
 
-    <section id="glyphs" class="tab">
-      <h1 id="glyphsTitle"></h1>
-      <p class="muted small"><span id="coverage"></span> So werden die Zeichen gerade verwendet. Antippen löscht eine Variante. <i class="dot in"></i> Strich-Eintritt <i class="dot out"></i> Austritt</p>
-      <div id="grid"></div>
-      <div class="dock"><button id="reviewOpen" class="primary"></button><button id="acceptAll" hidden>Alle übernehmen</button></div>
-    </section>
   </main>
+
+  <div id="settings" class="overlay" hidden>
+    <div class="sheet settings">
+      <header class="sheet-head"><strong>Einstellungen</strong><button id="settingsClose" class="primary">Fertig</button></header>
+      <div id="opts" class="opts">
+          <div class="field">
+            <span>Papier</span>
+            <span class="seg small" id="paper">
+              <button type="button" data-bg="lined">Liniert</button>
+              <button type="button" data-bg="grid">Kariert</button>
+              <button type="button" data-bg="blank">Weiß</button>
+              <button type="button" data-bg="transparent">Ohne</button>
+            </span>
+            <input id="background" type="hidden" value="lined" />
+          </div>
+          <div class="field">
+            <span>Linien</span>
+            <span class="seg small" id="rule">
+              <button type="button" data-rule="0">Eng</button>
+              <button type="button" data-rule="1">Mittel</button>
+              <button type="button" data-rule="2">Weit</button>
+            </span>
+          </div>
+          <label class="field"><span>Größe</span><input id="xh" type="range" min="1.5" max="8" step="0.1" value="2.6" /><output data-for="xh"></output></label>
+          <div class="field">
+            <span>Tinte</span>
+            <span class="swatches">
+              <button type="button" data-ink="#1c2340" style="--c:#1c2340" aria-label="Dunkelblau"></button>
+              <button type="button" data-ink="#151515" style="--c:#151515" aria-label="Schwarz"></button>
+              <button type="button" data-ink="#1f4fbf" style="--c:#1f4fbf" aria-label="Blau"></button>
+              <button type="button" data-ink="#a3271e" style="--c:#a3271e" aria-label="Rot"></button>
+              <button type="button" data-ink="#22684a" style="--c:#22684a" aria-label="Grün"></button>
+              <button type="button" data-ink="#55565c" style="--c:#55565c" aria-label="Bleistift"></button>
+              <input id="ink" type="color" value="#1c2340" aria-label="Eigene Farbe" />
+            </span>
+          </div>
+          <label class="field"><span>Stil</span><input id="hasty" type="range" min="0" max="1" step="0.05" value="0.3" /><output data-for="hasty"></output></label>
+          <label class="field"><span>Optimieren</span><input id="optimize" type="range" min="0.2" max="1" step="0.1" value="0.4" /><output data-for="optimize"></output></label>
+          <div class="field">
+            <span>Seite</span>
+            <span class="seg small" id="format">
+              <button type="button" data-format="a4">A4</button>
+              <button type="button" data-format="a4q">A4 quer</button>
+              <button type="button" data-format="a5">A5</button>
+            </span>
+            <input id="page" type="hidden" value="a4" />
+          </div>
+          <details class="more">
+            <summary>Weitere Einstellungen</summary>
+            <label class="field"><span>Zeilenabstand</span><input id="lineH" type="range" min="6" max="30" step="0.1" value="8.7" /><output data-for="lineH"></output></label>
+            <label class="field"><span>Strichstärke</span><input id="weight" type="range" min="0" max="3" step="0.25" value="0" /><output data-for="weight"></output></label>
+            <label class="field"><span>Ränder</span><input id="margin" type="range" min="0" max="40" step="1" value="15" /><output data-for="margin"></output></label>
+            <div class="field"><span>Variante</span><span class="inline"><input id="seed" type="number" step="1" value="1" /><button id="dice" type="button">Neu mischen</button></span></div>
+          </details>
+        <div class="field"><span>Darstellung</span><span class="seg small" id="theme">
+          <button type="button" data-theme="dark">Dunkel</button>
+          <button type="button" data-theme="light">Hell</button>
+          <button type="button" data-theme="auto">Wie Gerät</button>
+        </span></div>
+      </div>
+    </div>
+  </div>
 
   <div id="review" class="overlay" hidden>
     <div class="sheet">
@@ -237,20 +236,6 @@
     <div id="pencilScroll" class="pencil-scroll"><canvas id="pencilCanvas"></canvas></div>
   </div>
 
-  <nav class="tabbar" aria-label="Bereiche">
-    <button data-tab="write" class="on">
-      <svg viewBox="0 0 24 24"><path d="M4 20c3-1 5-4 7-7l6-6a2 2 0 0 0-3-3l-6 6c-3 2-6 4-7 7z" /><path d="M14 20h6" /></svg>
-      Schreiben
-    </button>
-    <button data-tab="manage">
-      <svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 8h8M8 12h8M8 16h5" /></svg>
-      Handschriften
-    </button>
-    <button data-tab="glyphs">
-      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></svg>
-      Zeichen
-    </button>
-  </nav>
 
   <div id="toast" role="status" aria-live="polite"></div>
   <script type="module" src="/src/main.ts"></script>

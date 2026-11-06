@@ -19,6 +19,8 @@ Stand: 6. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
 
 ## Erledigt am 6. November 2026
 
+- [x] **KI-Vorgabe kopieren** (über dem Textfeld): ein Text für ChatGPT & Co. (`src/prompt.ts`), damit Antworten Brüche, Hochzahlen, `\ce{…}`, `[[Name]]`-Strukturformeln, Überschriften und Markierungen so schreiben, wie die App sie kann. Neue Funktionen dort nachtragen.
+- [x] Negative Hochzahlen: `10^{-3}`, `s^-1` → 10⁻³, s⁻¹.
 - [x] **Echte Brüche**: `\frac{a}{b}` aus KI-Antworten steht jetzt als Zähler über Nenner (etwas kleiner) mit einem Bruchstrich als Stiftstrich. Ein Bruch im Bruch oder unter einer Wurzel bleibt `a/b`. Getippte `3/4` ohne LaTeX bleiben wie geschrieben (sonst würden auch `km/h` oder Daten gestapelt).
 
 - [x] **Schreibschrift** (für verbundenes Schreiben): Haken „Schreibschrift“ bei der aktiven Handschrift (Handschriften). Er wird automatisch gesetzt, wenn die Paare meist verbunden sind. Dann werden Buchstaben in einem Wort immer verbunden, notfalls an der Tinte nahe der Grundlinie. Zwei zusätzliche Vorlagenseiten („nur Schreibschrift“) mit 36 verbundenen Paaren und Wortteilen (ver, ten, lich, keit …). Getestet nur mit der Windows-Schrift Segoe Script. **Offen: echte Proben vom Freund ausprobieren.**
@@ -71,7 +73,7 @@ Stand: 6. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
 2. [ ] **Weitere Hervorhebungen**: Einkreisen, Markerfarbe wählbar. (Unterstreichen, größere Überschriften, Textmarker `==Text==` und Aufzählungspunkte sind erledigt.)
 3. [ ] **Eigene Schriftart erzeugen** (Idee aus dieser Runde): aus der Handschrift eine Schrift (TTF) bauen und per Profil auf dem iPad installieren. Dann ist Text in GoodNotes echter Text in eigener Handschrift-Optik (mit der Tastatur änderbar, aber nicht radierbar und ohne Varianten). Großer Aufwand.
 4. [ ] **Kurzbefehl „In Handschrift“**: iOS-Kurzbefehl öffnet die App mit `?text=…` vorbefüllt. Achtung: Links öffnen Safari, nicht die Home-Bildschirm-App, und die beiden haben getrennten Speicher (Handschrift wäre in Safari nicht da). Erst klären, ob das trotzdem lohnt.
-5. [ ] **Mathe**: Buchstaben als Hochzahl (xⁿ), Minus in Hochzahlen (10⁻³). (Ziffern hoch/tief, LaTeX aus KI-Antworten und echte Brüche sind erledigt.)
+5. [ ] **Mathe**: Buchstaben als Hochzahl (xⁿ). (Minus in Hochzahlen, Ziffern hoch/tief, LaTeX aus KI-Antworten und echte Brüche sind erledigt.)
 6. [x] **Chemie-Strukturformeln** – erledigt, mit Reaktionen und Ladungen. Offen: Keilstriche (Stereo), Mesomerie-Pfeile, GoodNotes-Datei mit mehreren Seiten in einer Datei.
 7. [ ] **Lernzettel-Layouts**: Cornell-Notizen, Karteikarten (A6/A7), später Mindmap (niedrige Priorität).
 8. [ ] **Stifte**: Kuli, Füller (Strichbreite schwankt), Bleistift-Körnung; mehrere Farben (Überschrift blau, Text schwarz).

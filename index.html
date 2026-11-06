@@ -30,7 +30,10 @@
         <span id="installText"></span>
         <span class="row"><button id="installBtn" class="primary" hidden>Installieren</button><button id="installClose">Später</button></span>
       </div>
-      <select id="history" class="history" aria-label="Verlauf: frühere Texte" hidden></select>
+      <div class="textbar">
+        <button id="aiPrompt" class="small-btn" title="Einmal in ChatGPT & Co. einfügen: Dann schreibt die KI Brüche, Formeln und Strukturformeln so, dass die App sie per Hand schreiben kann.">KI-Vorgabe kopieren</button>
+        <select id="history" class="history" aria-label="Verlauf: frühere Texte" hidden></select>
+      </div>
       <textarea id="text" rows="7" placeholder="Text eintippen oder KI-Antwort einfügen – Strukturformeln so: [[Ethanol]] oder [[CCO]]"></textarea>
       <p id="missing" class="note warn" hidden></p>
       <div class="actions">

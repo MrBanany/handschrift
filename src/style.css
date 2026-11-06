@@ -210,4 +210,6 @@ details > * + * { margin-top: 10px; }
 .chip { min-height: 32px; min-width: 36px; padding: 0 10px; border-radius: 16px; font-weight: 600; }
 .add-part { display: flex; gap: 8px; margin: 0 0 10px; max-width: 460px; }
 .add-part input { flex: 1; min-width: 0; font: inherit; height: 42px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); color: var(--text); }
-.history { align-self: flex-end; font: inherit; font-size: 13px; height: 34px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); color: var(--muted); max-width: 100%; }
+.textbar { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.small-btn { font-size: 13px; min-height: 34px; padding: 0 12px; border-radius: 10px; color: var(--muted); }
+.history { align-self: flex-end;font: inherit; font-size: 13px; height: 34px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); color: var(--muted); max-width: 100%; }

@@ -44,6 +44,7 @@ export function clean(text: string, has: (ch: string) => boolean): string {
     .replace(/[—―]/g, pick('–', '-'))
     .replace(/−/g, '-') // minus sign
     .replace(/\^\{?(\d*)([+-])\}?(?=[\s,.;:)]|$)/gm, (m, d: string, q: string) => pick(digits(d, SUP) + (q === '+' ? '⁺' : '⁻'), m)) // Na^+, SO_4^{2-}
+    .replace(/\^\{?-(\d+)\}?/g, (m, d: string) => pick('⁻' + digits(d, SUP), m)) // 10^{-3}, s^-1
     .replace(/\^\{?(\d+)\}?/g, (m, d: string) => pick(digits(d, SUP), m)) // x^2, m^{3}
     .replace(/(\p{L}|\))_\{?(\d+)\}?/gu, (m, l: string, d: string) => l + pick(digits(d, SUB), m.slice(l.length))) // H_2O
     .replace(/…/g, '...')

@@ -15,6 +15,7 @@ import { extractBox, extractPage } from './segmentation/extract';
 import { clean } from './renderer/clean';
 import { measureLines, summarize, type LineMeasure, type TextStyle } from './segmentation/style';
 import { buildTemplatePdf } from './template/pdf';
+import { AI_PROMPT } from './prompt';
 import { CELL, CURSIVE_KEYS, CURSIVE_PAGES, GUIDES, MM, PAIRS, SINGLES, SYMBOL_KEYS, SYMBOL_PAGE, TEMPLATE_PAGES, WORDS } from './template/layout';
 
 const FORMATS: Record<string, { w: number; h: number }> = { a4: { w: 210, h: 297 }, a4q: { w: 297, h: 210 }, a5: { w: 148, h: 210 } };
@@ -270,6 +271,11 @@ for (const [attr, id] of SEGS) {
 }
 $('dice').onclick = () => { $<HTMLInputElement>('seed').value = String(Math.floor(Math.random() * 1e6)); schedule(); };
 addEventListener('resize', schedule);
+
+$('aiPrompt').onclick = () => navigator.clipboard.writeText(AI_PROMPT).then(
+  () => toast('Kopiert. Füge es einmal am Anfang des Chats ein (bei ChatGPT auch unter „Personalisierung“).'),
+  () => toast('Kopieren ging nicht.'),
+);
 
 // ---------- history: the last texts that were sent somewhere, to send them again ----------
 const HISTORY_MAX = 15;

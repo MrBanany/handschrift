@@ -28,6 +28,7 @@ describe('clean pasted AI text', () => {
     expect(clean('✅ Vorteil\n❌ Nachteil 🌱', (c) => c !== '🌱')).toBe('✓ Vorteil\n✗ Nachteil');
     expect(clean('x^{10} + H_2O, a_1', () => true)).toBe('x¹⁰ + H₂O, a₁');
     expect(clean('x^4', (c) => c !== '⁴')).toBe('x^4');
+    expect(clean('$10^{-3}$ m, s^-1', () => true)).toBe('10⁻³ m, s⁻¹');
   });
   it('turns LaTeX and chemistry from AI answers into writable characters', () => {
     const all = () => true;

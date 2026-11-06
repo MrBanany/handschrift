@@ -21,6 +21,11 @@ Stand: 6. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
 
 - [x] **Eingefügter Text ohne Zeilenumbrüche** (alles klebte zusammen: „BruchrechnungAddition … machen.Aufgabe 1“): Ein langer Text ganz ohne Umbruch wird dort getrennt, wo ein Wort, Satz oder eine Formel direkt in ein großgeschriebenes Wort läuft. Kurze Zeilen ohne Punkt und Formel („Chemie: Wichtige Ionen“) werden zu Überschriften (`unflatten` in clean.ts). Texte mit Umbrüchen bleiben unverändert.
 - [x] **Platz zwischen Themen**: vor jeder Überschrift automatisch eine Leerzeile, nach einem eingerahmten Ergebnis auch. Der Kasten richtet sich nach seinem Inhalt (Brüche passen hinein).
+- [x] **Fehlersuche** (Konsole, alle Reiter, PDF- und GoodNotes-Export, Sonderfälle), behoben:
+  - **Schreibschrift wurde falsch geraten**: Beim Raten zählten auch Einzelbuchstaben mit (die haben auch einen „verbunden“-Wert). „Meine Handschrift“ (Druckschrift, 13 von 171 Paaren verbunden) bekam deshalb den Haken und wurde eng verbunden geschrieben. Jetzt zählen nur Paare und Wortteile.
+  - Ein hoher Kasten (Bruch im Kasten) schnitt durch die Zeile darüber. Jetzt rückt seine Zeile eine Linie nach unten, wie bei Strukturformeln.
+  - Wörter, die länger als eine Zeile sind (lange Fachwörter, Links), liefen über den Rand. Jetzt werden sie mit Bindestrich umbrochen.
+  - Geprüft ohne Fehler: leerer Text, nur Leerzeichen, nur Überschrift, unbekanntes Molekül, PDF (1 Seite ~0,6 s), GoodNotes (2 Seiten, ~0,4 s), Löschen mit Rückfrage.
 - [x] **Testrunde mit typischen KI-Antworten** (eigene Handschrift), behoben:
   - Griechische Buchstaben α β γ δ λ μ σ ω θ φ ρ Ω, dazu Σ, ∫, `[ ] # | _ §` werden als Stiftstriche gezeichnet, wenn sie in der Handschrift fehlen.
   - Hochzahlen und Indizes aus Buchstaben: `x^n` → xⁿ, `e^{2x}` → e²ˣ, `a_n` → aₙ (aus den eigenen Buchstaben, verkleinert). `snake_case` bleibt.

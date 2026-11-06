@@ -126,7 +126,8 @@ function renderSets() {
 function cursive() {
   const v = localStorage.getItem(`cursive:${active}`);
   if (v !== null) return v === '1';
-  const pairs = raw.filter((x) => x.connected !== undefined);
+  // only pairs and word parts tell joined-up writing; single letters carry a "connected" value too
+  const pairs = raw.filter((x) => x.connected !== undefined && /^\p{L}{2,}$/u.test(x.key));
   return pairs.length >= 5 && pairs.filter((x) => x.connected).length >= pairs.length / 2;
 }
 

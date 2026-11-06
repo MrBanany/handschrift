@@ -349,6 +349,10 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
       // roomy enough for what is inside (a fraction is taller than a word); corners overshoot a little, like a quick box
       const l = x0 - 0.55 * xh, r = x1 + 0.55 * xh, o = 0.15 * xh;
       const up = Math.min(-1.75 * xh, inkTop - y - 0.4 * xh), down = Math.max(0.7 * xh, inkBot - y + 0.4 * xh);
+      // a tall box must not cut through the line above: move this line down a whole line (like a tall molecule)
+      const room = y - s.lineH + 0.9 * xh;
+      if (y + up < room) shiftLine(Math.ceil((room - y - up) / s.lineH) * s.lineH);
+      lineDown = Math.max(lineDown, Math.ceil((down - s.lineH + 1.6 * xh) / s.lineH));
       const top = (x: number) => y + drift(x) + up, bot = (x: number) => y + drift(x) + down;
       stroke(l - o, top(l), r + o, top(r));
       stroke(r, top(r) - o, r, bot(r) + o);
@@ -463,6 +467,17 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
     });
   }
 
+  /** A word wider than a whole line (a long compound, a link) is broken with a hyphen, like by hand. */
+  const maxW = 0.85 * (s.pageW - 2 * s.margin); // room to spare: the real pass picks other variants and joins than the measuring one
+  const strip = (x: string) => x.replace(/[\u0002-\u0006\u0014-\u0018]/g, '');
+  const width = (x: string) => { const d = layoutWord(strip(x)); return d.inkR - d.inkL; };
+  const fit = (tok: string): string[] => {
+    if (tok.startsWith(STRUCT[0]) || tok.includes('\u0011') || strip(tok).length < 20 ||width(tok) <= maxW) return [tok];
+    let lo = 1, hi = tok.length - 1;
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (width(tok.slice(0, mid) + '-') <= maxW) lo = mid; else hi = mid - 1; }
+    return [tok.slice(0, lo) + '-', ...fit(tok.slice(lo))];
+  };
+
   newLine(true);
   text.split('\n').forEach((line, li) => {
     if (li > 0) newLine();
@@ -472,7 +487,7 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
     hang = indent * 2 * xh;
     heading = line.startsWith(HEAD);
     const size = heading ? 1.3 : 1; // headings are written a bit bigger
-    for (let token of line.split(/\s+/).filter(Boolean)) {
+    for (let token of line.split(/\s+/).filter(Boolean).flatMap(fit)) {
       if (token.startsWith(STRUCT[0]) && token.endsWith(STRUCT[1])) { // clean() puts spaces around it
         const spec = token.slice(1, -1).replace(/\u0010/g, ' '), mol = molecule(spec);
         if (mol) {

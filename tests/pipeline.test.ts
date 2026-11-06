@@ -187,6 +187,13 @@ describe('layout', () => {
     expect(Math.max(...xs.slice(-2))).toBeGreaterThan(Math.min(...xs) + 2); // the bullet's wrapped lines sit further right
   });
 
+  it('breaks a word wider than the line with a hyphen instead of running off the page', () => {
+    const hy = new Map([...lib, ['-', lib.get('a')!.map((g) => ({ ...g, key: '-' }))]]);
+    const { pages } = layout('a'.repeat(300), hy, S);
+    for (const g of pages[0].glyphs) expect(g.m[4] + g.m[0] * g.g.w).toBeLessThan(S.pageW - S.margin / 2); // bitmap box, includes its empty edge
+    expect(new Set(pages[0].glyphs.map((g) => Math.round(g.m[5] / 5))).size).toBeGreaterThan(1); // more than one line
+  });
+
   it('moves nested list items to the right', () => {
     const { pages } = layout('ab\n\u0018ab\n\u0018\u0018ab', lib, { ...S, hasty: 0 });
     const xs = [0, 1, 2].map((i) => pages[0].glyphs[i * 2].m[4]);

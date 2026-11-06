@@ -21,6 +21,8 @@ Stand: 6. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
 
 - [x] **Eingefügter Text ohne Zeilenumbrüche** (alles klebte zusammen: „BruchrechnungAddition … machen.Aufgabe 1“): Ein langer Text ganz ohne Umbruch wird dort getrennt, wo ein Wort, Satz oder eine Formel direkt in ein großgeschriebenes Wort läuft. Kurze Zeilen ohne Punkt und Formel („Chemie: Wichtige Ionen“) werden zu Überschriften (`unflatten` in clean.ts). Texte mit Umbrüchen bleiben unverändert.
 - [x] **Platz zwischen Themen**: vor jeder Überschrift automatisch eine Leerzeile, nach einem eingerahmten Ergebnis auch. Der Kasten richtet sich nach seinem Inhalt (Brüche passen hinein).
+- [x] **Großer Abschlusstest** (Live-App, beide Handschriften, Emojis, Code, Links, LaTeX, Chemie, 120 Zeilen, Markdown, PDF und GoodNotes): ohne Absturz. Behoben: Matrizen `\begin{pmatrix}` → (1 2; 3 4), `aligned` eine Gleichung pro Zeile, `cases` mit „;“, Aufgabenlisten `- [ ]` / `- [x]` → • / ✓, `~~durchgestrichen~~` → nur der Text, ½ ¼ ¾ als Bruch, ∑ ∆ → Σ Δ, `x_{i,j}` behält die Klammer.
+  - Offen: GoodNotes-Dateien mit viel Schreibschrift sind groß (~5,6 MB pro Seite). Funktioniert, aber notfalls Punkte ausdünnen.
 - [x] **Schreibschrift-Testsatz** (nur beim Entwickeln, nicht in der App): in der Konsole `cursiveSample()` füllt die Vorlage mit der Schulschrift Playwrite DE VA (Vereinfachte Ausgangsschrift, OFL) und legt „Test Schreibschrift“ an. Wird als Schreibschrift erkannt, Wörter hängen zusammen.
   - Gefunden und behoben: Das z mit Unterlänge (Schulschrift, viele deutsche Handschriften) wurde auf die Linie hochgezogen und geschrumpft, „zu“ schwebte klein über der Zeile.
   - Grenze: Eine Schrift ist sauberer als echte Hand. Die echten Proben bleiben der eigentliche Test.

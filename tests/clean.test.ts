@@ -56,6 +56,15 @@ describe('clean pasted AI text', () => {
     expect(clean('N2 + 3H2 \\rightleftharpoons 2NH3', all)).toBe('N₂ + 3H₂ ⇌ 2NH₃');
     expect(chem('Seite2')).toBe('Seite2');
   });
+  it('writes matrices, aligned lines, task lists and fraction characters', () => {
+    const all = () => true;
+    expect(clean('$\\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix}$', all)).toBe('(1 2; 3 4)');
+    expect(clean('$$\\begin{aligned} a &= b \\\\ c &= d \\end{aligned}$$', all)).toBe('a = b\nc = d');
+    expect(clean('- [ ] offen\n- [x] fertig\n~~alt~~ neu', all)).toBe('• offen\n✓ fertig\nalt neu');
+    expect(clean('$\\begin{cases} 1 & x > 0 \\\\ 0 & sonst \\end{cases}$', all)).toBe('1, x > 0; 0, sonst');
+    expect(clean('½ Liter', all)).toBe('\u00111\u00122\u0013 Liter');
+    expect(clean('$x_{i,j}$', all)).toBe('x_{i,j}');
+  });
   it('marks ==highlighted== text, but leaves a == b alone', () => {
     expect(clean('Das ist ==sehr wichtig== und a == b', () => true)).toBe(`Das ist ${MARK[0]}sehr wichtig${MARK[1]} und a == b`);
     const plain = (c: string) => /[A-Za-z0-9 ,^>-]/.test(c);

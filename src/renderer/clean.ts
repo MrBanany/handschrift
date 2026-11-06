@@ -59,6 +59,8 @@ export function clean(text: string, has: (ch: string) => boolean): string {
     }).join('\n') + '\n')
     // nested bullets: two spaces (or a tab) per step
     .replace(/^([ \t]{2,})[-*+•●▪◦]\s+/gm, (_, sp: string) => INDENT.repeat(Math.min(3, Math.floor(sp.replace(/\t/g, '  ').length / 2))) + pick('-', '•') + ' ')
+    .replace(/^(\s*)[-*+]\s+\[([ xX])\]\s+/gm, (_, sp: string, x: string) => sp + (x === ' ' ? pick('•', '-') : pick('✓', '•', '-')) + ' ') // - [ ] task lists
+    .replace(/~~(?=\S)(.+?)(?<=\S)~~/g, '$1') // strikethrough: just the text
     .replace(/^(\s*)[-*+•●▪◦]\s+/gm, `$1${pick('•', '-')} `) // bullets
     .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1') // links -> their text
     .replace(/==(?=\S)(.+?)(?<=\S)==/g, `${MARK[0]}$1${MARK[1]}`) // highlighter

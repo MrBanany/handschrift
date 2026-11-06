@@ -43,6 +43,11 @@ function ion(tok: string): string {
 export function latex(text: string): string {
   let t = text
     .replace(/\$\$|\\\[|\\\]|\\\(|\\\)/g, ' ')
+    // matrices in one line: (1 2; 3 4); aligned equations one per line, cases separated by ";"
+    .replace(/\\begin\{([pbvBV]?matrix)\}([\s\S]*?)\\end\{\1\}/g, (_, _k: string, b: string) => '(' + b.split(/\\\\/).map((r) => r.split('&').map((c) => c.trim()).join(' ')).filter(Boolean).join('; ') + ')')
+    .replace(/\\begin\{(cases|aligned|align\*?|gathered|gather\*?|array)\}(?:\{[^{}]*\})?([\s\S]*?)\\end\{\1\}/g, (_, k: string, b: string) => b.split(/\\\\/).map((r) => r.split('&').map((c) => c.trim()).filter(Boolean).join(k === 'cases' ? ', ' : ' ')).filter(Boolean).join(k === 'cases' ? '; ' : '\n'))
+    .replace(/[½¼¾]/g, (c) => FRAC[0] + '131'['½¼¾'.indexOf(c)] + FRAC[1] + '244'['½¼¾'.indexOf(c)] + FRAC[2])
+    .replace(/∑/g, 'Σ').replace(/∆/g, 'Δ')
     .replace(/\\ce\{((?:[^{}]|\{[^{}]*\})*)\}/g, (_, f: string) => f.replace(/<=>/g, '⇌').replace(/->\[([^\]]*)\]/g, '→ ($1)').replace(/->/g, '→').split(/(\s+)/).map(ion).join(''))
     .replace(/\\(?:text|mathrm|mathbf|mathit|operatorname|vec|overline|bar|hat|tilde|mathbb|mathcal|boldsymbol|underline|dot)\{([^{}]*)\}/g, '$1')
     // limits written out in words: a writer puts them under the sign, the app on the line
@@ -63,6 +68,6 @@ export function latex(text: string): string {
   return t
     .replace(/\\([A-Za-z]+)/g, (m, name: string) => SYMBOL[name] ?? name) // \sin -> sin
     .replace(/\^\{([^{}0-9][^{}]*)\}/g, '^$1')
-    .replace(/_\{([^{}0-9][^{}]*)\}/g, '_$1')
+    .replace(/_\{([^{}0-9,][^{},]*)\}/g, '_$1') // x_{i,j} keeps its brackets
     .replace(/(^|[\s(])(\d*(?:[A-Z][a-z]?\d*|\(|\)\d*)+(?:\((?:s|l|g|aq)\))?)(?=[\s.,;:)+]|$)/gm, (m, pre: string, f: string) => pre + chem(f));
 }

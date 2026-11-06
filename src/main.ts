@@ -67,11 +67,13 @@ async function useSet(name: string) {
     await saveMany(SAMPLE_SET, await buildSampleSet());
     sets = await listSets();
   }
+  const before = active;
   active = sets.includes(name) ? name : '';
   overrides.clear();
   localStorage.setItem('set', active);
   raw = active ? await loadSet(active) : [];
   loadStyle();
+  if (style && before && before !== active) applyStyle(style); // another person's notes: their size and line spacing
   renderStyle();
   renderSets();
   rebuild();
@@ -414,6 +416,16 @@ $<HTMLInputElement>('file').onchange = async (ev) => {
 };
 setupPencil((pages) => importInto([['Mit dem Pencil ausgefüllt', () => pages]]), toast);
 
+/** Ruling preset (index into rules()) the learned line spacing matches: within 0.35 mm, the notes were written on it. */
+const ruleOf = (lineH: number) => rules().findIndex((v) => Math.abs(v - lineH) <= 0.35);
+/** Measured size and line spacing go into the sliders (they stay adjustable); a spacing close to a preset snaps to it. */
+function applyStyle(st: TextStyle) {
+  const i = ruleOf(st.lineH);
+  $<HTMLInputElement>('lineH').value = String(i >= 0 ? rules()[i] : Math.round(st.lineH * 10) / 10);
+  $<HTMLInputElement>('xh').value = String(Math.round(st.xh * 10) / 10);
+  for (const id of ['xh', 'lineH']) $<HTMLInputElement>(id).value = String(n(id)); // clamp to the slider limits
+}
+
 function renderStyle() {
   const r = $('styleResult');
   r.hidden = !style;
@@ -421,6 +433,11 @@ function renderStyle() {
   if (style) {
     r.textContent = `Gelernt für „${active}“ aus ${style.lines} Zeilen${style.pages ? ` auf ${style.pages} Seite${style.pages > 1 ? "n" : ""}` : ""}: Schriftgröße ${style.xh.toFixed(1)} mm, Zeilenabstand ${style.lineH.toFixed(1)} mm`
       + (style.wordGap && style.letterGap ? `, Wortabstand ${style.wordGap.toFixed(2)} × und Buchstabenabstand ${style.letterGap.toFixed(2)} × x-Höhe.` : '.');
+    const i = ruleOf(style.lineH), names = ['Eng', 'Mittel', 'Weit'];
+    r.textContent += i >= 0
+      ? ` Der Zeilenabstand passt zu den Linien „${names[i]}“ (${rules()[i]} mm).`
+      : ` Der Zeilenabstand passt zu keiner Linien-Vorgabe (${rules().map((v, k) => `${names[k]} ${v}`).join(' / ')} mm), deshalb ist genau dein Abstand eingestellt.`;
+    r.textContent = r.textContent.replace(/(\d)\.(\d)/g, '$1,$2'); // German decimal comma
   }
 }
 
@@ -455,10 +472,7 @@ $<HTMLInputElement>('notes').onchange = async (ev) => {
   style = found;
   localStorage.setItem(`style:${active}`, JSON.stringify(found));
   renderCompare(first, found);
-  // Measured size and spacing go straight into the sliders; they stay adjustable.
-  $<HTMLInputElement>('xh').value = String(Math.round(found.xh * 10) / 10);
-  $<HTMLInputElement>('lineH').value = String(Math.round(found.lineH * 10) / 10);
-  for (const id of ['xh', 'lineH']) $<HTMLInputElement>(id).value = String(n(id));
+  applyStyle(found);
   renderStyle();
   schedule();
   toast(found.wordGap ? 'Schreibstil übernommen.' : 'Größe und Zeilenabstand übernommen – die Abstände waren nicht messbar.');

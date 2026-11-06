@@ -19,6 +19,8 @@ Stand: 6. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
 
 ## Erledigt am 6. November 2026
 
+- [x] **Zeilenabstand aus Notizen gegengeprüft**: Liegt der gelernte Abstand höchstens 0,35 mm neben einer Linien-Vorgabe (Eng/Mittel/Weit), wird genau diese Vorgabe eingestellt und das Ergebnis sagt „passt zu den Linien …“. Sonst wird der gemessene Abstand genommen und das steht auch so da. Beim Wechsel zu einer anderen Handschrift mit gelernten Notizen werden deren Größe und Abstand übernommen. **Damit lassen sich auch die GoodNotes-Linienwerte prüfen: Notizen hochladen und schauen, ob „passt zu …“ kommt.**
+- [x] Schreiben-Seite ruhiger: nur noch eine kurze Hinweiszeile unter den Knöpfen.
 - [x] **Farben** (Zahnrad): Überschriften in eigener Farbe (Blau, Rot, Grün, Lila oder wie die Tinte), auch in der GoodNotes-Datei. Marker Gelb, Grün, Pink, Blau oder Orange (nur Bild/PDF, die GoodNotes-Datei hat noch keinen Marker).
 - [x] **KI-Vorgabe kopieren** (über dem Textfeld): ein Text für ChatGPT & Co. (`src/prompt.ts`), damit Antworten Brüche, Hochzahlen, `\ce{…}`, `[[Name]]`-Strukturformeln, Überschriften und Markierungen so schreiben, wie die App sie kann. Neue Funktionen dort nachtragen.
 - [x] Negative Hochzahlen: `10^{-3}`, `s^-1` → 10⁻³, s⁻¹.

@@ -3,7 +3,9 @@ import type { Variant } from './types';
 
 const xhPx = XH * MM;
 // Characters whose ink should end on the baseline (no descenders).
-const SITS = /^[a-eh-ik-orstuvwxzäöüA-IK-PR-ZÄÖÜ0-9.!?]+$/u;
+const SITS = /^[a-eh-ik-orstuvwxzäöüA-IK-PR-ZÄÖÜ0-9.:!?]+$/u;
+// Punctuation that sits on the line: always pulled all the way down; a floating colon or full stop looks wrong at once.
+const PUNCT = /^[.:!?]$/u;
 // Ink exactly one x-height tall (no ascenders, descenders or dots): their heights should match each other.
 const XLET = /^[acemnorsuvwxz]+$/u;
 
@@ -46,7 +48,7 @@ export function optimize(vs: Variant[], strength = 1): Tuned {
   const fixed = vs.map((v) => {
     if (!SITS.test(v.key)) return v;
     const { bottom } = inkRows(v);
-    return bottom < 0 ? v : { ...v, baseline: v.baseline + full * (bottom - v.baseline) };
+    return bottom < 0 ? v : { ...v, baseline: v.baseline + (PUNCT.test(v.key) ? 1 : full) * (bottom - v.baseline) };
   });
 
   const excluded = new Set<string>();

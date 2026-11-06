@@ -18,6 +18,9 @@ describe('optimize', () => {
     const half = optimize([v('i', 'i1', [[10, 40, 16, 85]])], 0.5).variants[0];
     expect(half.baseline).toBe(92);
     expect(optimize([v('i', 'i1', [[10, 40, 16, 85]])], 0).variants[0].baseline).toBe(100);
+    // a colon written high: its lower dot goes onto the line in full, even at gentle strength
+    const colon = optimize([v(':', 'c1', [[10, 40, 16, 46], [10, 70, 16, 76]])], 0.4).variants[0];
+    expect(colon.baseline).toBe(75);
   });
 
   it('evens out sizes of one character', () => {

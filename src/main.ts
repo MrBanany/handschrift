@@ -684,7 +684,9 @@ function renderGrid() {
       const head = document.createElement('b');
       head.textContent = key;
       const info = document.createElement('small');
-      info.textContent = !vs.length ? (lib.has(key) ? 'Ersatz' : 'fehlt') : [...key].length > 1 ? `${vs.filter((v) => v.connected).length}/${vs.length} verbunden` : `${vs.length}×`;
+      // Word parts are used whether joined or not; mention joins only when there are some (print writers saw "0/3 verbunden" as "not recognised").
+      const joined = vs.filter((v) => v.connected).length;
+      info.textContent = !vs.length ? (lib.has(key) ? 'Ersatz' : 'fehlt') : `${vs.length}×${joined ? ` · ${joined} verbunden` : ''}`;
       head.append(info);
       const row = document.createElement('div');
       row.className = 'variants';

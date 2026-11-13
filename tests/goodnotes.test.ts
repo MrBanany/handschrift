@@ -52,7 +52,9 @@ describe('goodnotes export', () => {
     for (let y = 25; y < 28; y++) for (let x = 4; x < 18; x++) a[y * w + x] = 255;
     const lines = centerlines(a, w, h);
     expect(lines).toHaveLength(1);
-    expect(lines[0].length).toBeLessThan(6); // simplified to a few corners
+    expect(lines[0].pts.length).toBeLessThan(6); // simplified to a few corners
+    expect(lines[0].w).toBeGreaterThan(2.5); // the 3 px wide stroke
+    expect(lines[0].w).toBeLessThan(4);
   });
 
   it('keeps a closed loop (an o) round', () => {
@@ -60,9 +62,18 @@ describe('goodnotes export', () => {
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const r = Math.hypot((x - 22) / 18, (y - 25) / 21); if (r > 0.75 && r < 1) a[y * w + x] = 255; }
     const lines = centerlines(a, w, h);
     expect(lines).toHaveLength(1);
-    expect(lines[0].length).toBeGreaterThan(8);
-    const xs = lines[0].map((p) => p[0]);
+    expect(lines[0].pts.length).toBeGreaterThan(8);
+    const xs = lines[0].pts.map((p) => p[0]);
     expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(25);
+  });
+
+  it('gives a round dot its own width, not the pen width', () => {
+    const w = 30, h = 30, a = new Uint8Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (Math.hypot(x - 14.5, y - 14.5) <= 8) a[y * w + x] = 255; // 17 px across
+    const lines = centerlines(a, w, h);
+    expect(lines).toHaveLength(1);
+    expect(lines[0].w).toBeGreaterThan(14);
+    expect(lines[0].w).toBeLessThan(19);
   });
 
   it('frames LZ4 so a reader gets the bytes back, also over 32 KB', () => {

@@ -17,6 +17,15 @@ Stand: 6. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
 - [ ] **Ausfüllen in der App am iPad testen** (neu, nur mit Maus und simuliertem Stift getestet): Handschriften → „Hier mit dem Pencil ausfüllen“. Fühlt sich das Schreiben gut an? Verschiebt die Hand beim Schreiben die Seite? Ist „Größer“ zum Schreiben nötig?
 - [ ] **Pfeile & Symbole selbst schreiben**: Handschriften → „nur Pfeile & Symbole“ herunterladen (1 Seite), in GoodNotes ausfüllen, als PDF exportieren und mit **demselben Namen** importieren. Danach im Reiter Zeichen unter „Pfeile & Symbole“ prüfen, ob alles drin ist.
 
+## Erledigt am 13. November 2026
+
+- [x] **GoodNotes: Punkte und Striche zu dick**: Ursache war die Strichbreite pro Buchstabe (`strokeW` = Tinte ÷ Skelettlänge). Bei Punkten (`. : ; !`, i-Punkt) ist das Skelett fast ein Pixel lang, die „mittlere Breite“ wurde dadurch 13–30 px statt etwa 3,3 px; die GoodNotes-Datei bekam für **jeden** Strich des Buchstabens diese Breite. Jetzt misst `centerlines` (goodnotes.ts) die Breite pro Linie am Bild (Abstand zum Rand entlang der Mittellinie): ein Punkt ist so groß wie im Bild. Gemessen an einer Testseite der echten Vorlage: Punkte vorher 0,8–1,4 mm, jetzt 0,26–0,41 mm; Tintenfläche GoodNotes 73 mm² gegen 75 mm² im PNG (vorher 82 mm²). Normale Striche ca. 0,13–0,17 mm, wie im Bild. Der Wert in echten GoodNotes-Dateien (Kugelschreiber, parser-for-goodnotes ex1) ist 1,559 GN-Einheiten = 0,30 mm, also dieselbe Einheit wie die Koordinaten. Die Einstellung „Strichstärke“ gilt jetzt auch in der GoodNotes-Datei (0,1 mm pro Stufe, wie im Bild).
+  - Hinweis: `strokeW` in gespeicherten Handschriften bleibt für Punkte falsch hoch (wird sonst nur als Median genutzt); der Export nutzt ihn nicht mehr.
+- [x] **Einkreisen vorübergehend raus**: `((Text))` wird als normaler Text „Text“ geschrieben (clean.ts, mit `shortcut:`-Kommentar zum Wieder-Einschalten), aus der KI-Vorgabe gestrichen. Ring-Code in layout.ts bleibt. `\boxed{}` und `f((x))` unverändert.
+- [x] **Qualität der GoodNotes-Buchstaben**: Mittellinien werden vor dem Vereinfachen geglättet (1-2-1-Mittel, 2×), die Pixeltreppen sind weg. Winzige Stummel (2–5 px an Kreuzungen, Reste der Verdünnung) werden nicht mehr als eigene Striche gespeichert (ein „a“ hatte bis zu 19 Striche, jetzt 3–5). Ein runder Punkt, den das Verdünnen komplett löschen würde, bleibt als ein Punkt erhalten.
+- [x] **Fett**: `**fett**` ist in allen drei Ausgaben (Bild, PDF, GoodNotes) ein Unterstrich in der Schriftfarbe/Überschriftfarbe, normaler Text wird nicht dicker.
+- Bild/PDF: Auflösung 12 px/mm ist höher als die Vorlagen-Bilder (10 px/mm), mehr bringt nichts; keine Änderung nötig.
+
 ## Erledigt am 6. November 2026
 
 - [x] **Eingefügter Text ohne Zeilenumbrüche** (alles klebte zusammen: „BruchrechnungAddition … machen.Aufgabe 1“): Ein langer Text ganz ohne Umbruch wird dort getrennt, wo ein Wort, Satz oder eine Formel direkt in ein großgeschriebenes Wort läuft. Kurze Zeilen ohne Punkt und Formel („Chemie: Wichtige Ionen“) werden zu Überschriften (`unflatten` in clean.ts). Texte mit Umbrüchen bleiben unverändert.

@@ -3,7 +3,7 @@
 // docs/goodnotes-format.md, MIT); a GoodNotes update may break it.
 import type { Page } from '../renderer/layout';
 import type { Variant } from '../glyphstore/types';
-import { zhangSuen } from '../segmentation/analyze';
+import { components, zhangSuen } from '../segmentation/analyze';
 import { ATTACHMENT_UUID, PAGE_UUID, TEMPLATE } from './goodnotes-template';
 
 /** The template's page (its background PDF is 455.04 x 588.45 pt), in mm: lay the text out on this size. */
@@ -19,18 +19,40 @@ export interface InkStroke { pts: Pt[]; w: number; accent?: boolean } // mm
 
 const N8: Pt[] = [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [-1, 1], [-1, -1], [1, -1]]; // straight ones first
 
-/** Centre lines of an ink bitmap (glyph px): thinned to a 1-px skeleton, then walked from the line ends. */
-export function centerlines(alpha: Uint8Array, w: number, h: number): Pt[][] {
-  const sk = zhangSuen(alpha.map((a) => (a >= 110 ? 1 : 0)), w, h);
+/**
+ * Centre lines of an ink bitmap (glyph px): thinned to a 1-px skeleton, then walked from the line ends.
+ * w: the ink width along each line (glyph px), measured on the bitmap: a dot is as wide as it is, not as the pen.
+ */
+export function centerlines(alpha: Uint8Array, w: number, h: number): { pts: Pt[]; w: number }[] {
+  const bin = alpha.map((a) => (a >= 110 ? 1 : 0));
+  const sk = zhangSuen(bin, w, h);
+  // thinning can erase a perfectly round blob (a dot) completely: keep its middle pixel
+  const { labels, comps } = components(bin, w, h);
+  const sums = comps.map(() => ({ x: 0, y: 0, n: 0, has: false }));
+  labels.forEach((l, i) => { if (l >= 0) { const c = sums[l]; c.x += i % w; c.y += (i / w) | 0; c.n++; if (sk[i]) c.has = true; } });
+  for (const c of sums) if (!c.has) sk[Math.round(c.y / c.n) * w + Math.round(c.x / c.n)] = 1;
+  /** Distance from an ink pixel to the nearest background pixel centre (the picture's edge counts as background). */
+  const edge = (x: number, y: number) => {
+    let best = Infinity;
+    for (let r = 1; r <= best; r++) {
+      for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h || !bin[ny * w + nx]) best = Math.min(best, Math.hypot(dx, dy));
+      }
+    }
+    return best;
+  };
   const on = (x: number, y: number) => x >= 0 && y >= 0 && x < w && y < h && sk[y * w + x] === 1;
   const nbs = (i: number) => {
     const x = i % w, y = (i / w) | 0, out: number[] = [];
     for (const [dx, dy] of N8) if (on(x + dx, y + dy)) out.push((y + dy) * w + x + dx);
     return out;
   };
-  const seen = new Uint8Array(w * h), paths: Pt[][] = [];
+  const seen = new Uint8Array(w * h), paths: { pts: Pt[]; w: number }[] = [];
   const walk = (start: number) => {
     const path = [start];
+    let joined = false;
     seen[start] = 1;
     let cur = start, prev = -1;
     for (;;) {
@@ -38,7 +60,7 @@ export function centerlines(alpha: Uint8Array, w: number, h: number): Pt[][] {
       if (!free.length) {
         // reached a part already drawn (a junction or the start of a loop): join it, so there is no gap
         const join = nbs(cur).find((n) => n !== prev && !path.slice(-4).includes(n));
-        if (join !== undefined) path.push(join);
+        if (join !== undefined) { path.push(join); joined = true; }
         break;
       }
       // keep going in the same direction at forks
@@ -48,13 +70,25 @@ export function centerlines(alpha: Uint8Array, w: number, h: number): Pt[][] {
       path.push(next);
       prev = cur; cur = next;
     }
-    paths.push(path.map((i) => [i % w + 0.5, ((i / w) | 0) + 0.5]));
+    // -0.5: the soft edge of the picture (alpha below the threshold) still shows, ink area then matches the PNG within ~5 %
+    const wid = Math.max(1, (2 * path.reduce((sum, i) => sum + edge(i % w, (i / w) | 0), 0)) / path.length - 0.5);
+    if (joined && path.length < 1.5 * wid + 1) return; // a thinning spur at a junction, not a stroke
+    paths.push({ pts: path.map((i) => [i % w + 0.5, ((i / w) | 0) + 0.5]), w: wid });
   };
   const pix: number[] = [];
   for (let i = 0; i < sk.length; i++) if (sk[i]) pix.push(i);
   for (const i of pix) if (!seen[i] && nbs(i).length === 1) walk(i); // line ends first
   for (const i of pix) if (!seen[i]) walk(i); // closed loops (o, 0) and dots
-  return paths.map((p) => simplify(p, 0.7));
+  return paths.map((p) => ({ pts: simplify(smooth(p.pts), 0.7), w: p.w }));
+}
+
+/** Smooth the pixel staircase of a skeleton path (1-2-1 average, twice), ends stay where they are. */
+function smooth(p: Pt[]): Pt[] {
+  let q = p;
+  for (let pass = 0; pass < 2; pass++) {
+    q = q.map((pt, i) => (i === 0 || i === q.length - 1 ? pt : [(q[i - 1][0] + 2 * pt[0] + q[i + 1][0]) / 4, (q[i - 1][1] + 2 * pt[1] + q[i + 1][1]) / 4]));
+  }
+  return q;
 }
 
 /** Ramer-Douglas-Peucker: drop points closer than eps to the line through their neighbours. */
@@ -69,17 +103,17 @@ function simplify(p: Pt[], eps: number): Pt[] {
   return far <= eps ? [a, b] : [...simplify(p.slice(0, at + 1), eps).slice(0, -1), ...simplify(p.slice(at), eps)];
 }
 
-const lineCache = new Map<string, Pt[][]>();
+const lineCache = new Map<string, { pts: Pt[]; w: number }[]>();
 
-/** Every pen stroke on a laid-out page, in page mm. */
-export function inkStrokes(page: Page, get: (src: string) => Variant): InkStroke[] {
-  const out: InkStroke[] = [];
+/** Every pen stroke on a laid-out page, in page mm. weight: the "Strichstärke" setting, as in the picture (draw.ts) 0.1 mm wider per step. */
+export function inkStrokes(page: Page, get: (src: string) => Variant, weight = 0): InkStroke[] {
+  const out: InkStroke[] = [], extra = 0.1 * weight;
   for (const { g, m, accent } of page.glyphs) {
     const v = get(g.src);
     if (!lineCache.has(g.src)) lineCache.set(g.src, centerlines(v.alpha, v.w, v.h));
     const k = Math.sqrt(Math.abs(m[0] * m[3] - m[1] * m[2]));
     for (const line of lineCache.get(g.src)!) {
-      out.push({ pts: line.map(([x, y]) => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]]), w: g.strokeW * k, accent });
+      out.push({ pts: line.pts.map(([x, y]) => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]]), w: line.w * k + extra, accent });
     }
   }
   for (const c of page.connectors) {
@@ -88,7 +122,7 @@ export function inkStrokes(page: Page, get: (src: string) => Variant): InkStroke
       const t = i / 12, u = 1 - t;
       pts.push([u * u * u * p0[0] + 3 * u * u * t * p1[0] + 3 * u * t * t * p2[0] + t * t * t * p3[0], u * u * u * p0[1] + 3 * u * u * t * p1[1] + 3 * u * t * t * p2[1] + t * t * t * p3[1]]);
     }
-    out.push({ pts, w: (c.w0 + c.w1) / 2, accent: c.accent });
+    out.push({ pts, w: (c.w0 + c.w1) / 2 + extra, accent: c.accent });
   }
   return out;
 }
@@ -180,11 +214,11 @@ export function zip(files: [string, Uint8Array][]): Uint8Array {
 const b64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 
 /** One page as a .goodnotes document (page laid out on GN_PAGE). ink, head (headings): '#rrggbb'. */
-export function goodnotesFile(page: Page, get: (src: string) => Variant, ink: string, thumbnail?: Uint8Array, head = ink): Uint8Array {
+export function goodnotesFile(page: Page, get: (src: string) => Variant, ink: string, thumbnail?: Uint8Array, head = ink, weight = 0): Uint8Array {
   const rgbaOf = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).concat(1);
   const rgba = rgbaOf(ink), rgbaHead = rgbaOf(head);
   const notes: number[] = [];
-  for (const s of inkStrokes(page, get)) if (s.pts.length) notes.push(...strokeRecords(s, s.accent ? rgbaHead : rgba));
+  for (const s of inkStrokes(page, get, weight)) if (s.pts.length) notes.push(...strokeRecords(s, s.accent ? rgbaHead : rgba));
   return zip([
     ['document.info.pb', new Uint8Array()],
     ['index.search.pb', b64(TEMPLATE.search)],

@@ -4,7 +4,7 @@ export const AI_PROMPT = `Deine Antworten schreibe ich mit einer App in meiner H
 Aufbau
 - Kurz und übersichtlich, wie ein Lernzettel. Kurze Sätze, keine langen Absätze.
 - Überschriften mit "## ", Aufzählungen mit "- ".
-- Wichtige Begriffe **fett**, ganz Wichtiges ==so markiert==, einzelne Schlüsselwörter ((eingekreist)).
+- Wichtige Begriffe **fett**, ganz Wichtiges ==so markiert==.
 - Keine Tabellen, keine Codeblöcke, keine Emojis, keine Bilder, keine Links.
 - Pfeile als → oder ⇒, Gleichwertigkeit als ⇔.
 

@@ -60,6 +60,8 @@ function unLz4(b: Uint8Array): Uint8Array {
   }
 }
 
+const nameOf = (files: Map<string, Uint8Array>, prefix: string) => [...files.keys()].find((k) => k.startsWith(prefix))!;
+
 describe('goodnotes export', () => {
   it('traces an L as one centre line', () => {
     const w = 20, h = 30, a = new Uint8Array(w * h);
@@ -118,9 +120,8 @@ describe('goodnotes export', () => {
       missing: [], lines: [], marks: [],
     };
     const files = unzip(await goodnotesFile(page, () => v, '#203040'));
-    expect([...files.keys()]).toContain('notes/47C42002-8FC8-521C-80C0-A3C6E11DA9C1');
-    expect(new TextDecoder().decode(files.get('attachments/F8C077F2-68CA-5AFC-B1D1-EFEA5ED4D254')!.subarray(0, 5))).toBe('%PDF-');
-    const notes = files.get('notes/47C42002-8FC8-521C-80C0-A3C6E11DA9C1')!, recs: Uint8Array[] = [];
+    expect(new TextDecoder().decode(files.get(nameOf(files, 'attachments/'))!.subarray(0, 5))).toBe('%PDF-');
+    const notes = files.get(nameOf(files, 'notes/'))!, recs: Uint8Array[] = [];
     for (let at = 0; at < notes.length;) { const [l, a] = varint(notes, at); recs.push(notes.subarray(a, a + l)); at = a + l; }
     expect(recs).toHaveLength(4); // glyph line + connector, two records each
     const meta = fields(recs[0]), stroke = fields(fields(recs[1])[0][2] as Uint8Array);
@@ -173,6 +174,32 @@ describe('goodnotes export', () => {
     }
     expect(seen).toEqual([bg.length]);
     const files = unzip(await goodnotesFile({ glyphs: [], connectors: [], missing: [], lines: [], marks: [] }, () => null as never, '#000000', undefined, '#000000', 0, bg));
-    expect(files.get('attachments/F8C077F2-68CA-5AFC-B1D1-EFEA5ED4D254')).toEqual(bg);
+    expect(files.get(nameOf(files, 'attachments/'))).toEqual(bg);
+  });
+
+  it('gives every export fresh ids, kept consistent between the index files, the event log and the entry names', async () => {
+    const empty = { glyphs: [], connectors: [], missing: [], lines: [], marks: [] };
+    const make = async () => unzip(await goodnotesFile(empty, () => null as never, '#000000'));
+    const [a, b] = [await make(), await make()];
+    const text = (f: Map<string, Uint8Array>, n: string) => new TextDecoder('latin1').decode(f.get(n)!);
+    const UUID = /[0-9A-F]{8}(?:-[0-9A-F]{4}){3}-[0-9A-F]{12}(?!_)/g;
+    const ids = (f: Map<string, Uint8Array>) => new Set([...f.keys()].flatMap((k) => (k.endsWith('.pb') ? text(f, k).match(UUID) ?? [] : [])));
+    expect(nameOf(a, 'attachments/')).not.toBe(nameOf(b, 'attachments/'));
+    expect(nameOf(a, 'notes/')).not.toBe(nameOf(b, 'notes/'));
+    expect([...ids(a)].filter((u) => ids(b).has(u))).toEqual([]); // nothing shared between two files
+    for (const f of [a, b]) {
+      const att = nameOf(f, 'attachments/').slice(12), page = nameOf(f, 'notes/').slice(6);
+      expect(nameOf(f, 'search/')).toMatch(/^search\//);
+      expect(text(f, 'index.attachments.pb')).toContain(att);
+      expect(text(f, 'index.notes.pb')).toContain(page);
+      expect(text(f, 'index.search.pb')).toContain(page);
+      expect(text(f, 'index.search.pb')).toContain(att);
+      const ev = text(f, 'index.events.pb');
+      expect(ev).toContain(att); // the page's paper is the attachment
+      expect(ev).toContain(page);
+      expect(ev).toContain('CC365888-75C9-5DBF-B1D4-A7E8E0AD3B7F_standard_1_2 - White'); // the paper's name stays as GoodNotes wrote it
+      const raw = Uint8Array.from(atob(TEMPLATE.events), (c) => c.charCodeAt(0));
+      expect(f.get('index.events.pb')!.length).toBe(raw.length); // same length: no field was resized
+    }
   });
 });

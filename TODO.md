@@ -34,6 +34,14 @@ Stand: 6. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
 - [x] **Punkte und Doppelpunkte**: Die Höhe stimmte (unterer Punkt auf der Linie), aber die Punkte waren sehr unterschiedlich groß (3 bis 14 px, manche hohle Ringe) und der Doppelpunkt klebte am Buchstaben davor. Jetzt kommen i-Punkte, Umlaut-Punkte, `.` `:` `!` auf etwa das 3,4-Fache der Strichstärke (hohle Punkte werden gefüllt, Haken und Schnörkel bleiben unberührt), und `:` `;` bekommen 1,5-fachen Abstand zum Vorgänger (`layout.ts`).
 - [x] **Schräge Zeilen**: Ursache war die absichtliche Schräglage pro Zeile in `layout.ts` (`slope`, Streuung 0,006 → bis zu 2 mm Anstieg über eine Zeile). Die Vorlage selbst wird in `register.ts` sauber entzerrt; Unterstreichung, Bruchstrich und Kasten folgen derselben Zeile. Jetzt höchstens 0,003 (typisch 0,3 mm über eine Zeile); die kleinen Schwankungen von Wort zu Wort bleiben.
 - Test mit der echten Vorlage: `samples/vorlage.pdf` im Dev-Server per `fetch` + `pagesOf` + `extractPage` laden, mit `saveMany` als Handschrift speichern und neu laden.
+- [x] **Mehrere Personen & sicheres Speichern** (`src/glyphstore/db.ts`, Test `tests/backup.test.ts`):
+  - **Backup enthält jetzt die Einstellungen** der Handschrift (gelernter Schreibstil, Schreibschrift-Haken, Prüf-Entscheidungen). Alte Backup-Dateien laden weiter. Nicht enthalten: Farben und Papier-Einstellungen (gelten für die ganze App, nicht pro Handschrift).
+  - **„Alle Handschriften sichern“** (Reiter Handschriften → Backup): eine Datei für alle. Backups gehen übers Teilen-Menü (Dateien/iCloud/AirDrop), ohne Teilen-Menü als Download.
+  - **Laden unter eigenem Namen**: Gibt es den Namen schon, fragt die App nach einem anderen („Name (2)“ vorgeschlagen; gleicher Name = ergänzt die vorhandene).
+  - **Umbenennen** neu (Einstellungen ziehen mit um). **Löschen** räumt jetzt auch die Einstellungen weg (vorher blieben sie liegen und eine neue Handschrift gleichen Namens erbte sie).
+  - **Erinnerung**: Ist eine Handschrift seit 3 Tagen geändert und nicht gesichert, erscheint oben auf „Schreiben“ ein Hinweis mit „Jetzt sichern“. (Die Anfrage `storage.persist()` gab es schon.)
+  - Offen am iPad testen: Teilen-Menü mit der .json-Datei (ggf. nur Download), „In Dateien sichern“, Datei dort wieder laden.
+- [x] **Start für Freunde**: Kurzanleitung „So geht's“ (5 Schritte, Reiter Handschriften und Willkommen-Fenster), Knopf „App weiterempfehlen“ (Teilen-Menü, sonst Link kopieren), im Willkommen-Fenster „Handschrift von jemand anderem laden“ (für Freunde, die eine geteilte Datei bekommen haben).
 
 ## Erledigt am 6. November 2026
 

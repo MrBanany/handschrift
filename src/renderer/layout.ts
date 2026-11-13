@@ -1,7 +1,7 @@
 import { connectionModel, makeConnector, type Connector, type Library } from '../connectors/connect';
 import type { Anchor, GlyphMeta } from '../glyphstore/types';
 import { MM, XH } from '../template/layout';
-import { CIRC, EMPH, HEAD, INDENT, MARK, STRUCT } from './clean';
+import { ARROW, CIRC, EMPH, HEAD, INDENT, MARK, STRUCT } from './clean';
 import { BOX, flatFrac } from './latex';
 import { molecule, type Molecule } from './structure';
 
@@ -388,6 +388,47 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
   };
 
   /**
+   * Arrows (→ ← ⇒ ⇔ ↔ ⇌) are drawn as pen strokes, so each one can have its own length: normal, long (-->) or very long (--->)
+   * from clean(), a bit different every time, and as long as its label when one stands above it (->[Kat]).
+   * shortcut: the head is two strokes, not the writer's own ">" sample; the label's letters are not joined up.
+   */
+  const ARROWS = /^(?:\u001b([^\u001c]*)\u001c)?([\u0019\u001a])?([→←⇒⇔↔⇌])$/;
+  function drawArrow(am: RegExpExecArray, size: number) {
+    const [, label, len, ch] = am, xs = xh * size;
+    const lab = label ? layoutRun(label, 0.7 * size) : null;
+    const L = Math.max((len === ARROW[1] ? 7.5 : len === ARROW[0] ? 5.2 : 3) * (0.8 + 0.4 * rand()) * xs, lab ? lab.inkR - lab.inkL + 1.4 * xs : 0);
+    if (lineX > lineStart && lineX + L > rightEdge) wrap();
+    const x0 = lineX, x1 = x0 + L, ym = (x: number, dy = 0) => y + drift(x) - 0.5 * xs + dy;
+    const end = gauss() * 0.05 * xs; // the far end is never at exactly the same height
+    const dbl = ch === '⇒' || ch === '⇔';
+    /** Two barbs (or just the upper / lower one) leaning back from the tip. */
+    const head = (tx: number, d: 1 | -1, dy = 0, only = 0) => {
+      const hl = (dbl ? 0.7 : 0.55) * xs * (0.85 + 0.3 * rand()), a = 0.5 + gauss() * 0.05, bx = tx - d * hl * Math.cos(a), t = ym(tx, dy);
+      for (const k of only ? [only] : [-1, 1]) stroke(bx, ym(bx, dy) + k * hl * Math.sin(a), tx, t);
+    };
+    const shaft = (a: number, b: number, dy = 0, tilt = 0) => stroke(a, ym(a, dy), b, ym(b, dy) + tilt);
+    if (ch === '⇌') { shaft(x0, x1, -0.2 * xs, end); shaft(x1, x0, 0.2 * xs, -end); head(x1, 1, -0.2 * xs, -1); head(x0, -1, 0.2 * xs, 1); }
+    else if (dbl) {
+      const r = ch === '⇔' ? x0 + 0.3 * xs : x0;
+      shaft(r, x1 - 0.3 * xs, -0.2 * xs, end); shaft(r, x1 - 0.3 * xs, 0.2 * xs, end);
+      head(x1, 1, end); if (ch === '⇔') head(x0, -1);
+    } else {
+      shaft(x0, x1, 0, end);
+      if (ch !== '←') head(x1, 1, end);
+      if (ch !== '→') head(x0, -1);
+    }
+    if (lab) for (const it of lab.items) {
+      const m: Mat = [...it.m];
+      m[4] += x0 + (L - (lab.inkR - lab.inkL)) / 2 - lab.inkL;
+      m[5] += y + drift(m[4]) - 0.75 * xs;
+      page!.glyphs.push({ g: it.g, m });
+    }
+    if (rec) rec.text += ` ${ch}`;
+    else page!.lines.push(rec = { text: ch });
+    lineX = x1 + Math.max(0.6 * xh, ((s.wordGap ?? DEFAULT_WORD_GAP) - 0.15 * h) * xs * (1 + gauss() * 0.1 * sig));
+  }
+
+  /**
    * Structural formula inside the line (reactions: "[[Ethanol]] + 3 [[Sauerstoff]] → …"): bonds as pen strokes,
    * atom letters in the writer's hand, centred on the x-height. A tall molecule pushes the line down and keeps the
    * next line away.
@@ -470,10 +511,10 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
 
   /** A word wider than a whole line (a long compound, a link) is broken with a hyphen, like by hand. */
   const maxW = 0.85 * (s.pageW - 2 * s.margin); // room to spare: the real pass picks other variants and joins than the measuring one
-  const strip = (x: string) => x.replace(/[\u0002-\u0006\u0014-\u0018]/g, '');
+  const strip = (x: string) => x.replace(/[\u0002-\u0006\u0014-\u001c]/g, '');
   const width = (x: string) => { const d = layoutWord(strip(x)); return d.inkR - d.inkL; };
   const fit = (tok: string): string[] => {
-    if (tok.startsWith(STRUCT[0]) || tok.includes('\u0011') || strip(tok).length < 20 ||width(tok) <= maxW) return [tok];
+    if (tok.startsWith(STRUCT[0]) || tok.includes('\u001c') || tok.includes('\u0011') || strip(tok).length < 20 ||width(tok) <= maxW) return [tok];
     let lo = 1, hi = tok.length - 1;
     while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (width(tok.slice(0, mid) + '-') <= maxW) lo = mid; else hi = mid - 1; }
     return [tok.slice(0, lo) + '-', ...fit(tok.slice(lo))];
@@ -502,7 +543,9 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
         }
         token = spec; // unknown name or broken SMILES: just write it
       }
-      const word = token.replace(/[\u0002-\u0006\u0014-\u0018]/g, '');
+      const am = ARROWS.exec(token);
+      if (am) { drawArrow(am, size); continue; }
+      const word = token.replace(/[\u0002-\u0006\u0014-\u001c]/g, '');
       if (token.includes(EMPH[0])) emph = true;
       if (token.includes(MARK[0])) marking = true;
       if (token.includes(CIRC[0])) ringing = true;

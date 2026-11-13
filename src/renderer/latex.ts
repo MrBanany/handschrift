@@ -4,7 +4,7 @@ const SYMBOL: Record<string, string> = {
   cdot: '·', times: '×', div: '÷', pm: '±', mp: '∓', approx: '≈', sim: '~', neq: '≠', ne: '≠', leq: '≤', le: '≤', geq: '≥', ge: '≥',
   infty: '∞', int: '∫', sum: 'Σ', pi: 'π', Delta: 'Δ', delta: 'δ', alpha: 'α', beta: 'β', gamma: 'γ', lambda: 'λ', mu: 'μ', rho: 'ρ', sigma: 'σ',
   Sigma: 'Σ', omega: 'ω', Omega: 'Ω', theta: 'θ', varphi: 'φ', phi: 'φ', degree: '°', circ: '°', percent: '%',
-  to: '→', rightarrow: '→', longrightarrow: '→', leftarrow: '←', Rightarrow: '⇒', implies: '⇒', Leftrightarrow: '⇔', iff: '⇔',
+  to: '→', rightarrow: '→', longrightarrow: '⟶', Longrightarrow: '⟹', leftarrow: '←', Rightarrow: '⇒', implies: '⇒', Leftrightarrow: '⇔', iff: '⇔',
   quad: ' ', qquad: ' ', mid: '|', leftrightarrow: '↔', rightleftharpoons: '⇌', uparrow: '↑', downarrow: '↓', cdots: '...', ldots: '...', dots: '...',
 };
 
@@ -40,9 +40,13 @@ function ion(tok: string): string {
   return m ? `${chem(m[1])}^{${m[2]}}` : chem(tok);
 }
 
+/** An arrow with its condition above it (->[Kat], \xrightarrow{Kat}): the label between \u001b and \u001c, its spaces hidden; the layout writes it over the shaft. */
+const over = (l: string) => (l.trim() ? `\u001b${l.trim().replace(/\s+/g, '\u0010')}\u001c→` : '⟶');
+
 export function latex(text: string): string {
   let t = text
-    .replace(/\$\$|\\\[|\\\]|\\\(|\\\)/g, ' ')
+    .replace(/\$\$|\\\[|\\\]/g, ' ')
+    .replace(/\\\(\s*|\s*\\\)/g, '') // ChatGPT's inline math: no gap before the comma after it
     .replace(/\{,\}/g, ',') // German decimal comma: 9{,}81
     .replace(/\\%/g, '%')
     // matrices in one line: (1 2; 3 4); aligned equations one per line, cases separated by ";"
@@ -50,8 +54,9 @@ export function latex(text: string): string {
     .replace(/\\begin\{(cases|aligned|align\*?|gathered|gather\*?|array)\}(?:\{[^{}]*\})?([\s\S]*?)\\end\{\1\}/g, (_, k: string, b: string) => b.split(/\\\\/).map((r) => r.split('&').map((c) => c.trim()).filter(Boolean).join(k === 'cases' ? ', ' : ' ')).filter(Boolean).join(k === 'cases' ? '; ' : '\n'))
     .replace(/[½¼¾]/g, (c) => FRAC[0] + '131'['½¼¾'.indexOf(c)] + FRAC[1] + '244'['½¼¾'.indexOf(c)] + FRAC[2])
     .replace(/∑/g, 'Σ').replace(/∆/g, 'Δ')
-    .replace(/\\ce\{((?:[^{}]|\{[^{}]*\})*)\}/g, (_, f: string) => f.replace(/<=>/g, '⇌').replace(/->\[([^\]]*)\]/g, '→ ($1)').replace(/->/g, '→').split(/(\s+)/).map(ion).join(''))
+    .replace(/\\ce\{((?:[^{}]|\{[^{}]*\})*)\}/g, (_, f: string) => f.replace(/<=>/g, '⇌').replace(/->\[([^\]]*)\]/g, (_, l: string) => over(l)).replace(/->/g, '→').split(/(\s+)/).map(ion).join(''))
     .replace(/\\(?:text|mathrm|mathbf|mathit|operatorname|vec|overline|bar|hat|tilde|mathbb|mathcal|boldsymbol|underline|dot)\{([^{}]*)\}/g, '$1')
+    .replace(/\\xrightarrow(?:\[[^\]]*\])?\{([^{}]*)\}/g, (_, l: string) => over(l))
     // limits written out in words: a writer puts them under the sign, the app on the line
     .replace(/\\lim_\{([^{}]*)\}/g, (_, a: string) => `lim(${a})`)
     .replace(/\\(sum|int)_\{?([^{}\s^]*)\}?\^\{?([^{}\s]*)\}?/g, (_, f: string, a: string, b: string) => (f === 'sum' ? `Σ(${a} bis ${b})` :`∫ von ${a} bis ${b}: `))

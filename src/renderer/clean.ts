@@ -10,6 +10,9 @@ export const HEAD = '\u0006';
 export const STRUCT = ['\u000E', '\u000F'] as const;
 /** Start and end of circled text; the layout draws a ring around it by hand. Not produced by clean() for now (see the ((text)) rule). */
 export const CIRC = ['\u0014', '\u0015'] as const;
+/** Put before an arrow character: a long / very long shaft. A label (\u001b…\u001c) before the arrow is written small above the shaft. */
+export const ARROW = ['\u0019', '\u001a'] as const;
+export const LABEL = ['\u001b', '\u001c'] as const;
 /** Superscript and subscript digits 0–9. */
 export const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹', SUB = '₀₁₂₃₄₅₆₇₈₉';
 /** Raised and lowered letters (Unicode has no raised q and only some lowered ones); drawn from the writer's own letters. */
@@ -46,6 +49,7 @@ export function clean(text: string, has: (ch: string) => boolean): string {
   // [[...]] is kept away from all rules below: SMILES is full of = # ( ) / \ that they would rewrite.
   const mols: string[] = [];
   const kept = unflatten(text.replace(/\r\n?/g, '\n')).replace(/\[\[([^\]\n]+)\]\]/g, (_, s: string) => `${STRUCT[0]}${mols.push(s.trim()) - 1}${STRUCT[1]}`);
+  const step = Math.max(2, Math.min(...[...kept.matchAll(/^([ \t]{2,})[-*+•●▪◦]\s/gm)].map((m) => m[1].replace(/\t/g, '  ').length)));
   return latex(kept)
     .replace(/^\s*```.*$/gm, '') // code fences
     .replace(/^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/gm, '') // horizontal rules
@@ -53,12 +57,12 @@ export function clean(text: string, has: (ch: string) => boolean): string {
     .replace(/^\s*>\s?/gm, '') // quotes
     // Markdown tables: the divider row goes, cells are written with a dash between them, the header row underlined
     .replace(/^\s*\|?\s*:?-{2,}:?\s*(?:\|\s*:?-{2,}:?\s*)*\|?\s*$\n?/gm, '')
-    .replace(/((?:^\s*\|.*\|\s*(?:\n|$))+)/gm, (block: string) => block.trimEnd().split('\n').map((row, i) => {
+    .replace(/((?:^[ \t]*\|.*\|[ \t]*(?:\n|$))+)/gm, (block: string) => block.trimEnd().split('\n').map((row, i) => {
       const cells = row.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim()).filter(Boolean).join(` ${pick('–', '-')} `);
       return i === 0 ? EMPH[0] + cells + EMPH[1] : cells;
     }).join('\n') + '\n')
-    // nested bullets: two spaces (or a tab) per step
-    .replace(/^([ \t]{2,})[-*+•●▪◦]\s+/gm, (_, sp: string) => INDENT.repeat(Math.min(3, Math.floor(sp.replace(/\t/g, '  ').length / 2))) + pick('-', '•') + ' ')
+    // nested bullets: one step is the smallest indent in the text (2 spaces or a tab; Gemini uses 4)
+    .replace(/^([ \t]{2,})[-*+•●▪◦]\s+/gm, (_, sp: string) => INDENT.repeat(Math.min(3, Math.floor(sp.replace(/\t/g, '  ').length / step))) + pick('-', '•') + ' ')
     .replace(/^(\s*)[-*+]\s+\[([ xX])\]\s+/gm, (_, sp: string, x: string) => sp + (x === ' ' ? pick('•', '-') : pick('✓', '•', '-')) + ' ') // - [ ] task lists
     .replace(/~~(?=\S)(.+?)(?<=\S)~~/g, '$1') // strikethrough: just the text
     .replace(/^(\s*)[-*+•●▪◦]\s+/gm, `$1${pick('•', '-')} `) // bullets
@@ -71,11 +75,13 @@ export function clean(text: string, has: (ch: string) => boolean): string {
     .replace(/`([^`]*)`/g, '$1') // inline code
     .replace(/\$([^$\n]+)\$/g, '$1') // inline math
     .replace(/\|(?=[:+\-·*/÷][\p{N}\p{L}])/gu, '| ') // "|:2", "|-3": the tall bar would swallow the colon or sign
-    .replace(/\s*(?:⇔|⟺|<=>)\s*/g, ` ${pick('⇔', '↔', '<->', '-')} `)
-    .replace(/\s*(?:↔|⟷|<->)\s*/g, ` ${pick('↔', '<->', '-')} `)
-    .replace(/\s*(?:⇒|⟹|=>)\s*/g, ` ${pick('⇒', arrow)} `)
-    .replace(/\s*(?:→|⟶|➔|➜|->)\s*/g, ` ${arrow} `)
-    .replace(/\s*(?:←|<-)\s*/g, ` ${pick('←', '<-', '-')} `)
+    // long arrows (-->, ==>, --->, ⟶, ⟹): the layout draws the shaft as long as marked, so an arrow is as long as the writer wants
+    .replace(/\s*(-{3,}>|={3,}>|⟶|⟹|-->|==>)\s*/g, (_, a: string) => ` ${/^[-=]{3,}>$/.test(a) ? ARROW[1] : ARROW[0]}${a[0] === '=' || a === '⟹' ? pick('⇒', arrow) : arrow} `)
+    .replace(/(?<![\u0019\u001a\u001c])\s*(?:⇔|⟺|<=>)\s*/g, ` ${pick('⇔', '↔', '<->', '-')} `)
+    .replace(/(?<![\u0019\u001a\u001c])\s*(?:↔|⟷|<->)\s*/g, ` ${pick('↔', '<->', '-')} `)
+    .replace(/(?<![\u0019\u001a\u001c])\s*(?:⇒|⟹|=>)\s*/g, ` ${pick('⇒', arrow)} `)
+    .replace(/(?<![\u0019\u001a\u001c])\s*(?:→|⟶|➔|➜|->)\s*/g, ` ${arrow} `)
+    .replace(/(?<![\u0019\u001a\u001c])\s*(?:←|<-)\s*/g, ` ${pick('←', '<-', '-')} `)
     .replace(/[“”„‟″]/g, (q) => (has(q) ? q : pick('"', "'")))
     .replace(/[‘’‚′]/g, (q) => (has(q) ? q : "'"))
     .replace(/[—―]/g, pick('–', '-'))

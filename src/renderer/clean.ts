@@ -10,6 +10,9 @@ export const HEAD = '\u0006';
 export const STRUCT = ['\u000E', '\u000F'] as const;
 /** Start and end of circled text; the layout draws a ring around it by hand. Not produced by clean() for now (see the ((text)) rule). */
 export const CIRC = ['\u0014', '\u0015'] as const;
+/** Put before an arrow character: a long / very long shaft. A label (\u001b…\u001c) before the arrow is written small above the shaft. */
+export const ARROW = ['\u0019', '\u001a'] as const;
+export const LABEL = ['\u001b', '\u001c'] as const;
 /** Superscript and subscript digits 0–9. */
 export const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹', SUB = '₀₁₂₃₄₅₆₇₈₉';
 /** Raised and lowered letters (Unicode has no raised q and only some lowered ones); drawn from the writer's own letters. */
@@ -19,7 +22,7 @@ export const SUB_LETTERS: Record<string, string> = { a: 'ₐ', e: 'ₑ', h: 'ₕ
   ...Object.fromEntries([...'bcdfgqwyzABCDEFGHIJKLMNOPQRSTUVWXYZ'].map((c, i) => [c, String.fromCodePoint(0xe000 + i)])) };
 /** Indents a list line one step (nested bullets); the layout moves the line right. */
 export const INDENT = '\u0018';
-const indent = (sp: string) => INDENT.repeat(Math.min(3, Math.floor(sp.replace(/\t/g, '  ').length / 2)));
+const indent = (sp: string, step: number) => INDENT.repeat(Math.min(3, Math.floor(sp.replace(/\t/g, '  ').length / step)));
 const digits = (d: string, set: string) => [...d].map((c) => set[+c]).join('');
 /** "2x" -> "²ˣ" with the given digit/letter sets, or null if a character has no raised/lowered form. */
 const raise = (s: string, num: string, letters: Record<string, string>) => {
@@ -45,10 +48,11 @@ export function unflatten(text: string): string {
  */
 export function clean(text: string, has: (ch: string) => boolean): string {
   const pick = (...opts: string[]) => opts.find((o) => [...o].every((c) => c === ' ' || has(c))) ?? opts.at(-1)!;
-  const arrow = pick('→', '->', '-');
   // [[...]] is kept away from all rules below: SMILES is full of = # ( ) / \ that they would rewrite.
   const mols: string[] = [];
   const kept = unflatten(text.replace(/\r\n?/g, '\n')).replace(/\[\[([^\]\n]+)\]\]/g, (_, s: string) => `${STRUCT[0]}${mols.push(s.trim()) - 1}${STRUCT[1]}`);
+  // one indent step is the smallest indent in the text (2 spaces or a tab; Gemini uses 4)
+  const step = Math.max(2, Math.min(4, ...[...kept.matchAll(/^([ \t]{2,})(?:[-*+•●▪◦]|\d+[.)])\s/gm)].map((m) => m[1].replace(/\t/g, '  ').length)));
   return latex(kept)
     .replace(/^[ \t]*```.*$/gm, '') // code fences
     .replace(/^[ \t]*(?:-{3,}|\*{3,}|_{3,})[ \t]*$/gm, '') // horizontal rules
@@ -64,10 +68,10 @@ export function clean(text: string, has: (ch: string) => boolean): string {
       return i === 0 ? EMPH[0] + cells + EMPH[1] : cells;
     }).join('\n') + '\n')
     // task lists, nested ones too (before the nested bullets, which would leave the "[ ]" behind)
-    .replace(/^([ \t]*)[-*+][ \t]+\[([ xX])\][ \t]+/gm, (_, sp: string, x: string) => indent(sp) + (x === ' ' ? pick('•', '-') : pick('✓', '•', '-')) + ' ')
+    .replace(/^([ \t]*)[-*+][ \t]+\[([ xX])\][ \t]+/gm, (_, sp: string, x: string) => indent(sp, step) + (x === ' ' ? pick('•', '-') : pick('✓', '•', '-')) + ' ')
     // nested bullets and numbered items: two spaces (or a tab) per step
-    .replace(/^([ \t]{2,})[-*+•●▪◦]\s+/gm, (_, sp: string) => indent(sp) + pick('-', '•') + ' ')
-    .replace(/^([ \t]{2,})(\d+[.)])[ \t]+/gm, (_, sp: string, n: string) => indent(sp) + n + ' ')
+    .replace(/^([ \t]{2,})[-*+•●▪◦]\s+/gm, (_, sp: string) => indent(sp, step) + pick('-', '•') + ' ')
+    .replace(/^([ \t]{2,})(\d+[.)])[ \t]+/gm, (_, sp: string, n: string) => indent(sp, step) + n + ' ')
     .replace(/~~(?=\S)(.+?)(?<=\S)~~/g, '$1') // strikethrough: just the text
     .replace(/^(\s*)[-*+•●▪◦]\s+/gm, `$1${pick('•', '-')} `) // bullets
     .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1') // links -> their text
@@ -79,11 +83,16 @@ export function clean(text: string, has: (ch: string) => boolean): string {
     .replace(/`([^`]*)`/g, '$1') // inline code
     .replace(/\$([^$\n]+)\$/g, (m, x: string) => (/^\d.*\s$/.test(x) ? m : x)) // inline math; but "$5 und $10" (prices) stays
     .replace(/\|(?=[:+\-·*/÷][\p{N}\p{L}])/gu, '| ') // "|:2", "|-3": the tall bar would swallow the colon or sign
-    .replace(/\s*(?:⇔|⟺|<=>)\s*/g, ` ${pick('⇔', '↔', '<->', '-')} `)
-    .replace(/\s*(?:↔|⟷|<->)\s*/g, ` ${pick('↔', '<->', '-')} `)
-    .replace(/\s*(?:⇒|⟹|=>)\s*/g, ` ${pick('⇒', arrow)} `)
-    .replace(/\s*(?:→|⟶|➔|➜|->)\s*/g, ` ${arrow} `)
-    .replace(/\s*(?:←|<-)\s*/g, ` ${pick('←', '<-', '-')} `)
+    // Arrows are always the arrow character, whatever the writer's set holds: the layout draws them as pen strokes.
+    // Long ones (-->, ==>, --->, ⟶, ⟹) are marked, so the shaft is as long as the writer wants.
+    .replace(/\s*(-{3,}>|={3,}>|⟶|⟹|-->|==>)\s*/g, (_, a: string) => ` ${/^[-=]{3,}>$/.test(a) ? ARROW[1] : ARROW[0]}${a[0] === '=' || a === '⟹' ? '⇒' : '→'} `)
+    .replace(/\s*(\u001b[^\u001c\n]*\u001c→)\s*/g, ' $1 ') // an arrow with a label stands alone too
+    .replace(/(?<![\u0019\u001a\u001c])\s*(?:⇔|⟺|<=>)\s*/g, ' ⇔ ')
+    .replace(/(?<![\u0019\u001a\u001c])\s*(?:↔|⟷|<->)\s*/g, ' ↔ ')
+    .replace(/(?<![\u0019\u001a\u001c])\s*(?:⇒|=>)\s*/g, ' ⇒ ')
+    .replace(/(?<![\u0019\u001a\u001c])\s*(?:→|➔|➜|->)\s*/g, ' → ')
+    .replace(/\s*(?:←|<-)\s*/g, ' ← ')
+    .replace(/\s*⇌\s*/g, ' ⇌ ')
     .replace(/[“”„‟″]/g, (q) => (has(q) ? q : pick('"', "'")))
     .replace(/[‘’‚′]/g, (q) => (has(q) ? q : "'"))
     .replace(/[—―]/g, pick('–', '-'))
@@ -99,8 +108,8 @@ export function clean(text: string, has: (ch: string) => boolean): string {
     .replace(/≈/g, pick('≈', 'ca.'))
     .replace(/[✅✔☑]/gu, pick('✓', ''))
     .replace(/[❌✖❎]/gu, pick('✗', 'x'))
-    // emoji (↔ counts as one too); the space in front of one goes too when a punctuation mark follows ("Beispiel 🐍:")
-    .replace(/([ \t]*)([\p{Extended_Pictographic}\u{FE0F}\u{200D}]+)(?=([.,;:!?]?))/gu, (_, sp: string, e: string, next: string) => { const kept = [...e].filter(has).join(''); return kept ? sp + kept : next ? '' : sp; })
+    // emoji (↔ counts as one too, but is an arrow the layout draws); the space in front of one goes too when a punctuation mark follows ("Beispiel 🐍:")
+    .replace(/([ \t]*)([\p{Extended_Pictographic}\u{FE0F}\u{200D}]+)(?=([.,;:!?]?))/gu, (_, sp: string, e: string, next: string) => { const kept = [...e].filter((c) => c === '↔' || has(c)).join(''); return kept ? sp + kept : next ? '' : sp; })
     .replace(/[ \t]+$/gm, '')
     .replace(/[ \t]{2,}/g, ' ')
     // a structure is one "word" for the layout: spaces around it, its own spaces hidden

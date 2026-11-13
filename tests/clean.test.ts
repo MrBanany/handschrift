@@ -7,7 +7,7 @@ describe('clean pasted AI text', () => {
   it('strips Markdown and maps arrows, bullets and emoji to writable characters', () => {
     const md = '## Ergebnis\n\n**Photosynthese** → *Glucose* 🌱\n\n- Licht -> Energie\n* `CO2` + Wasser\n\n\n[Quelle](https://x.de)';
     const [b, e] = EMPH; // headings and bold stay marked, the layout underlines them
-    expect(clean(md, has)).toBe(`${HEAD}${b}Ergebnis${e}\n\n${b}Photosynthese${e} -> Glucose\n\n- Licht -> Energie\n- CO2 + Wasser\n\nQuelle`);
+    expect(clean(md, has)).toBe(`${HEAD}${b}Ergebnis${e}\n\n${b}Photosynthese${e} → Glucose\n\n- Licht → Energie\n- CO2 + Wasser\n\nQuelle`);
   });
   it('keeps [[structures]] as one word in the line and leaves SMILES untouched', () => {
     const [a, z] = STRUCT;
@@ -31,7 +31,10 @@ describe('clean pasted AI text', () => {
     expect(clean('$10^{-3}$ m, s^-1', () => true)).toBe('10⁻³ m, s⁻¹');
     expect(clean('$x^n$, $e^{2x}$, $a_n$, snake_case, file_name', () => true)).toBe('xⁿ, e²ˣ, aₙ, snake_case, file_name');
     expect(clean('$\\lim_{x \\to 0}$, $\\sum_{i=1}^{n} i$, $\\sqrt[3]{8}$, $\\vec{v}$', () => true)).toBe('lim(x → 0), Σ(i=1 bis n) i, ³√8, v');
-    expect(clean('$\\ce{H2O(l) + NaCl(aq) ->[Kat] X}$', () => true)).toBe('H₂O(l) + NaCl(aq) → (Kat) X');
+    expect(clean('$\\ce{H2O(l) + NaCl(aq) ->[Kat] X}$', () => true)).toBe('H₂O(l) + NaCl(aq) \u001bKat\u001c→ X'); // label above the arrow
+    // long and very long arrows keep their length for the layout
+    expect(clean('A --> B ---> C ==> D $\\longrightarrow$ E -> F', () => true)).toBe('A \u0019→ B \u001a→ C \u0019⇒ D \u0019→ E → F');
+    expect(clean('A --> B', (c) => c !== '→')).toBe('A \u0019→ B'); // drawn as pen strokes, so the set need not hold it
     expect(clean('a [b] {c}', (c) => !'[]{}'.includes(c))).toBe('a (b) (c)'); // brackets the writer lacks
   });
   it('turns tables into lines and keeps nested bullets indented', () => {
@@ -68,7 +71,7 @@ describe('clean pasted AI text', () => {
   it('marks ==highlighted== text, but leaves a == b alone', () => {
     expect(clean('Das ist ==sehr wichtig== und a == b', () => true)).toBe(`Das ist ${MARK[0]}sehr wichtig${MARK[1]} und a == b`);
     const plain = (c: string) => /[A-Za-z0-9 ,^>-]/.test(c);
-    expect(clean('A => B ⇔ C <-> D, x^2', plain)).toBe('A -> B - C - D, x^2');
+    expect(clean('A => B ⇔ C <-> D, x^2', plain)).toBe('A ⇒ B ⇔ C ↔ D, x^2');
   });
   it('writes German decimal commas {,} and \\% from AI answers', () => {
     expect(clean(String.raw`$g = 9{,}81\,\text{m/s}^2$, $20\%$`, () => true)).toBe('g = 9,81 m/s², 20%');
@@ -94,7 +97,7 @@ describe('clean pasted AI text', () => {
     const all = () => true;
     expect(clean(String.raw`$\binom{n}{k}$, $A \cap B$, $x \in \mathbb{R}$, $\forall x$`, all)).toBe('(n über k), A ∩ B, x ∈ R, ∀ x');
     expect(clean(String.raw`$\displaystyle a\quad b$, $\textbf{fett}$, $\frac12$, $\sqrt2$`, all)).toBe('a b, fett, \u00111\u00122\u0013, √2');
-    expect(clean(String.raw`$\xrightarrow{\text{Kat.}}$, $\overset{!}{=}$`, all)).toBe('→ (Kat.), =');
+    expect(clean(String.raw`$\xrightarrow{\text{Kat.}}$, $\overset{!}{=}$`, all)).toBe('\u001bKat.\u001c→ , =');
   });
   it('writes the limits of an evaluation bar in words and x_{1,2} with small digits', () => {
     const all = () => true;
@@ -131,6 +134,12 @@ describe('clean pasted AI text', () => {
     const [b, e] = EMPH;
     expect(clean('Stoff | Formel\n--- | :---:\nWasser | H2O\nSalz | NaCl |\nDanach', () => true)).toBe(`${b}Stoff – Formel${e}\nWasser – H₂O\nSalz – NaCl\nDanach`);
     expect(clean('x |-3 und a | b\nkeine Tabelle', () => true)).toBe('x | -3 und a | b\nkeine Tabelle');
+  });
+  it('copes with Gemini (4-space lists, indented tables) and ChatGPT (\\( \\), \\xrightarrow) habits', () => {
+    const all = () => true;
+    expect(clean('* a\n    * b\n        * c', all)).toBe('• a\n\u0018- b\n\u0018\u0018- c');
+    expect(clean('  | A | B |\n  | :-- | :-- |\n  | 1 | 2 |', all)).toBe('\u0002A – B\u0003\n1 – 2');
+    expect(clean(String.raw`Mit \( x = 2 \), dann \(A \xrightarrow{\text{Kat}} B\)`, all)).toBe('Mit x = 2, dann A \u001bKat\u001c→ B');
   });
   it('keeps Geg./Ges. and writes |:2 notes with room after the bar', () => {
     expect(clean(String.raw`Geg.: $2x = 8$ |:2 und $x \quad y$ |-3`, () => true)).toBe('Geg.: 2x = 8 | :2 und x y | -3');

@@ -4,8 +4,9 @@ export const AI_PROMPT = `Meine Antworten schreibt eine App in meiner Handschrif
 STIL
 - Immer auf Deutsch. Kurz wie ein Lernzettel, höchstens eine Seite. Keine Einleitung, kein Schluss ("Gerne!", "Ich hoffe …").
 - Kurze Sätze, Stichpunkte mit "- " statt Absätzen, Unterpunkte 2 Leerzeichen eingerückt. Ein Gedanke pro Zeile.
-- Überschriften sparsam mit "## ". **Fett** für Fachbegriffe, ==so== für ganz Wichtiges. Pfeile → ⇒ ⇔, Haken ✓ ✗.
-- Nie: Emojis, Tabellen, Codeblöcke, Bilder, Links, Kursivschrift.
+- Überschriften sparsam mit "## ". **Fett** für Fachbegriffe, ==so== für ganz Wichtiges. Haken ✓ ✗.
+- Pfeile als Text, Länge nach Bedarf: -> normal, --> lang, ---> sehr lang. Auch ⇒ ⇔ ↔ ⇌. Bedingung über dem Pfeil: $\\ce{A ->[Kat] B}$.
+- Nie: Emojis, Tabellen, Codeblöcke, Bilder, Links, Kursivschrift. Listen nur mit "- ", Formeln nur mit $...$ (nicht \\( \\) oder \\[ \\]).
 
 MATHE (wie im Unterricht, LaTeX in $...$, eine Umformung pro Zeile)
 - Rechenaufgaben: "Geg.: …", "Ges.: …", dann die Rechnung in kurzen Schritten wie ein Schüler (keine Erklär-Prosa), zum Schluss "A: …" mit Antwortsatz und/oder $\\boxed{x = 4}$.

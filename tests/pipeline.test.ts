@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { connectionModel } from '../src/connectors/connect';
 import type { GlyphMeta } from '../src/glyphstore/types';
 import { layout, segment, type Settings } from '../src/renderer/layout';
-import { EMPH, HEAD, MARK, STRUCT } from '../src/renderer/clean';
+import { clean, EMPH, HEAD, MARK, STRUCT } from '../src/renderer/clean';
 import { extractPage } from '../src/segmentation/extract';
 import { readPageCode, register, type Affine } from '../src/segmentation/register';
 import { PDFDocument } from 'pdf-lib';
@@ -300,6 +300,24 @@ describe('layout', () => {
     const plus = pages[0].glyphs.filter((g) => g.g.key === '+').map((g) => g.m[4]);
     expect(plus).toHaveLength(2);
     expect(plus[1]).toBeGreaterThan(plus[0] + 20); // CO2 sits between them
+  });
+
+  it('draws every arrow as pen strokes at mid x-height, as long as marked or as its label', () => {
+    const plain = new Map([...'abcdefghijklmnopqrstuvwxyzAB'].map((k) => [k, [{ ...glyph(k, 0), entry: null, exit: null }]])); // no arrow, no - = < >
+    const run = (t: string) => layout(clean(t, (c) => plain.has(c)), plain, { ...S, hasty: 0 }).pages[0];
+    const span = (t: string) => { const x = run(t).connectors.flatMap((c) => c.p.map((q) => q[0])); return Math.max(...x) - Math.min(...x); };
+    // shaft(s) + barbs: → ← 1+2, ⇒ 2+2 (was written as a bare dash), ⇔ 2+4, ↔ 1+4, ⇌ 2+2 half heads
+    for (const [a, n] of [['->', 3], ['→', 3], ['<-', 3], ['=>', 4], ['⇒', 4], ['<=>', 6], ['<->', 5], ['⇌', 4]] as const) {
+      const pg = run(`A ${a} B`);
+      expect([a, pg.connectors.length, pg.glyphs.length, pg.missing.length]).toEqual([a, n, 2, 0]);
+      for (const c of pg.connectors) for (const q of c.p) expect(Math.abs(q[1] - (S.margin + S.lineH - 0.5 * S.xh))).toBeLessThan(0.75 * S.xh);
+    }
+    expect(span('A -> B')).toBeLessThan(span('A --> B'));
+    expect(span('A --> B')).toBeLessThan(span('A ---> B'));
+    const pg = run('$\\ce{A ->[bei hoher temperatur] B}$'), lx = pg.glyphs.slice(1, -1).map((g) => g.m[4]);
+    expect(lx).toHaveLength(18);
+    expect(span('$\\ce{A ->[bei hoher temperatur] B}$')).toBeGreaterThan(Math.max(...lx) - Math.min(...lx)); // the label fits on its arrow
+    for (const g of pg.glyphs.slice(1, -1)) expect(g.m[5]).toBeLessThan(pg.glyphs[0].m[5]); // and stands above the shaft
   });
 
   it('puts one highlighter stroke behind marked words, centred on the x-height', () => {

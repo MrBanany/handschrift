@@ -1,4 +1,5 @@
 import { latex } from './latex';
+import { MAP, encodeMap, extractMindmaps, type MapTree } from './mindmap';
 
 /** Start and end of emphasised text (Markdown bold, headings); the layout underlines it. */
 export const EMPH = ['\u0002', '\u0003'] as const;
@@ -48,7 +49,10 @@ export function clean(text: string, has: (ch: string) => boolean): string {
   const arrow = pick('→', '->', '-');
   // [[...]] is kept away from all rules below: SMILES is full of = # ( ) / \ that they would rewrite.
   const mols: string[] = [];
-  const kept = unflatten(text.replace(/\r\n?/g, '\n')).replace(/\[\[([^\]\n]+)\]\]/g, (_, s: string) => `${STRUCT[0]}${mols.push(s.trim()) - 1}${STRUCT[1]}`);
+  // a "Mindmap: topic" line with its list is kept away too and drawn as a mind map (see mindmap.ts)
+  const maps: Omit<MapTree, 'bullet'>[] = [];
+  const node = (x: string) => clean(x, has).replace(/[\u0002-\u0006\u000E\u000F\u0014-\u0018]/g, '').replace(/\s+/g, ' ').trim();
+  const kept = unflatten(extractMindmaps(text.replace(/\r\n?/g, '\n'), (t) => `${MAP[0]}${maps.push(t) - 1}${MAP[1]}`)).replace(/\[\[([^\]\n]+)\]\]/g, (_, s: string) => `${STRUCT[0]}${mols.push(s.trim()) - 1}${STRUCT[1]}`);
   return latex(kept)
     .replace(/^[ \t]*```.*$/gm, '') // code fences
     .replace(/^[ \t]*(?:-{3,}|\*{3,}|_{3,})[ \t]*$/gm, '') // horizontal rules
@@ -108,6 +112,11 @@ export function clean(text: string, has: (ch: string) => boolean): string {
     // a stacked fraction too; punctuation right after it stays attached
     .replace(/[ \t]*\u0011([^\u0012\n]*)\u0012([^\u0013\n]*)\u0013[ \t]*/g, (_, a: string, b: string) => ` \u0011${a.trim().replace(/ +/g, '\u0010')}\u0012${b.trim().replace(/ +/g, '\u0010')}\u0013 `)
     .replace(/\u0013 (?=[.,;:!?)])/g, '\u0013')
+    // the mind map: one token on a line of its own, its texts cleaned like any other (after the rules above, which would split it)
+    .replace(/\u0019(\d+)\u001A/g, (_, i: string) => {
+      const t = maps[+i], bullet = pick('•', '-');
+      return encodeMap({ bullet, topic: node(t.topic), branches: t.branches.map((b) => ({ title: node(b.title), items: b.items.map((x) => `${bullet} ${node(x)}`) })) });
+    })
     .replace(/^ +| +$/gm, '')
     // room between topics: an empty line before every heading, and after a boxed result
     .replace(/\n+(?=\u0006)/g, '\n\n')

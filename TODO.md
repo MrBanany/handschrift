@@ -17,6 +17,13 @@ Stand: 6. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
 - [ ] **Ausfüllen in der App am iPad testen** (neu, nur mit Maus und simuliertem Stift getestet): Handschriften → „Hier mit dem Pencil ausfüllen“. Fühlt sich das Schreiben gut an? Verschiebt die Hand beim Schreiben die Seite? Ist „Größer“ zum Schreiben nötig?
 - [ ] **Pfeile & Symbole selbst schreiben**: Handschriften → „nur Pfeile & Symbole“ herunterladen (1 Seite), in GoodNotes ausfüllen, als PDF exportieren und mit **demselben Namen** importieren. Danach im Reiter Zeichen unter „Pfeile & Symbole“ prüfen, ob alles drin ist.
 
+## Erledigt am 13. November 2026
+
+- [x] **Unterschiedlich dicke Stifte**: Die echte Vorlage war mit verschiedenen Strichstärken ausgefüllt (x, y, X, Y, C dünn, h, l, m, n, Ü dick; gemessen 1,2 bis 3,5 px, Median 2,5). Jetzt misst `optimize()` die Strichstärke jedes Zeichens (`src/glyphstore/pen.ts`: Tintenfläche ÷ Länge der Mittellinie, Punkte zählen nicht) und gleicht sie beim Optimieren an den Median an (Kanten weich verschoben, Form bleibt). Der Regler „Strichstärke“ wirkt wie vorher obendrauf. Die Anpassung ist je Strich auf ±0,8 px begrenzt und wird zwischengespeichert, damit die Regler flüssig bleiben.
+- [x] **Punkte und Doppelpunkte**: Die Höhe stimmte (unterer Punkt auf der Linie), aber die Punkte waren sehr unterschiedlich groß (3 bis 14 px, manche hohle Ringe) und der Doppelpunkt klebte am Buchstaben davor. Jetzt kommen i-Punkte, Umlaut-Punkte, `.` `:` `!` auf etwa das 3,4-Fache der Strichstärke (hohle Punkte werden gefüllt, Haken und Schnörkel bleiben unberührt), und `:` `;` bekommen 1,5-fachen Abstand zum Vorgänger (`layout.ts`).
+- [x] **Schräge Zeilen**: Ursache war die absichtliche Schräglage pro Zeile in `layout.ts` (`slope`, Streuung 0,006 → bis zu 2 mm Anstieg über eine Zeile). Die Vorlage selbst wird in `register.ts` sauber entzerrt; Unterstreichung, Bruchstrich und Kasten folgen derselben Zeile. Jetzt höchstens 0,003 (typisch 0,3 mm über eine Zeile); die kleinen Schwankungen von Wort zu Wort bleiben.
+- Test mit der echten Vorlage: `samples/vorlage.pdf` im Dev-Server per `fetch` + `pagesOf` + `extractPage` laden, mit `saveMany` als Handschrift speichern und neu laden.
+
 ## Erledigt am 6. November 2026
 
 - [x] **Eingefügter Text ohne Zeilenumbrüche** (alles klebte zusammen: „BruchrechnungAddition … machen.Aufgabe 1“): Ein langer Text ganz ohne Umbruch wird dort getrennt, wo ein Wort, Satz oder eine Formel direkt in ein großgeschriebenes Wort läuft. Kurze Zeilen ohne Punkt und Formel („Chemie: Wichtige Ionen“) werden zu Überschriften (`unflatten` in clean.ts). Texte mit Umbrüchen bleiben unverändert.

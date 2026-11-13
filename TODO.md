@@ -17,6 +17,12 @@ Stand: 6. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
 - [ ] **Ausfüllen in der App am iPad testen** (neu, nur mit Maus und simuliertem Stift getestet): Handschriften → „Hier mit dem Pencil ausfüllen“. Fühlt sich das Schreiben gut an? Verschiebt die Hand beim Schreiben die Seite? Ist „Größer“ zum Schreiben nötig?
 - [ ] **Pfeile & Symbole selbst schreiben**: Handschriften → „nur Pfeile & Symbole“ herunterladen (1 Seite), in GoodNotes ausfüllen, als PDF exportieren und mit **demselben Namen** importieren. Danach im Reiter Zeichen unter „Pfeile & Symbole“ prüfen, ob alles drin ist.
 
+## Erledigt am 13. November 2026
+
+- [x] **KI-Vorgabe überarbeitet** (`src/prompt.ts`, 19 Zeilen): Antworten auf Deutsch, höchstens eine Lernzettel-Seite, keine Floskeln, Stichpunkte mit Unterpunkten, eine Formel pro Zeile, Endergebnis mit `\boxed{}`, Einheiten als `\text{}`, Chemie mit `\ce{…}` (auch Zustände) und `[[Name]]`/`skelett`/`voll`. Ausdrücklich verboten: Emojis, Tabellen, Codeblöcke, Bilder, Links, Kursiv. Kein Einkreisen mehr angeboten. Mit je einer Antwort zu Mathe, Physik, Chemie und Biologie in der Vorschau geprüft.
+  - Gefunden und behoben: Das deutsche Dezimalkomma `9{,}81` aus KI-Formeln wurde als `9(,)81` geschrieben und machte `\sqrt{\frac…}` und `\boxed{…}` kaputt (blieben als `sqrt(frac(…))` stehen). Auch `\%` → `%`.
+  - Bleibt: verschachtelte Brüche werden `1/23` (die Vorgabe sagt der KI, sie nicht zu verschachteln); `x_{1,2}` wird `x_(1,2)`.
+
 ## Erledigt am 6. November 2026
 
 - [x] **Eingefügter Text ohne Zeilenumbrüche** (alles klebte zusammen: „BruchrechnungAddition … machen.Aufgabe 1“): Ein langer Text ganz ohne Umbruch wird dort getrennt, wo ein Wort, Satz oder eine Formel direkt in ein großgeschriebenes Wort läuft. Kurze Zeilen ohne Punkt und Formel („Chemie: Wichtige Ionen“) werden zu Überschriften (`unflatten` in clean.ts). Texte mit Umbrüchen bleiben unverändert.

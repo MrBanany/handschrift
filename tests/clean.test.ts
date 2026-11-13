@@ -73,4 +73,43 @@ describe('clean pasted AI text', () => {
   it('writes German decimal commas {,} and \\% from AI answers', () => {
     expect(clean(String.raw`$g = 9{,}81\,\text{m/s}^2$, $20\%$`, () => true)).toBe('g = 9,81 m/s², 20%');
   });
+  it('keeps the empty lines around tables, quotes and code fences, and underlines the real header row', () => {
+    const [b, e] = EMPH, all = () => true;
+    expect(clean('Titel\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\nDanach', all)).toBe(`Titel\n\n${b}A – B${e}\n1 – 2\n\nDanach`);
+    expect(clean('Text\n\n> Zitat\n\nEnde', all)).toBe('Text\n\nZitat\n\nEnde');
+    expect(clean('Text\n\n```py\nx = 1\n```\n\nEnde', all)).toBe('Text\n\nx = 1\n\nEnde');
+  });
+  it('indents nested numbered items and nested task lists', () => {
+    const all = () => true;
+    expect(clean('1. Eins\n   1. Unter', all)).toBe('1. Eins\n\u00181. Unter');
+    expect(clean('- [ ] oben\n  - [x] unten', all)).toBe('• oben\n\u0018✓ unten');
+  });
+  it('keeps braces inside fractions and roots from blocking them, and does not raise x^{n-1} wrongly', () => {
+    const all = () => true;
+    expect(clean(String.raw`$\frac{x^{n+1}}{n+1}$`, all)).toBe('\u0011x^(n+1)\u0012n+1\u0013');
+    expect(clean(String.raw`$\sqrt{b^{2}-4ac}$, $\frac{x_{1}}{2}$`, all)).toBe('√(b²-4ac), \u0011x₁\u00122\u0013');
+    expect(clean('$x^{n-1}$, $2^{n+1}$, $x^{n}$, $e^{2x}$, $a^{-1}$, $x^{T}$', all)).toBe('x^(n-1), 2^(n+1), xⁿ, e²ˣ, a⁻¹, x^T');
+  });
+  it('writes binom, set symbols, spacing commands and style switches without leaving their names', () => {
+    const all = () => true;
+    expect(clean(String.raw`$\binom{n}{k}$, $A \cap B$, $x \in \mathbb{R}$, $\forall x$`, all)).toBe('(n über k), A ∩ B, x ∈ R, ∀ x');
+    expect(clean(String.raw`$\displaystyle a\quad b$, $\textbf{fett}$, $\frac12$, $\sqrt2$`, all)).toBe('a b, fett, \u00111\u00122\u0013, √2');
+    expect(clean(String.raw`$\xrightarrow{\text{Kat.}}$, $\overset{!}{=}$`, all)).toBe('→ (Kat.), =');
+  });
+  it('writes the limits of an evaluation bar in words and x_{1,2} with small digits', () => {
+    const all = () => true;
+    expect(clean(String.raw`$\left[x^3\right]_0^2$`, all)).toBe('[x³] von 0 bis 2');
+    expect(clean(String.raw`$\left.\frac{x^2}{2}\right|_0^1$`, all)).toBe('\u0011x²\u00122\u0013 | von 0 bis 1');
+    expect(clean('$x_{1,2}$', all)).toBe('x₁,₂');
+  });
+  it('reads NH4+ as ammonium (subscript) but Ca2+ as a charge, with state symbols behind it', () => {
+    const all = () => true;
+    expect(clean(String.raw`$\ce{NH4+ + Ca2+ + H3O+}$`, all)).toBe('NH₄⁺ + Ca²⁺ + H₃O⁺');
+    expect(clean(String.raw`$\ce{Cu^2+(aq)}$, $-\log[\ce{H3O+}]$`, all)).toBe('Cu²⁺(aq), -log[H₃O⁺]');
+  });
+  it('keeps dollar signs of prices, strips them around formulas (also around a box)', () => {
+    const all = () => true;
+    expect(clean('Kosten $5 und $10, aber $x$ ist Mathe', all)).toBe('Kosten $5 und $10, aber x ist Mathe');
+    expect(clean(String.raw`$\boxed{A = 10}$`, all)).toBe('\u0016A = 10\u0017');
+  });
 });

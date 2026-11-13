@@ -5,6 +5,9 @@ const SYMBOL: Record<string, string> = {
   infty: '∞', int: '∫', sum: 'Σ', pi: 'π', Delta: 'Δ', delta: 'δ', alpha: 'α', beta: 'β', gamma: 'γ', lambda: 'λ', mu: 'μ', rho: 'ρ', sigma: 'σ',
   Sigma: 'Σ', omega: 'ω', Omega: 'Ω', theta: 'θ', varphi: 'φ', phi: 'φ', degree: '°', circ: '°', percent: '%',
   to: '→', rightarrow: '→', longrightarrow: '→', leftarrow: '←', Rightarrow: '⇒', implies: '⇒', Leftrightarrow: '⇔', iff: '⇔',
+  cap: '∩', cup: '∪', subset: '⊂', in: '∈', forall: '∀', exists: '∃', equiv: '≡', perp: '⊥', emptyset: '∅', varnothing: '∅', epsilon: 'ε', varepsilon: 'ε', tau: 'τ', eta: 'η', nu: 'ν', kappa: 'κ',
+  displaystyle: '', textstyle: '', limits: '', nolimits: '', big: '', Big: '', bigl: '', bigr: '', Bigl: '', Bigr: '',
+  prime: "'", quad: ' ', qquad: ' ', mid: '|', ll: '<<', gg: '>>', propto: '~', land: '∧', lor: '∨', neg: '¬', cdotp: '·', ast: '*', colon: ':',
   leftrightarrow: '↔', rightleftharpoons: '⇌', uparrow: '↑', downarrow: '↓', cdots: '...', ldots: '...', dots: '...',
 };
 
@@ -36,8 +39,13 @@ export function chem(word: string): string {
 
 /** mhchem species with charge: "Na+", "Ca2+", "SO4^2-", "SO4^{2-}" -> formula with ^{charge}. */
 function ion(tok: string): string {
+  const st = /\((?:s|l|g|aq)\)$/.exec(tok)?.[0]; // Cu^2+(aq): the state goes behind the charge
+  if (st && /[+-]$/.test(tok.slice(0, -st.length))) return ion(tok.slice(0, -st.length)) + st;
   const m = /^(.+)\^\{?(\d*[+-])\}?$/.exec(tok) ?? /^(.*[A-Za-z)\]])(\d*[+-])$/.exec(tok);
-  return m ? `${chem(m[1])}^{${m[2]}}` : chem(tok);
+  if (!m) return chem(tok);
+  // without a caret, digits after a formula of several atoms belong to it: NH4+ (one +), but Ca2+ (charge 2+)
+  const [, f, c] = m, sub = !tok.includes('^') && /^\d/.test(c) && !/^[A-Z][a-z]?$/.test(f);
+  return sub ? `${chem(f + c.slice(0, -1))}^{${c.slice(-1)}}` : `${chem(f)}^{${c}}`;
 }
 
 export function latex(text: string): string {
@@ -51,14 +59,21 @@ export function latex(text: string): string {
     .replace(/[½¼¾]/g, (c) => FRAC[0] + '131'['½¼¾'.indexOf(c)] + FRAC[1] + '244'['½¼¾'.indexOf(c)] + FRAC[2])
     .replace(/∑/g, 'Σ').replace(/∆/g, 'Δ')
     .replace(/\\ce\{((?:[^{}]|\{[^{}]*\})*)\}/g, (_, f: string) => f.replace(/<=>/g, '⇌').replace(/->\[([^\]]*)\]/g, '→ ($1)').replace(/->/g, '→').split(/(\s+)/).map(ion).join(''))
-    .replace(/\\(?:text|mathrm|mathbf|mathit|operatorname|vec|overline|bar|hat|tilde|mathbb|mathcal|boldsymbol|underline|dot)\{([^{}]*)\}/g, '$1')
+    .replace(/\\(?:frac|dfrac|tfrac)(\d)(\d)/g, '\\frac{$1}{$2}').replace(/\\sqrt(\d)/g, '\\sqrt{$1}') // \frac12, \sqrt2
+    .replace(/\\(?:overset|underset)\{[^{}]*\}\{([^{}]*)\}/g, '$1')
+    .replace(/\\underbrace\{([^{}]*)\}_\{[^{}]*\}/g, '$1')
+    .replace(/\\(?:text|textbf|textit|textrm|textsf|mathrm|mathbf|mathit|mathsf|operatorname|vec|overline|bar|hat|widehat|tilde|mathbb|mathcal|boldsymbol|underline|dot|ddot|color)\{([^{}]*)\}/g, '$1')
+    .replace(/\\xrightarrow\{([^{}]*)\}/g, '→ ($1)')
     // limits written out in words: a writer puts them under the sign, the app on the line
     .replace(/\\lim_\{([^{}]*)\}/g, (_, a: string) => `lim(${a})`)
     .replace(/\\(sum|int)_\{?([^{}\s^]*)\}?\^\{?([^{}\s]*)\}?/g, (_, f: string, a: string, b: string) => (f === 'sum' ? `Σ(${a} bis ${b})` :`∫ von ${a} bis ${b}: `))
     .replace(/\\sqrt\[(\d)\]\{([^{}]*)\}/g, (_, n: string, a: string) => '⁰¹²³⁴⁵⁶⁷⁸⁹'[+n] + `√${group(a)}`)
     .replace(/\^\{?\\circ\}?/g, '°') // 90^\circ
+    .replace(/\\right([\]|])_\{?([^{}\s^]+)\}?\^\{?([^{}\s]+)\}?/g, '\\right$1 von $2 bis $3') // [F(x)]_0^2: limits of evaluation in words
+    .replace(/\\left\./g, '')
     .replace(/\\(?:left|right)(?![A-Za-z])/g, '') // \left( … \right), not \rightarrow
     .replace(/\\[,;:! ]/g, ' ');
+  t = t.replace(/([\^_])\{([^{}]*)\}/g, '$1\u001b$2\u001c'); // x^{n+1} inside a fraction or root must not block it
   // Innermost first, so nested fractions and roots come out right.
   for (let prev = ''; prev !== t;) {
     prev = t;
@@ -68,8 +83,11 @@ export function latex(text: string): string {
       .replace(/\\boxed\{([^{}]*)\}/g, (_, a: string) => ` ${BOX[0]}${a.trim()}${BOX[1]} `);
   }
   return t
+    .replace(/\u001b/g, '{').replace(/\u001c/g, '}')
+    .replace(/\\binom\{([^{}]*)\}\{([^{}]*)\}/g, '($1 über $2)')
     .replace(/\\([A-Za-z]+)/g, (m, name: string) => SYMBOL[name] ?? name) // \sin -> sin
-    .replace(/\^\{([^{}0-9][^{}]*)\}/g, '^$1')
+    // x^{n-1}: only plain digits/letters and charges can be raised; anything else keeps its brackets as x^(n-1)
+    .replace(/\^\{([^{}]+)\}/g, (m, x: string) => (/^[0-9a-z]{2,}$|^\d+$|^\d*[+-]$|^-\d+$/.test(x) ? m : /^[A-Za-z]$/.test(x) ? '^' + x : `^(${x})`))
     .replace(/_\{([^{}0-9,][^{},]*)\}/g, '_$1') // x_{i,j} keeps its brackets
     .replace(/(^|[\s(])(\d*(?:[A-Z][a-z]?\d*|\(|\)\d*)+(?:\((?:s|l|g|aq)\))?)(?=[\s.,;:)+]|$)/gm, (m, pre: string, f: string) => pre + chem(f));
 }

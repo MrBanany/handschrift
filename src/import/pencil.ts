@@ -71,7 +71,7 @@ export function setupPencil(onImport: (pages: AsyncIterable<{ img: ImageData }>)
     overlay.hidden = false;
     fit();
     void show(page);
-    toast('Mit Stift oder Finger schreiben. Verschieben: mit dem Pencil ein Finger, sonst zwei. „Kästchen-Ansicht“ zeigt die Kästchen groß.');
+    toast('Mit Stift oder Finger schreiben. Verschieben: mit dem Pencil ein Finger, sonst zwei. „Kästchen groß“ zeigt die Kästchen vergrößert.');
   };
   $('pencilClose').onclick = () => { overlay.hidden = true; };
   const flip = async (p: number) => { await show(p); if (zoom > 1) goTo(spot = 0); else scroller.scrollTop = 0; };
@@ -92,7 +92,7 @@ export function setupPencil(onImport: (pages: AsyncIterable<{ img: ImageData }>)
   };
   const setZoom = (z: number) => {
     zoom = z;
-    $('pencilZoom').textContent = z === 1 ? 'Kästchen-Ansicht' : 'Ganze Seite';
+    $('pencilZoom').textContent = z === 1 ? 'Kästchen groß' : 'Ganze Seite';
     $('pencilNextBox').hidden = z === 1;
     fit();
     if (z > 1) goTo(spot = 0);

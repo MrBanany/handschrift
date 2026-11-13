@@ -1,5 +1,5 @@
 import './style.css';
-import { DEFAULT_SET, deleteSet, exportBackup, importBackup, listSets, loadSet, remove, saveMany } from './glyphstore/db';
+import { DEFAULT_SET, deleteSet, exportAll, exportBackup, freeName, importBackup, listSets, loadSet, markDirty, markSaved, remove, renameSet, saveMany, staleSets } from './glyphstore/db';
 import { DEFAULT_LETTER_GAP, merge, optimize, reviewKeys, type Decision, type Tuned } from './glyphstore/optimize';
 import { SAMPLE_SET, buildSampleSet } from './glyphstore/sample';
 import { symbolVariants } from './glyphstore/symbols';
@@ -104,7 +104,14 @@ function renderSets() {
     }
     else li.append(button('Verwenden', () => useSet(name).then(() => show('write'))));
     li.append(
-      button('Backup speichern', async () => download(await exportBackup(name), `${name}.handschrift.json`)),
+      button('Backup speichern', () => backup([name])),
+      button('Umbenennen', async () => {
+        const to = prompt(`Neuer Name für „${name}“:`, name)?.trim();
+        if (!to || to === name) return;
+        try { await renameSet(name, to); } catch (e) { return toast((e as Error).message); }
+        sets = await listSets();
+        await useSet(name === active ? to : active);
+      }),
       button('Löschen', async () => {
         if (!confirm(`„${name}“ von diesem Gerät löschen? Vorher sichern, falls du sie noch brauchst.`)) return;
         await deleteSet(name);
@@ -121,6 +128,18 @@ function renderSets() {
     nameField.dataset.auto = '1';
   }
 }
+
+/** Backup file(s) via the share sheet (Dateien, iCloud, AirDrop, Mail …); a plain download where sharing isn't available. */
+async function backup(names: string[]) {
+  if (!names.length) return toast('Noch keine Handschrift zum Sichern.');
+  try {
+    const blob = names.length === 1 ? await exportBackup(names[0]) : await exportAll(names);
+    await shareFiles([new File([blob], names.length === 1 ? `${names[0]}.handschrift.json` : 'Alle-Handschriften.handschrift.json', { type: 'application/json' })]);
+    markSaved(names);
+    $('install').hidden = true;
+  } catch (e) { if ((e as Error).name !== 'AbortError') toast(`Sichern fehlgeschlagen: ${(e as Error).message}`); }
+}
+$('backupAll').onclick = () => backup(sets.filter((n) => n !== SAMPLE_SET));
 
 /** Joined-up writing for the active handwriting: as ticked, else guessed from the pairs (mostly joined → on). */
 function cursive() {
@@ -488,6 +507,7 @@ $<HTMLInputElement>('notes').onchange = async (ev) => {
   found.pages = page;
   style = found;
   localStorage.setItem(`style:${active}`, JSON.stringify(found));
+  markDirty(active);
   renderCompare(first, found);
   applyStyle(found);
   renderStyle();
@@ -542,10 +562,14 @@ $<HTMLInputElement>('restore').onchange = async (ev) => {
   input.value = '';
   if (!f) return;
   try {
-    const { set, count } = await importBackup(f);
+    // a name already in use: ask for another one ("Name (2)" suggested); the same name merges into the existing handwriting
+    const { sets: got, count } = await importBackup(f, (name, existing) => existing.includes(name)
+      ? prompt(`„${name}“ gibt es auf diesem Gerät schon. Unter welchem Namen laden?
+(Derselbe Name ergänzt die vorhandene Handschrift.)`, freeName(name, existing)) : name);
     sets = await listSets();
-    await useSet(set);
-    toast(`„${set}“ geladen (${count} Proben).`);
+    if (!got.length) return;
+    await useSet(got[0]);
+    toast(got.length === 1 ? `„${got[0]}“ geladen (${count} Proben).` : `${got.length} Handschriften geladen.`);
   } catch (e) { toast((e as Error).message); }
 };
 
@@ -713,6 +737,7 @@ function decide(d: Decision, keys = [rKeys[rAt]]) {
   const all = decisions();
   for (const k of keys) all[k] = d;
   localStorage.setItem(`review:${active}`, JSON.stringify(all));
+  markDirty(active);
   rAt += keys.length;
   renderReview();
 }
@@ -726,6 +751,7 @@ function acceptOpen() {
   const all = decisions(), open = reviewKeys(raw, strong).filter((k) => !all[k]);
   for (const k of open) all[k] = 'accept';
   localStorage.setItem(`review:${active}`, JSON.stringify(all));
+  markDirty(active);
   return open.length;
 }
 
@@ -846,12 +872,23 @@ if (!standalone && !localStorage.getItem('installHidden')) {
 $('installClose').onclick = () => { localStorage.setItem('installHidden', '1'); $('install').hidden = true; };
 
 navigator.storage?.persist?.();
+// Safari may wipe a site's storage after a week of not using it: nudge towards a backup once something has been unsaved for 3 days.
+function backupReminder() {
+  const stale = staleSets(3).filter((n) => n !== SAMPLE_SET && sets.includes(n));
+  if (!stale.length) return;
+  $('installText').textContent = `Seit Tagen nicht gesichert: ${stale.join(', ')}. Sichere sie im Teilen-Menü in „Dateien“ oder iCloud – falls der Speicher einmal gelöscht wird.`;
+  $('installBtn').textContent = 'Jetzt sichern';
+  $('installBtn').hidden = false;
+  $('installBtn').onclick = () => backup(stale);
+  $('installClose').onclick = () => { $('install').hidden = true; };
+  $('install').hidden = false;
+}
 if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('./sw.js');
 listSets().then((s) => {
   sets = s;
   if (!sets.length && !localStorage.getItem('welcomed')) $('welcome').hidden = false; // first start
   return useSet(sets.includes(active) ? active : sets[0] ?? '');
-});
+}).then(backupReminder);
 const welcomed = () => { localStorage.setItem('welcomed', '1'); $('welcome').hidden = true; };
 $('welcomeOwn').onclick = () => { welcomed(); show('manage'); $('pencilOpen').click(); };
 $('welcomeSample').onclick = () => { welcomed(); void useSet(SAMPLE_SET); };

@@ -93,8 +93,9 @@
 
       <div class="card">
         <h2>Backup</h2>
-        <p class="muted">Deine Handschriften liegen nur im Speicher dieser App auf diesem Gerät. „Backup speichern“ (bei jeder Handschrift oben) lädt sie als Datei herunter – zum Übertragen auf ein anderes Gerät oder falls der Speicher einmal gelöscht wird. Hier lädst du so eine Datei wieder.</p>
-        <label class="button">Backup laden<input id="restore" type="file" accept=".json,application/json" hidden /></label>
+        <p class="muted">Deine Handschriften liegen nur im Speicher dieser App auf diesem Gerät. „Backup speichern“ (bei jeder Handschrift oben) öffnet das Teilen-Menü: am iPad „In Dateien sichern“ (oder iCloud Drive), zum Weitergeben an jemand anderen z. B. AirDrop oder Mail. Wer die Datei hier lädt, bekommt die Handschrift samt Einstellungen unter eigenem Namen.</p>
+        <div class="row"><button id="backupAll">Alle Handschriften sichern</button>
+        <label class="button">Backup laden<input id="restore" type="file" accept=".json,application/json" hidden /></label></div>
       </div>
     </section>
 

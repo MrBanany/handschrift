@@ -17,6 +17,16 @@ Stand: 6. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
 - [ ] **Ausfüllen in der App am iPad testen** (neu, nur mit Maus und simuliertem Stift getestet): Handschriften → „Hier mit dem Pencil ausfüllen“. Fühlt sich das Schreiben gut an? Verschiebt die Hand beim Schreiben die Seite? Ist „Größer“ zum Schreiben nötig?
 - [ ] **Pfeile & Symbole selbst schreiben**: Handschriften → „nur Pfeile & Symbole“ herunterladen (1 Seite), in GoodNotes ausfüllen, als PDF exportieren und mit **demselben Namen** importieren. Danach im Reiter Zeichen unter „Pfeile & Symbole“ prüfen, ob alles drin ist.
 
+## Erledigt am 13. November 2026
+
+- [x] **Mehrere Personen & sicheres Speichern** (`src/glyphstore/db.ts`, Test `tests/backup.test.ts`):
+  - **Backup enthält jetzt die Einstellungen** der Handschrift (gelernter Schreibstil, Schreibschrift-Haken, Prüf-Entscheidungen). Alte Backup-Dateien laden weiter. Nicht enthalten: Farben und Papier-Einstellungen (gelten für die ganze App, nicht pro Handschrift).
+  - **„Alle Handschriften sichern“** (Reiter Handschriften → Backup): eine Datei für alle. Backups gehen übers Teilen-Menü (Dateien/iCloud/AirDrop), ohne Teilen-Menü als Download.
+  - **Laden unter eigenem Namen**: Gibt es den Namen schon, fragt die App nach einem anderen („Name (2)“ vorgeschlagen; gleicher Name = ergänzt die vorhandene).
+  - **Umbenennen** neu (Einstellungen ziehen mit um). **Löschen** räumt jetzt auch die Einstellungen weg (vorher blieben sie liegen und eine neue Handschrift gleichen Namens erbte sie).
+  - **Erinnerung**: Ist eine Handschrift seit 3 Tagen geändert und nicht gesichert, erscheint oben auf „Schreiben“ ein Hinweis mit „Jetzt sichern“. (Die Anfrage `storage.persist()` gab es schon.)
+  - Offen am iPad testen: Teilen-Menü mit der .json-Datei (ggf. nur Download), „In Dateien sichern“, Datei dort wieder laden.
+
 ## Erledigt am 6. November 2026
 
 - [x] **Eingefügter Text ohne Zeilenumbrüche** (alles klebte zusammen: „BruchrechnungAddition … machen.Aufgabe 1“): Ein langer Text ganz ohne Umbruch wird dort getrennt, wo ein Wort, Satz oder eine Formel direkt in ein großgeschriebenes Wort läuft. Kurze Zeilen ohne Punkt und Formel („Chemie: Wichtige Ionen“) werden zu Überschriften (`unflatten` in clean.ts). Texte mit Umbrüchen bleiben unverändert.

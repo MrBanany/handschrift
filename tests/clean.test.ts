@@ -73,4 +73,7 @@ describe('clean pasted AI text', () => {
   it('writes German decimal commas {,} and \\% from AI answers', () => {
     expect(clean(String.raw`$g = 9{,}81\,\text{m/s}^2$, $20\%$`, () => true)).toBe('g = 9,81 m/s², 20%');
   });
+  it('keeps Geg./Ges. and writes |:2 notes with room after the bar', () => {
+    expect(clean(String.raw`Geg.: $2x = 8$ |:2 und $x \quad y$ |-3`, () => true)).toBe('Geg.: 2x = 8 | :2 und x y | -3');
+  });
 });

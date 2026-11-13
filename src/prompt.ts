@@ -7,10 +7,14 @@ STIL
 - Überschriften sparsam mit "## ". **Fett** für Fachbegriffe, ==so== für ganz Wichtiges. Pfeile → ⇒ ⇔, Haken ✓ ✗.
 - Nie: Emojis, Tabellen, Codeblöcke, Bilder, Links, Kursivschrift.
 
-MATHE (LaTeX in $...$, eine Formel pro Zeile)
+MATHE (wie im Unterricht, LaTeX in $...$, eine Umformung pro Zeile)
+- Rechenaufgaben: "Geg.: …", "Ges.: …", dann die Rechnung in kurzen Schritten wie ein Schüler (keine Erklär-Prosa), zum Schluss "A: …" mit Antwortsatz und/oder $\\boxed{x = 4}$.
+- Umformungen mit kurzer Notiz dahinter, so (je Zeile eine):
+  $2x + 3 = 11$ |-3
+  $2x = 8$ |:2
+  $x = 4$
 - $\\frac{a}{b}$, $\\sqrt{x}$, $x^2$, $x_1$, $10^{-3}$, $\\cdot$, $\\pm$, $\\neq$, $\\leq$, $\\geq$, $\\approx$, $90^\\circ$, $\\pi$, $\\Delta$, $\\alpha$.
 - Brüche nicht verschachteln. Einheiten als Text: $v = 5\\,\\text{m/s}$.
-- Das Endergebnis immer einrahmen: $\\boxed{x = 4}$.
 
 CHEMIE
 - Formeln und Reaktionen mit \\ce: $\\ce{2H2 + O2 -> 2H2O}$, Gleichgewicht <=>, Ionen $\\ce{SO4^2-}$, Zustände $\\ce{H2O(l)}$.

@@ -228,10 +228,11 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
         const tuck = s.cursive ? opticalShift(prev!.g, prev!.m, g, base) : null;
         if (tuck !== null) tx = Math.max(tx, tuck - 0.1 * xh);
       } else {
-        const punct = !/\p{L}|\p{N}/u.test(first);
-        const gap = prev ? Math.max(0.04 * xh, (0.16 - 0.06 * h) * xh * (punct ? 0.6 : 1) * (1 + gauss() * 0.25 * sig)) : 0;
+        // full stops and commas hug the word; a colon keeps a little air (its dots would touch the letter before it)
+        const pf = /^[:;]/.test(first) ? 1.5 : /\p{L}|\p{N}/u.test(first) ? 1 : 0.6;
+        const gap = prev ? Math.max(0.04 * xh, (0.16 - 0.06 * h) * xh * pf * (1 + gauss() * 0.25 * sig)) : 0;
         const tuck = prev ? opticalShift(prev.g, prev.m, g, base) : null;
-        const own = prev && s.letterGap != null ? Math.max(0.03 * xh, s.letterGap * (1 - 0.3 * h) * xh * (punct ? 0.6 : 1) * (1 + gauss() * 0.2 * sig)) : gap;
+        const own = prev && s.letterGap != null ? Math.max(0.03 * xh, s.letterGap * (1 - 0.3 * h) * xh * pf * (1 + gauss() * 0.2 * sig)) : gap;
         tx = tuck === null ? cursor + gap - left : Math.max(tuck + own, cursor - left - 0.6 * xh);
       }
       const m: Mat = [a, b, c, d, base[4] + tx, base[5] + walk];
@@ -311,7 +312,7 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
     marginWalk = 0.6 * marginWalk + gauss() * 0.7 * sig;
     lineStart = lineX = Math.max(s.margin - 1, s.margin + 0.6 + marginWalk);
     rightEdge = s.pageW - s.margin - Math.abs(gauss()) * 2.5 * sig;
-    slope = gauss() * 0.006 * sig;
+    slope = Math.max(-0.003, Math.min(0.003, gauss() * 0.0012 * sig)); // a line may wander, but never visibly lean (0.006 leaned ~1 mm over a line)
     amp = 0.06 * xh * sig * rand();
     phase = rand() * 2 * Math.PI;
     lambda = 60 + 60 * rand();
@@ -515,8 +516,13 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
       const roomAfter = token.includes(CIRC[1]) || token.includes(BOX[1]) ? 0.5 * xh : 0;
       if (!word) { close(); lineX += roomAfter; continue; }
       if ((token.includes(CIRC[0]) || token.includes(BOX[0])) && lineX > lineStart) lineX += 0.5 * xh;
+      const first = lineX === lineStart + hang;
+      // no two bullets look alike: each is set a little off the line, a bit bigger or smaller and higher or lower
+      const bullet = first && /^(?:[•\-–*]|\d{1,2}[.)])$/.test(word);
+      if (bullet) lineX += (rand() - 0.5) * 1.6;
       const fr = /^\u0011([^\u0012]*)\u0012([^\u0013]*)\u0013([^\u0011]*)$/.exec(word);
-      const wd = fr ? layoutFrac(fr[1], fr[2], fr[3], size) : layoutWord(flatFrac(word), size);
+      const wd = fr ? layoutFrac(fr[1], fr[2], fr[3], size) : layoutWord(flatFrac(word), bullet ? size * (0.85 + 0.3 * rand()) : size);
+      const lift = bullet ? (rand() - 0.5) * 0.2 * xh : 0;
       // lineX is where the next word's ink starts
       if (lineX > lineStart && lineX - wd.inkL + wd.inkR > rightEdge) wrap();
       const ox = lineX - wd.inkL;
@@ -528,7 +534,7 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
       for (const it of wd.items) {
         const m: Mat = [...it.m];
         m[4] += ox;
-        m[5] += y + drift(m[4]);
+        m[5] += y + drift(m[4]) + lift;
         if (it.join && prevM && prevG && it.from && it.to) {
           page!.connectors.push(makeConnector(
             tf(prevM, it.from.x, it.from.y), dir(prevM, it.from),
@@ -549,10 +555,9 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
       }
       close();
       const sentenceEnd = /[.!?]["“”»)]*$/u.test(word) ? 0.3 * xh : 0; // people leave a bit more room after a full stop
-      const first = lineX === lineStart + hang;
       lineX = ox + wd.inkR + sentenceEnd + roomAfter +Math.max(0.6 * xh, ((s.wordGap ?? DEFAULT_WORD_GAP) - 0.15 * h) * xh * size * (1 + gauss() * 0.1 * sig));
       // a list item's wrapped lines start under its text, not under the bullet
-      if (first && /^(?:[•\-–*]|\d{1,2}[.)])$/.test(word)) hang = lineX - lineStart;
+      if (bullet) hang = lineX - lineStart;
     }
   });
   closeUnderline(); closeMark(); closeRing(); accentLine();

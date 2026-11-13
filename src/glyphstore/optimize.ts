@@ -1,4 +1,5 @@
 import { MM, XH } from '../template/layout';
+import { penWidth, widen } from './pen';
 import type { Variant } from './types';
 
 const xhPx = XH * MM;
@@ -27,6 +28,38 @@ export function pairGap(v: Variant): number {
     if (run > best && start > 0.2 * v.w && x < 0.8 * v.w) best = run;
   }
   return best;
+}
+
+// Widening is the slow part and the sliders re-run optimize(): remember results per glyph, delta and dot size (rounded).
+const widened = new WeakMap<Uint8Array, Map<string, Uint8Array>>();
+function widenCached(v: Variant, delta: number, dot: number): Uint8Array {
+  const key = `${Math.round(delta * 20)}/${Math.round(dot * 4)}`;
+  let m = widened.get(v.alpha);
+  if (!m) widened.set(v.alpha, m = new Map());
+  let a = m.get(key);
+  if (!a) m.set(key, a = widen(v, Math.round(delta * 20) / 20, Math.round(dot * 4) / 4).alpha);
+  return a;
+}
+
+/**
+ * A page filled in with a thick pen and another with a thin one would look bold in one word and faint in the next:
+ * every glyph's strokes are made as wide as the writer's median (as drawn on the page, after the size change). amount 0..1.
+ */
+function evenPen(vs: Variant[], amount: number): Variant[] {
+  const eff = (v: Variant) => penWidth(v) * (v.scale ?? 1);
+  const all = vs.filter((v) => penWidth(v) > 0).map(eff).sort((a, b) => a - b);
+  if (all.length < 10) return vs;
+  const target = all[all.length >> 1];
+  return vs.map((v) => {
+    const w = penWidth(v), k = v.scale ?? 1;
+    const goal = target / k, delta = w ? Math.max(-0.8, Math.min(0.8, ((goal - w) / 2) * amount)) : 0;
+    const d = Math.abs(delta) < 0.05 * w ? 0 : delta;
+    const f = w ? (w + 2 * d) / w : 1;
+    return {
+      ...v, alpha: widenCached(v, d, 3.4 * goal), strokeW: v.strokeW * f, // dots about 3.4 pen widths across
+      entry: v.entry && { ...v.entry, w: v.entry.w * f }, exit: v.exit && { ...v.exit, w: v.exit.w * f },
+    };
+  });
 }
 
 export interface Tuned { variants: Variant[]; excluded: Set<string>; letterGap: number | null }
@@ -86,8 +119,9 @@ export function optimize(vs: Variant[], strength = 1): Tuned {
     for (const [src, g] of gapOf) if (g > maxGap) excluded.add(src);
   }
   const learned = gaps.length >= 5 ? Math.min(0.6, Math.max(0.05, median(gaps) / xhPx)) : null;
+  const sized = fixed.filter((v) => !excluded.has(v.src)).map((v) => (scaled.has(v.src) ? { ...v, scale: scaled.get(v.src) } : v));
   return {
-    variants: fixed.filter((v) => !excluded.has(v.src)).map((v) => (scaled.has(v.src) ? { ...v, scale: scaled.get(v.src) } : v)),
+    variants: evenPen(sized, Math.min(1, 0.5 + s)),
     excluded,
     letterGap: learned === null ? null : DEFAULT_LETTER_GAP + (learned - DEFAULT_LETTER_GAP) * full,
   };

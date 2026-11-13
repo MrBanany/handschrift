@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { optimize, pairGap } from '../src/glyphstore/optimize';
+import { penWidth } from '../src/glyphstore/pen';
 import type { Variant } from '../src/glyphstore/types';
 
 /** Variant with solid ink rectangles [x0, y0, x1, y1] (px), baseline at row 100. */
@@ -74,5 +75,22 @@ describe('review merge', () => {
     expect(m.variants.find((x) => x.src === 'i1')!.baseline).toBe(84);
     expect(m.variants.find((x) => x.src === 'n1')!.baseline).toBe(100);
     expect(merge(raw, auto, strong, {}).variants.find((x) => x.src === 'i1')!.baseline).toBe(92);
+  });
+});
+
+describe('pen width', () => {
+  it('evens out thick and thin strokes and sets dots to a sensible size', () => {
+    // vertical bars 3, 4 and 6 px wide (a thin pen, the median and a fat one), plus a full stop written as a 14 x 10 px blob
+    const bars = [3, 4, 6].map((w, i) => v('l', `l${i}`, [[10, 20, 10 + w, 100]]));
+    const stop = v('.', 'p1', [[10, 90, 24, 100]]);
+    const t = optimize([...bars, ...['a', 'e', 'n', 'o', 'u', 'm', 'r', 'c'].map((k) => v(k, k, [[10, 60, 14, 100], [26, 60, 30, 100]])), stop], 1);
+    const widths = t.variants.filter((x) => x.key === 'l').map(penWidth);
+    expect(Math.max(...widths) - Math.min(...widths)).toBeLessThan(0.6);
+    const dot = t.variants.find((x) => x.key === '.')!;
+    let ink = 0;
+    for (const a of dot.alpha) ink += a / 255;
+    expect(Math.abs(Math.sqrt((4 * ink) / Math.PI) - 3.4 * 4.57)).toBeLessThan(3); // the blob is about 3.4 pen widths across
+    // off: untouched
+    expect(optimize(bars, 0).variants[0].alpha).toBe(bars[0].alpha);
   });
 });

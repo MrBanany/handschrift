@@ -112,4 +112,7 @@ describe('clean pasted AI text', () => {
     expect(clean('Kosten $5 und $10, aber $x$ ist Mathe', all)).toBe('Kosten $5 und $10, aber x ist Mathe');
     expect(clean(String.raw`$\boxed{A = 10}$`, all)).toBe('\u0016A = 10\u0017');
   });
+  it('keeps Geg./Ges. and writes |:2 notes with room after the bar', () => {
+    expect(clean(String.raw`Geg.: $2x = 8$ |:2 und $x \quad y$ |-3`, () => true)).toBe('Geg.: 2x = 8 | :2 und x y | -3');
+  });
 });

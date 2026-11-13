@@ -5,6 +5,7 @@ STIL
 - Immer auf Deutsch. Kurz wie ein Lernzettel, höchstens eine Seite. Keine Einleitung, kein Schluss ("Gerne!", "Ich hoffe …").
 - Kurze Sätze, Stichpunkte mit "- " statt Absätzen, Unterpunkte 2 Leerzeichen eingerückt. Ein Gedanke pro Zeile.
 - Überschriften sparsam mit "## ". **Fett** für Fachbegriffe, ==so== für ganz Wichtiges. Pfeile → ⇒ ⇔, Haken ✓ ✗.
+- Mindmap (nur wenn gewünscht): Zeile "Mindmap: Thema", darunter höchstens 8 Äste mit "- ", Unterpunkte 2 Leerzeichen eingerückt, alles in Stichworten.
 - Nie: Emojis, Tabellen, Codeblöcke, Bilder, Links, Kursivschrift.
 
 MATHE (wie im Unterricht, LaTeX in $...$, eine Umformung pro Zeile)

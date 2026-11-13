@@ -3,6 +3,7 @@ import type { Anchor, GlyphMeta } from '../glyphstore/types';
 import { MM, XH } from '../template/layout';
 import { CIRC, EMPH, HEAD, INDENT, MARK, STRUCT } from './clean';
 import { BOX, flatFrac } from './latex';
+import { MAP, decodeMap, mapAsList, planMindmap, type MapPlan } from './mindmap';
 import { molecule, type Molecule } from './structure';
 
 /** Gap between words (x-heights, ink to ink) when none was learned. */
@@ -484,9 +485,61 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
     return [tok.slice(0, lo) + '-', ...fit(tok.slice(lo))];
   };
 
+  // Mind map (mindmap.ts plans it, this writes it): texts on line rows, the topic boxed, pen strokes out to the branches.
+  const plans = new Map<string, MapPlan | null>();
+  const wordGapMm = (size: number) => Math.max(0.6 * xh, (s.wordGap ?? DEFAULT_WORD_GAP) * xh * size);
+  const wordW = (w: string, size: number) => { const d = layoutWord(flatFrac(strip(w)), size); return d.inkR - d.inkL; };
+  const mapPlan = (token: string): MapPlan | null => {
+    if (plans.has(token)) return plans.get(token)!;
+    const t = decodeMap(token);
+    const words = (text: string) => text.split(' ').filter(Boolean);
+    // a little generous: the real pass picks other letters and joins than the measuring one
+    const measure = (text: string, size: number) => 1.08 * (words(text).reduce((a, w) => a + wordW(w, size), 0) + 1.1 * Math.max(0, words(text).length - 1) * wordGapMm(size));
+    const plan = t && planMindmap(t, { width: s.pageW - 2 * s.margin, xh, maxRows: Math.floor((s.pageH - 2 * s.margin) / s.lineH) - 2, wordGap: s.wordGap ?? DEFAULT_WORD_GAP, measure });
+    plans.set(token, plan);
+    return plan;
+  };
+  /** Lines of the text, a mind map that does not fit on a page as an indented list instead. */
+  const expandMaps = (src: string) => src.split('\n').flatMap((line) => {
+    if (!line.startsWith(MAP[0])) return [line];
+    const t = decodeMap(line);
+    return t && !mapPlan(line) ? mapAsList(t, HEAD, EMPH, INDENT) : t ? [line] : [];
+  });
+  function placeMap(p: MapPlan) {
+    // not enough room below on this page: start on the next one (unless we are at the top already)
+    if (y + p.rows * s.lineH > s.pageH - s.margin && y > s.margin + 1.5 * s.lineH) { lineDown = 0; y = s.pageH; newLine(); }
+    const X = s.margin, Y = (row: number) => y + row * s.lineH;
+    for (const t of p.texts) {
+      let x = X + t.x;
+      for (const w of t.text.split(' ').filter(Boolean)) {
+        const wd = layoutWord(flatFrac(strip(w)), t.size), ox = x - wd.inkL, yb = Y(t.row);
+        let prevM: Mat | null = null;
+        for (const it of wd.items) {
+          const m: Mat = [...it.m];
+          m[4] += ox; m[5] += yb;
+          if (it.join && prevM && it.from && it.to) page!.connectors.push(makeConnector(tf(prevM, it.from.x, it.from.y), dir(prevM, it.from), tf(m, it.to.x, it.to.y), dir(m, it.to), it.from.w * scaleOf(prevM), it.to.w * scaleOf(m), xh));
+          page!.glyphs.push({ g: it.g, m });
+          prevM = m;
+        }
+        for (const ms of wd.missing) page!.missing.push({ ...ms, x: ms.x + ox, y: ms.y + yb });
+        x = ox + wd.inkR + wordGapMm(t.size) * (1 + gauss() * 0.1 * sig);
+      }
+    }
+    for (const u of p.underlines) stroke(u.x0 + X, Y(u.row) + 0.3 * xh, u.x1 + X, Y(u.row) + 0.3 * xh);
+    const { box } = p, k = box.size, top = Y(box.row0) - 2.1 * xh * k, bot = Y(box.row1) + 0.8 * xh * k, l = X + box.x0, r = X + box.x1, o = 0.15 * xh;
+    stroke(l - o, top, r + o, top); stroke(r, top - o, r, bot + o); stroke(r + o, bot, l - o, bot); stroke(l, bot + o, l, top - o);
+    for (const [x0, r0, x1, r1] of p.links) {
+      const j = () => gauss() * 0.03 * xh, ax = X + x0 + j(), ay = Y(r0) - 0.5 * xh + j(), bx = X + x1 + j(), by = Y(r1) - 0.55 * xh + j(), dx = bx - ax;
+      page!.connectors.push({ p: [[ax, ay], [ax + 0.4 * dx, ay], [bx - 0.4 * dx, by], [bx, by]], w0: penW, w1: penW });
+    }
+    page!.lines.push({ text: p.texts.map((t) => t.text).join(' / ') });
+    lineDown = Math.max(lineDown, p.rows); // the next line starts below the map
+  }
+
   newLine(true);
-  text.split('\n').forEach((line, li) => {
+  expandMaps(text).forEach((line, li) => {
     if (li > 0) newLine();
+    if (line.startsWith(MAP[0])) { placeMap(mapPlan(line)!); return; }
     let emph = false, marking = false, ringing = false, boxing = false;
     const indent = line.length - line.replace(new RegExp(`^${INDENT}+`), '').length; // steps of a nested list item
     lineX += indent * 2 * xh;

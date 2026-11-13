@@ -70,4 +70,7 @@ describe('clean pasted AI text', () => {
     const plain = (c: string) => /[A-Za-z0-9 ,^>-]/.test(c);
     expect(clean('A => B ⇔ C <-> D, x^2', plain)).toBe('A -> B - C - D, x^2');
   });
+  it('writes German decimal commas {,} and \\% from AI answers', () => {
+    expect(clean(String.raw`$g = 9{,}81\,\text{m/s}^2$, $20\%$`, () => true)).toBe('g = 9,81 m/s², 20%');
+  });
 });

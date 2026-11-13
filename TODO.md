@@ -25,6 +25,9 @@ Stand: 6. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
 - [x] **Qualität der GoodNotes-Buchstaben**: Mittellinien werden vor dem Vereinfachen geglättet (1-2-1-Mittel, 2×), die Pixeltreppen sind weg. Winzige Stummel (2–5 px an Kreuzungen, Reste der Verdünnung) werden nicht mehr als eigene Striche gespeichert (ein „a“ hatte bis zu 19 Striche, jetzt 3–5). Ein runder Punkt, den das Verdünnen komplett löschen würde, bleibt als ein Punkt erhalten.
 - [x] **Fett**: `**fett**` ist in allen drei Ausgaben (Bild, PDF, GoodNotes) ein Unterstrich in der Schriftfarbe/Überschriftfarbe, normaler Text wird nicht dicker.
 - Bild/PDF: Auflösung 12 px/mm ist höher als die Vorlagen-Bilder (10 px/mm), mehr bringt nichts; keine Änderung nötig.
+- [x] **KI-Vorgabe überarbeitet** (`src/prompt.ts`, 19 Zeilen): Antworten auf Deutsch, höchstens eine Lernzettel-Seite, keine Floskeln, Stichpunkte mit Unterpunkten, eine Formel pro Zeile, Endergebnis mit `\boxed{}`, Einheiten als `\text{}`, Chemie mit `\ce{…}` (auch Zustände) und `[[Name]]`/`skelett`/`voll`. Ausdrücklich verboten: Emojis, Tabellen, Codeblöcke, Bilder, Links, Kursiv. Kein Einkreisen mehr angeboten. Mit je einer Antwort zu Mathe, Physik, Chemie und Biologie in der Vorschau geprüft.
+  - Gefunden und behoben: Das deutsche Dezimalkomma `9{,}81` aus KI-Formeln wurde als `9(,)81` geschrieben und machte `\sqrt{\frac…}` und `\boxed{…}` kaputt (blieben als `sqrt(frac(…))` stehen). Auch `\%` → `%`.
+  - Bleibt: verschachtelte Brüche werden `1/23` (die Vorgabe sagt der KI, sie nicht zu verschachteln); `x_{1,2}` wird `x_(1,2)`.
 
 ## Erledigt am 6. November 2026
 

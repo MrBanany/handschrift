@@ -43,6 +43,8 @@ function ion(tok: string): string {
 export function latex(text: string): string {
   let t = text
     .replace(/\$\$|\\\[|\\\]|\\\(|\\\)/g, ' ')
+    .replace(/\{,\}/g, ',') // German decimal comma: 9{,}81
+    .replace(/\\%/g, '%')
     // matrices in one line: (1 2; 3 4); aligned equations one per line, cases separated by ";"
     .replace(/\\begin\{([pbvBV]?matrix)\}([\s\S]*?)\\end\{\1\}/g, (_, _k: string, b: string) => '(' + b.split(/\\\\/).map((r) => r.split('&').map((c) => c.trim()).join(' ')).filter(Boolean).join('; ') + ')')
     .replace(/\\begin\{(cases|aligned|align\*?|gathered|gather\*?|array)\}(?:\{[^{}]*\})?([\s\S]*?)\\end\{\1\}/g, (_, k: string, b: string) => b.split(/\\\\/).map((r) => r.split('&').map((c) => c.trim()).filter(Boolean).join(k === 'cases' ? ', ' : ' ')).filter(Boolean).join(k === 'cases' ? '; ' : '\n'))

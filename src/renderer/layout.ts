@@ -515,8 +515,13 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
       const roomAfter = token.includes(CIRC[1]) || token.includes(BOX[1]) ? 0.5 * xh : 0;
       if (!word) { close(); lineX += roomAfter; continue; }
       if ((token.includes(CIRC[0]) || token.includes(BOX[0])) && lineX > lineStart) lineX += 0.5 * xh;
+      const first = lineX === lineStart + hang;
+      // no two bullets look alike: each is set a little off the line, a bit bigger or smaller and higher or lower
+      const bullet = first && /^(?:[•\-–*]|\d{1,2}[.)])$/.test(word);
+      if (bullet) lineX += (rand() - 0.5) * 1.6;
       const fr = /^\u0011([^\u0012]*)\u0012([^\u0013]*)\u0013([^\u0011]*)$/.exec(word);
-      const wd = fr ? layoutFrac(fr[1], fr[2], fr[3], size) : layoutWord(flatFrac(word), size);
+      const wd = fr ? layoutFrac(fr[1], fr[2], fr[3], size) : layoutWord(flatFrac(word), bullet ? size * (0.85 + 0.3 * rand()) : size);
+      const lift = bullet ? (rand() - 0.5) * 0.2 * xh : 0;
       // lineX is where the next word's ink starts
       if (lineX > lineStart && lineX - wd.inkL + wd.inkR > rightEdge) wrap();
       const ox = lineX - wd.inkL;
@@ -528,7 +533,7 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
       for (const it of wd.items) {
         const m: Mat = [...it.m];
         m[4] += ox;
-        m[5] += y + drift(m[4]);
+        m[5] += y + drift(m[4]) + lift;
         if (it.join && prevM && prevG && it.from && it.to) {
           page!.connectors.push(makeConnector(
             tf(prevM, it.from.x, it.from.y), dir(prevM, it.from),
@@ -549,10 +554,9 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
       }
       close();
       const sentenceEnd = /[.!?]["“”»)]*$/u.test(word) ? 0.3 * xh : 0; // people leave a bit more room after a full stop
-      const first = lineX === lineStart + hang;
       lineX = ox + wd.inkR + sentenceEnd + roomAfter +Math.max(0.6 * xh, ((s.wordGap ?? DEFAULT_WORD_GAP) - 0.15 * h) * xh * size * (1 + gauss() * 0.1 * sig));
       // a list item's wrapped lines start under its text, not under the bullet
-      if (first && /^(?:[•\-–*]|\d{1,2}[.)])$/.test(word)) hang = lineX - lineStart;
+      if (bullet) hang = lineX - lineStart;
     }
   });
   closeUnderline(); closeMark(); closeRing(); accentLine();

@@ -27,6 +27,8 @@ Stand: 6. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
 - Bild/PDF: Auflösung 12 px/mm ist höher als die Vorlagen-Bilder (10 px/mm), mehr bringt nichts; keine Änderung nötig.
 - [x] **KI-Vorgabe überarbeitet** (`src/prompt.ts`, 19 Zeilen): Antworten auf Deutsch, höchstens eine Lernzettel-Seite, keine Floskeln, Stichpunkte mit Unterpunkten, eine Formel pro Zeile, Endergebnis mit `\boxed{}`, Einheiten als `\text{}`, Chemie mit `\ce{…}` (auch Zustände) und `[[Name]]`/`skelett`/`voll`. Ausdrücklich verboten: Emojis, Tabellen, Codeblöcke, Bilder, Links, Kursiv. Kein Einkreisen mehr angeboten. Mit je einer Antwort zu Mathe, Physik, Chemie und Biologie in der Vorschau geprüft.
   - Gefunden und behoben: Das deutsche Dezimalkomma `9{,}81` aus KI-Formeln wurde als `9(,)81` geschrieben und machte `\sqrt{\frac…}` und `\boxed{…}` kaputt (blieben als `sqrt(frac(…))` stehen). Auch `\%` → `%`.
+  - **Mathe im Schulschema**: Die Vorgabe verlangt jetzt „Geg.: …“, „Ges.: …“, die Rechnung in kurzen Schritten (eine Umformung pro Zeile, Notiz dahinter wie `|:2`) und am Ende „A: …“ oder eingerahmtes Ergebnis. `|:2` und `|-3` bekommen ein Leerzeichen nach dem Strich (sonst verschluckte der hohe Strich den Doppelpunkt); `\quad` wird zum Leerzeichen.
+  - **Aufzählungspunkte natürlicher** (`layout.ts`): Jeder Punkt sitzt leicht versetzt (bis ±0,8 mm), ist etwas größer oder kleiner und minimal höher oder tiefer; umbrochene Zeilen folgen dem Text. Immer noch fest über den Seed.
   - Bleibt: verschachtelte Brüche werden `1/23` (die Vorgabe sagt der KI, sie nicht zu verschachteln); `x_{1,2}` wird `x_(1,2)`.
 
 ## Erledigt am 6. November 2026

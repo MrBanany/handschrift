@@ -70,6 +70,7 @@ export function clean(text: string, has: (ch: string) => boolean): string {
     .replace(/(^|[^*\w])\*(?!\s)([^*\n]+?)\*/g, '$1$2') // italic
     .replace(/`([^`]*)`/g, '$1') // inline code
     .replace(/\$([^$\n]+)\$/g, '$1') // inline math
+    .replace(/\|(?=[:+\-·*/÷][\p{N}\p{L}])/gu, '| ') // "|:2", "|-3": the tall bar would swallow the colon or sign
     .replace(/\s*(?:⇔|⟺|<=>)\s*/g, ` ${pick('⇔', '↔', '<->', '-')} `)
     .replace(/\s*(?:↔|⟷|<->)\s*/g, ` ${pick('↔', '<->', '-')} `)
     .replace(/\s*(?:⇒|⟹|=>)\s*/g, ` ${pick('⇒', arrow)} `)

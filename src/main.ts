@@ -63,6 +63,8 @@ function rebuild() {
 async function useSet(name: string) {
   if (name === SAMPLE_SET && !sets.includes(SAMPLE_SET)) {
     toast('Muster-Handschrift wird erzeugt …');
+    // takes a few seconds: don't keep saying "Keine ausgewählt" / "Noch keine Handschrift" meanwhile
+    if (!active) { $<HTMLSelectElement>('set').options[0].text = 'Muster wird erzeugt …'; $('empty').hidden = true; }
     await saveMany(SAMPLE_SET, await buildSampleSet());
     sets = await listSets();
   }
@@ -82,7 +84,7 @@ function renderSets() {
   const sel = $<HTMLSelectElement>('set');
   const names = sets.includes(SAMPLE_SET) ? sets : [...sets, SAMPLE_SET];
   sel.replaceChildren(...(active ? [] : [new Option('Keine ausgewählt', '', true, true)]),
-    ...names.map((n) => new Option(n === SAMPLE_SET ? `${n} (zum Ausprobieren)` : n, n, false, n === active)));
+    ...names.map((n) => new Option(n === SAMPLE_SET ? `${n} (Beispiel)` : n, n, false, n === active)));
   if (!active) sel.options[0].disabled = true;
 
   $('sets').replaceChildren(...(sets.length ? sets.map((name) => {
@@ -240,7 +242,7 @@ function renderAll(pxPerMm: number, mode: 'page' | 'ink' | 'clip') {
 }
 
 let timer = 0, gen = 0, urls: string[] = [];
-let ready: { kind: string; files: File[] } | null = null; // rendered export, kept if the share sheet needs a second tap
+let ready: { kind: string; files: File[]; asked?: boolean } | null = null; // rendered export, kept if the share sheet needs a second tap
 function schedule() { ready = null; clearTimeout(timer); timer = window.setTimeout(preview, 150); }
 
 function preview() {
@@ -351,7 +353,9 @@ async function shareAs(kind: string, make: () => Promise<File[]>) {
   } catch (e) {
     const err = e as Error;
     // iPad only opens the share sheet right after a tap; rendering can take longer than that.
-    if (err.name === 'NotAllowedError') toast('Export ist fertig – bitte noch einmal tippen.');
+    if (err.name === 'NotAllowedError' && ready && !ready.asked) { ready.asked = true; toast('Export ist fertig – bitte noch einmal tippen.'); }
+    // sharing refused again (some desktop browsers never allow it): save the files instead of asking forever
+    else if (err.name === 'NotAllowedError' && ready) { ready.files.forEach((f) => download(f, f.name)); ready = null; }
     else if (err.name !== 'AbortError') { ready = null; toast(err.message); }
   }
 }
@@ -387,7 +391,7 @@ $('copy').onclick = () => {
     return toPng(canvases[0]);
   });
   copyPng(blob).then(
-    () => toast(more ? 'Seite 1 kopiert – für längere Texte „Als PDF teilen“ nutzen.' : 'Kopiert – in GoodNotes auf die Seite tippen → Einsetzen.'),
+    () => toast(more ? 'Seite 1 kopiert – für längere Texte „PDF“ nutzen.' : 'Kopiert – in GoodNotes auf die Seite tippen → Einsetzen.'),
     (e) => toast(`Kopieren nicht möglich: ${e.message}`),
   );
 };
@@ -436,14 +440,14 @@ async function importInto(sources: [label: string, pages: () => AsyncIterable<{ 
           const { page, variants: vs } = extractPage(img);
           await saveMany(name, vs);
           total += vs.length;
-          log(`${label}, Seite ${n}: Vorlagenseite ${page + 1} erkannt, ${vs.length} Proben übernommen.`);
+          log(`${label}, Seite ${n}: Vorlagenseite ${page + 1} erkannt, ${vs.length} Zeichen übernommen.`);
         } catch (e) { log(`${label}, Seite ${n}: ${(e as Error).message}`); }
       }
     } catch (e) { log(`${label}: konnte nicht gelesen werden (${(e as Error).message})`); }
   }
   sets = await listSets();
   if (total) { await useSet(name); log(`Fertig – „${name}“ ist jetzt aktiv.`); toast(`„${name}“ importiert.`); openSetup(); }
-  else log('Keine Proben gefunden.');
+  else log('Keine Zeichen gefunden.');
   return total > 0;
 }
 
@@ -452,7 +456,7 @@ $<HTMLInputElement>('file').onchange = async (ev) => {
   await importInto([...input.files ?? []].map((f) => [f.name, () => pagesOf(f)]));
   input.value = '';
 };
-setupPencil((pages) => importInto([['Mit dem Pencil ausgefüllt', () => pages]]), toast);
+setupPencil((pages) => importInto([['In der App ausgefüllt', () => pages]]), toast);
 
 /** Ruling preset (index into rules()) the learned line spacing matches: within 0.35 mm, the notes were written on it. */
 const ruleOf = (lineH: number) => rules().findIndex((v) => Math.abs(v - lineH) <= 0.35);
@@ -572,7 +576,7 @@ async function restoreFrom(ev: Event) {
     if (!got.length) return;
     welcomed(); // a handwriting loaded from the first-start window counts as set up
     await useSet(got[0]);
-    toast(got.length === 1 ? `„${got[0]}“ geladen (${count} Proben).` : `${got.length} Handschriften geladen.`);
+    toast(got.length === 1 ? `„${got[0]}“ geladen (${count} Zeichen).` : `${got.length} Handschriften geladen.`);
   } catch (e) { toast((e as Error).message); }
 }
 $('restore').onchange = restoreFrom;
@@ -806,7 +810,7 @@ function missingCard() {
   const note = (text: string) => Object.assign(document.createElement('p'), { className: 'muted small', textContent: text });
   const gone = miss.filter((k) => !lib.has(k)), stand = miss.filter((k) => lib.has(k));
   card.append(Object.assign(document.createElement('h2'), { textContent: 'Diese Zeichen fehlen noch' }),
-    note('Antippen und mit dem Pencil schreiben. Pfeile, Rechenzeichen und Ziffern zuerst – sie kommen in Texten oft vor.'),
+    note('Antippen und schreiben. Pfeile, Rechenzeichen und Ziffern zuerst – sie kommen in Texten oft vor.'),
     ...(gone.length ? [part(gone, 'gone')] : []),
     ...(stand.length ? [note('Ersatz – wird gerade aus einfachen Strichen gezeichnet, besser selbst schreiben:'), part(stand, 'sub')] : []));
   return card;

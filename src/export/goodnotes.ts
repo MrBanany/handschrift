@@ -1,6 +1,8 @@
 // Writes a .goodnotes file whose writing is real GoodNotes ink (ballpoint strokes): erasable, lasso-movable.
 // The format is undocumented. Field layout after InkLift's notes (https://github.com/yellowHatpro/InkLift,
 // docs/goodnotes-format.md, MIT); a GoodNotes update may break it.
+import { PDFDocument, rgb } from 'pdf-lib';
+import type { Background } from '../renderer/draw';
 import type { Page } from '../renderer/layout';
 import type { Variant } from '../glyphstore/types';
 import { components, zhangSuen } from '../segmentation/analyze';
@@ -245,8 +247,64 @@ export async function zip(files: [string, Uint8Array][]): Promise<Uint8Array> {
 
 const b64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 
-/** One page as a .goodnotes document (page laid out on GN_PAGE). ink, head (headings): '#rrggbb'. */
-export function goodnotesFile(page: Page, get: (src: string) => Variant, ink: string, thumbnail?: Uint8Array, head = ink, weight = 0): Promise<Uint8Array> {
+// ---------- background PDF ----------
+
+/**
+ * The page's paper as a vector PDF on GN_PAGE: ruled or squared like drawPage (draw.ts) paints it, same colours and spacing,
+ * so the lines sit exactly on the baselines of the laid-out text. margin: the one the text was laid out with.
+ */
+export async function backgroundPdf(kind: Background, lineH: number, margin: number): Promise<Uint8Array> {
+  const pt = 72 / 25.4, W = GN_PAGE.w, H = GN_PAGE.h, doc = await PDFDocument.create(), page = doc.addPage([455.04, 588.45]);
+  const line = (x0: number, y0: number, x1: number, y1: number, hex: string) => page.drawLine({
+    start: { x: x0 * pt, y: page.getHeight() - y0 * pt }, end: { x: x1 * pt, y: page.getHeight() - y1 * pt }, thickness: 0.15 * pt,
+    color: rgb(...([1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [number, number, number])),
+  });
+  if (kind === 'lined') for (let y = margin + lineH; y <= H - margin + 0.01; y += lineH) line(0, y, W, y, '#b9cde0');
+  if (kind === 'grid') {
+    const cell = lineH / 2, first = (phase: number) => phase + Math.ceil(-phase / cell) * cell; // every baseline falls on a grid line
+    for (let x = first(margin); x < W; x += cell) line(x, 0, x, H, '#d6e2ed');
+    for (let y = first(margin + lineH); y < H; y += cell) line(0, y, W, y, '#d6e2ed');
+  }
+  return doc.save();
+}
+
+// ---------- event log: the attachment's byte size ----------
+
+interface Field { f: number; w: number; v: Uint8Array } // v: the payload of a length-delimited field, else the raw value bytes
+function parseFields(b: Uint8Array): Field[] {
+  const out: Field[] = [];
+  let at = 0;
+  const varint = () => { let x = 0, m = 1; for (;;) { const c = b[at++]; x += (c & 127) * m; m *= 128; if (c < 128) return x; } };
+  while (at < b.length) {
+    const k = varint(), w = k & 7;
+    let st = at;
+    if (w === 0) varint(); else if (w === 5) at += 4; else if (w === 1) at += 8; else if (w === 2) { const l = varint(); st = at; at += l; } else throw new Error(`wire ${w}`);
+    out.push({ f: k >> 3, w, v: b.subarray(st, at) });
+  }
+  return out;
+}
+const encodeFields = (fs: Field[]) => fs.flatMap(({ f, w, v }) => [...Proto.varint((f << 3) | w), ...(w === 2 ? Proto.varint(v.length) : []), ...v]);
+
+/**
+ * The template's event log says how many bytes the background attachment has (f6 "attachment added", f5 = 41951 = the dot grid's size).
+ * Write the size of our PDF there; the log is a stream of length-prefixed events.
+ */
+export function withAttachmentSize(events: Uint8Array, size: number): Uint8Array {
+  const out: number[] = [];
+  for (let at = 0; at < events.length;) {
+    let l = 0, m = 1;
+    for (;;) { const c = events[at++]; l += (c & 127) * m; m *= 128; if (c < 128) break; }
+    let ev = parseFields(events.subarray(at, at + l));
+    at += l;
+    ev = ev.map((e) => (e.f === 6 && e.w === 2 ? { ...e, v: Uint8Array.from(encodeFields(parseFields(e.v).map((x) => (x.f === 5 && x.w === 0 ? { ...x, v: Uint8Array.from(Proto.varint(size)) } : x)))) } : e));
+    const body = encodeFields(ev);
+    out.push(...Proto.varint(body.length), ...body);
+  }
+  return new Uint8Array(out);
+}
+
+/** One page as a .goodnotes document (page laid out on GN_PAGE). ink, head (headings): '#rrggbb'. background: PDF of GN_PAGE size (backgroundPdf), else the template's dot grid. */
+export function goodnotesFile(page: Page, get: (src: string) => Variant, ink: string, thumbnail?: Uint8Array, head = ink, weight = 0, background?: Uint8Array): Promise<Uint8Array> {
   const rgbaOf = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).concat(1);
   const rgba = rgbaOf(ink), rgbaHead = rgbaOf(head);
   const notes: number[] = [];
@@ -258,10 +316,10 @@ export function goodnotesFile(page: Page, get: (src: string) => Variant, ink: st
     [`search/${PAGE_UUID}`, new Uint8Array([0x04, 0x10, 0x01, 0x1a, 0x00])],
     [`search/${ATTACHMENT_UUID}`, b64(TEMPLATE.attSearch)],
     [`notes/${PAGE_UUID}`, new Uint8Array(notes)],
-    ['index.events.pb', b64(TEMPLATE.events)],
+    ['index.events.pb', background ? withAttachmentSize(b64(TEMPLATE.events), background.length) : b64(TEMPLATE.events)],
     ...(thumbnail ? [['thumbnail.jpg', thumbnail] as [string, Uint8Array]] : []),
     ['index.attachments.pb', b64(TEMPLATE.attachments)],
-    [`attachments/${ATTACHMENT_UUID}`, b64(TEMPLATE.background)],
+    [`attachments/${ATTACHMENT_UUID}`, background ?? b64(TEMPLATE.background)],
     ['schema.pb', b64(TEMPLATE.schema)],
   ]);
 }

@@ -6,7 +6,7 @@ import { symbolVariants } from './glyphstore/symbols';
 import type { Variant } from './glyphstore/types';
 import { copyPng, download, shareFiles, toPng } from './export/png';
 import { toPdf } from './export/pdf';
-import { GN_PAGE, goodnotesFile } from './export/goodnotes';
+import { GN_PAGE, backgroundPdf, goodnotesFile } from './export/goodnotes';
 import { pagesOf } from './import/load';
 import { paint, setupPencil } from './import/pencil';
 import { clearMaskCache, drawPage, type Background, type DrawOpts } from './renderer/draw';
@@ -364,14 +364,16 @@ $('share').onclick = () => shareAs('pdf', async () => {
 // Real GoodNotes ink: laid out on the template's page size, one file per page.
 $('shareGn').onclick = () => shareAs('gn', async () => {
   const { s, o } = settings();
-  const res = layout(clean($<HTMLTextAreaElement>('text').value, (ch) => lib.has(ch)), lib, { ...s, pageW: GN_PAGE.w, pageH: GN_PAGE.h, margin: Math.min(s.margin, 12) });
+  const margin = Math.min(s.margin, 12), paper = o.background === 'transparent' ? 'blank' : o.background; // no transparent paper in a notebook
+  const res = layout(clean($<HTMLTextAreaElement>('text').value, (ch) => lib.has(ch)), lib, { ...s, pageW: GN_PAGE.w, pageH: GN_PAGE.h, margin });
   applyOverrides(res.pages);
   const get = (src: string) => bySrc.get(src)!;
+  const bg = await backgroundPdf(paper, s.lineH, margin);
   return Promise.all(res.pages.map(async (p, i) => {
-    const thumb = drawPage(p, { ...o, background: 'blank', crop: false, pxPerMm: 2, pageW: GN_PAGE.w, pageH: GN_PAGE.h, lineH: s.lineH, margin: s.margin }, get);
+    const thumb = drawPage(p, { ...o, background: paper, crop: false, pxPerMm: 2, pageW: GN_PAGE.w, pageH: GN_PAGE.h, lineH: s.lineH, margin }, get);
     const jpg = new Uint8Array(await (await new Promise<Blob>((ok) => thumb.toBlob((b) => ok(b!), 'image/jpeg', 0.8))).arrayBuffer());
     const name = res.pages.length > 1 ? `handschrift-${i + 1}.goodnotes` : 'handschrift.goodnotes';
-    return new File([(await goodnotesFile(p, get, o.ink, jpg, o.head ?? o.ink, o.weight)) as BlobPart], name, { type: 'application/octet-stream' });
+    return new File([(await goodnotesFile(p, get, o.ink, jpg, o.head ?? o.ink, o.weight, bg)) as BlobPart], name, { type: 'application/octet-stream' });
   }));
 });
 $('copy').onclick = () => {

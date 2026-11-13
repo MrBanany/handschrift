@@ -228,10 +228,11 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
         const tuck = s.cursive ? opticalShift(prev!.g, prev!.m, g, base) : null;
         if (tuck !== null) tx = Math.max(tx, tuck - 0.1 * xh);
       } else {
-        const punct = !/\p{L}|\p{N}/u.test(first);
-        const gap = prev ? Math.max(0.04 * xh, (0.16 - 0.06 * h) * xh * (punct ? 0.6 : 1) * (1 + gauss() * 0.25 * sig)) : 0;
+        // full stops and commas hug the word; a colon keeps a little air (its dots would touch the letter before it)
+        const pf = /^[:;]/.test(first) ? 1.5 : /\p{L}|\p{N}/u.test(first) ? 1 : 0.6;
+        const gap = prev ? Math.max(0.04 * xh, (0.16 - 0.06 * h) * xh * pf * (1 + gauss() * 0.25 * sig)) : 0;
         const tuck = prev ? opticalShift(prev.g, prev.m, g, base) : null;
-        const own = prev && s.letterGap != null ? Math.max(0.03 * xh, s.letterGap * (1 - 0.3 * h) * xh * (punct ? 0.6 : 1) * (1 + gauss() * 0.2 * sig)) : gap;
+        const own = prev && s.letterGap != null ? Math.max(0.03 * xh, s.letterGap * (1 - 0.3 * h) * xh * pf * (1 + gauss() * 0.2 * sig)) : gap;
         tx = tuck === null ? cursor + gap - left : Math.max(tuck + own, cursor - left - 0.6 * xh);
       }
       const m: Mat = [a, b, c, d, base[4] + tx, base[5] + walk];
@@ -311,7 +312,7 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
     marginWalk = 0.6 * marginWalk + gauss() * 0.7 * sig;
     lineStart = lineX = Math.max(s.margin - 1, s.margin + 0.6 + marginWalk);
     rightEdge = s.pageW - s.margin - Math.abs(gauss()) * 2.5 * sig;
-    slope = gauss() * 0.006 * sig;
+    slope = Math.max(-0.003, Math.min(0.003, gauss() * 0.0012 * sig)); // a line may wander, but never visibly lean (0.006 leaned ~1 mm over a line)
     amp = 0.06 * xh * sig * rand();
     phase = rand() * 2 * Math.PI;
     lambda = 60 + 60 * rand();

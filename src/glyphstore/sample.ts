@@ -34,7 +34,7 @@ export async function buildSampleSet(font = FONT): Promise<Variant[]> {
     });
     const img = ctx.getImageData(0, 0, W, H);
     for (const b of boxes) { const v = extractBox(img, T, b); if (v) out.push(v); }
-    await new Promise(requestAnimationFrame); // keep the UI responsive
+    await new Promise((ok) => setTimeout(ok)); // keep the UI responsive; requestAnimationFrame never fires in a hidden tab
   }
   c.width = 0;
   return out;

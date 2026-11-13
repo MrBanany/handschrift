@@ -35,7 +35,7 @@
         <button id="aiPrompt" class="small-btn" title="Einmal in ChatGPT & Co. einfügen: Dann schreibt die KI Brüche, Formeln und Strukturformeln so, dass die App sie per Hand schreiben kann.">KI-Vorgabe kopieren</button>
         <select id="history" class="history" aria-label="Verlauf: frühere Texte" hidden></select>
       </div>
-      <textarea id="text" rows="7" placeholder="Text eintippen oder KI-Antwort einfügen – Strukturformeln so: [[Ethanol]] oder [[CCO]]"></textarea>
+      <textarea id="text" rows="7" placeholder="Text eintippen oder einfügen, zum Beispiel eine KI-Antwort"></textarea>
       <p id="missing" class="note warn" hidden></p>
       <div class="actions">
         <button id="shareGn" class="primary" title="Echte Stift-Schrift: in GoodNotes radierbar und mit dem Lasso kopierbar">In GoodNotes öffnen</button>
@@ -70,9 +70,9 @@
         <h2>Neue Handschrift anlegen oder ergänzen</h2>
         <label class="field"><span>Name</span><input id="setName" type="text" autocomplete="off" /></label>
         <div class="row">
-          <button id="pencilOpen" class="primary">Hier mit dem Pencil ausfüllen</button>
+          <button id="pencilOpen" class="primary">Hier in der App ausfüllen</button>
         </div>
-        <p class="muted small">Schreib direkt in der App in die Kästchen. Gleicher Name = die Zeichen kommen zur Handschrift dazu.</p>
+        <p class="muted small">Schreib mit Stift oder Finger in die Kästchen. Gleicher Name: Die Zeichen kommen zur vorhandenen Handschrift dazu.</p>
         <h3 class="or">Oder über GoodNotes</h3>
         <ol class="steps">
           <li><button id="template">Vorlage herunterladen</button> oder <button id="templateSymbols">nur Pfeile &amp; Symbole</button> und in GoodNotes öffnen. Wer verbunden schreibt: <button id="templateCursive">nur Schreibschrift</button> (die letzten Seiten der Vorlage, mehr verbundene Wortteile).</li>
@@ -85,8 +85,8 @@
 
       <div class="card">
         <h2>Schreibstil aus Notizen lernen</h2>
-        <p class="muted">Lade normal geschriebene Seiten hoch (aus GoodNotes als PDF exportiert, oder Fotos/Screenshots). Die App misst daraus Schriftgröße, Zeilenabstand sowie Wort- und Buchstabenabstände und nutzt sie für die aktive Handschrift.</p>
-        <p class="muted small">Wähl ruhig mehrere Seiten oder Dateien auf einmal – je mehr Text, desto natürlicher werden die Abstände.</p>
+        <p class="muted">Lade normal geschriebene Seiten hoch (PDF aus GoodNotes, Fotos oder Screenshots). Die App übernimmt daraus Schriftgröße und Abstände für die aktive Handschrift.</p>
+        <p class="muted small">Mehrere Seiten auf einmal sind möglich. Je mehr Text, desto natürlicher.</p>
         <p id="styleResult" class="note info" hidden></p>
         <div id="styleCompare" class="style-compare" hidden></div>
         <div class="row">
@@ -97,7 +97,7 @@
 
       <div class="card">
         <h2>Backup</h2>
-        <p class="muted">Deine Handschriften liegen nur im Speicher dieser App auf diesem Gerät. „Backup speichern“ (bei jeder Handschrift oben) öffnet das Teilen-Menü: am iPad „In Dateien sichern“ (oder iCloud Drive), zum Weitergeben an jemand anderen z. B. AirDrop oder Mail. Wer die Datei hier lädt, bekommt die Handschrift samt Einstellungen unter eigenem Namen.</p>
+        <p class="muted">Deine Handschriften liegen nur auf diesem Gerät. „Backup speichern“ (oben bei jeder Handschrift) sichert sie als Datei, zum Beispiel in „Dateien“ oder iCloud. Die Datei kannst du auch weitergeben: Wer sie hier lädt, bekommt deine Handschrift samt Einstellungen.</p>
         <div class="row"><button id="backupAll">Alle Handschriften sichern</button>
         <label class="button">Backup laden<input id="restore" type="file" accept=".json,application/json" hidden /></label></div>
       </div>
@@ -105,7 +105,7 @@
 
     <section id="glyphs" class="tab">
       <h1 id="glyphsTitle"></h1>
-      <p class="muted small"><span id="coverage"></span> So werden die Zeichen gerade verwendet. Ein Zeichen antippen: neu schreiben oder Varianten löschen. <i class="dot in"></i> Strich-Eintritt <i class="dot out"></i> Austritt</p>
+      <p class="muted small"><span id="coverage"></span> Ein Zeichen antippen, um es neu zu schreiben oder Varianten zu löschen. <i class="dot in"></i> Strichanfang <i class="dot out"></i> Strichende</p>
       <div id="grid"></div>
       <div class="dock"><button id="reviewOpen" class="primary"></button><button id="acceptAll" hidden>Alle übernehmen</button></div>
     </section>
@@ -199,7 +199,7 @@
             <label class="field"><span>Zeilenabstand</span><input id="lineH" type="range" min="6" max="30" step="0.1" value="8.7" /><output data-for="lineH"></output></label>
             <label class="field"><span>Strichstärke</span><input id="weight" type="range" min="0" max="3" step="0.25" value="0" /><output data-for="weight"></output></label>
             <label class="field"><span>Ränder</span><input id="margin" type="range" min="0" max="40" step="1" value="15" /><output data-for="margin"></output></label>
-            <div class="field"><span>Variante</span><span class="inline"><input id="seed" type="number" step="1" value="1" /><button id="dice" type="button">Neu mischen</button></span></div>
+            <div class="field"><span>Zufall</span><span class="inline"><input id="seed" type="number" step="1" value="1" /><button id="dice" type="button">Neu mischen</button></span></div>
           </details>
         <div class="field"><span>Darstellung</span><span class="seg small" id="theme">
           <button type="button" data-theme="dark">Dunkel</button>
@@ -250,7 +250,7 @@
       <h2>Willkommen!</h2>
       <p>Diese App schreibt getippten Text in <b>deiner eigenen Handschrift</b> – zum Einfügen in GoodNotes. Alles bleibt auf deinem Gerät.</p>
       <ol class="steps">
-        <li><b>Handschrift einmal anlegen:</b> die Vorlage mit dem Pencil ausfüllen (direkt hier in der App).</li>
+        <li><b>Handschrift einmal anlegen:</b> die Kästchen mit Stift oder Finger ausfüllen, direkt hier in der App.</li>
         <li><b>Text eintippen</b> oder eine KI-Antwort einfügen – Formeln, Pfeile und Überschriften werden mit umgewandelt.</li>
         <li><b>„In GoodNotes öffnen“</b> – die Schrift lässt sich dort radieren und mit dem Lasso kopieren.</li>
       </ol>
@@ -269,7 +269,7 @@
       <h2>Einrichtung</h2>
       <ol class="steps">
         <li><b>Handschrift anlegen</b> <span id="setup1" class="muted"></span>
-          <div class="row"><button id="setupPencil" class="primary">Mit dem Pencil ausfüllen</button><button id="setupPdf">Mit PDF-Vorlage</button></div></li>
+          <div class="row"><button id="setupPencil" class="primary">In der App ausfüllen</button><button id="setupPdf">Mit PDF-Vorlage</button></div></li>
         <li><b>Fehlende Zeichen schreiben</b> <span id="setup2" class="muted"></span>
           <div class="row"><button id="setupMissing">Zeichen ansehen</button></div></li>
         <li><b>Text schreiben und in GoodNotes öffnen</b>
@@ -284,7 +284,7 @@
       <h2>So geht's</h2>
       <ol class="steps">
         <li><b>App installieren:</b> am iPad in Safari auf Teilen tippen, dann „Zum Home-Bildschirm“. Die App danach immer dort öffnen – Safari und die App auf dem Home-Bildschirm haben getrennten Speicher.</li>
-        <li><b>Handschrift anlegen:</b> unter „Handschriften“ auf „Hier mit dem Pencil ausfüllen“ tippen und die Kästchen in deiner Schrift ausfüllen. Das machst du nur einmal.</li>
+        <li><b>Handschrift anlegen:</b> unter „Handschriften“ auf „Hier in der App ausfüllen“ tippen und die Kästchen in deiner Schrift ausfüllen. Das machst du nur einmal.</li>
         <li><b>Text schreiben lassen:</b> unter „Schreiben“ Text eintippen oder eine Antwort aus ChatGPT & Co. einfügen. „KI-Vorgabe kopieren“ sorgt dafür, dass Brüche und Formeln gut ankommen.</li>
         <li><b>In GoodNotes öffnen:</b> auf „In GoodNotes öffnen“ tippen und im Teilen-Menü GoodNotes wählen.</li>
         <li><b>Handschrift sichern:</b> unter „Handschriften“ bei deiner Handschrift „Backup speichern“ und im Teilen-Menü „In Dateien sichern“ wählen. Dieselbe Datei kann ein Freund unter „Backup laden“ öffnen.</li>

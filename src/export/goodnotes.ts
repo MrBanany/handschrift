@@ -103,16 +103,20 @@ function simplify(p: Pt[], eps: number): Pt[] {
   return far <= eps ? [a, b] : [...simplify(p.slice(0, at + 1), eps).slice(0, -1), ...simplify(p.slice(at), eps)];
 }
 
-const lineCache = new Map<string, { pts: Pt[]; w: number }[]>();
+// keyed by the bitmap itself: box ids repeat across handwriting sets
+const lineCache = new WeakMap<Uint8Array, { pts: Pt[]; w: number }[]>();
+/** Centre lines of a glyph (glyph px), made once per bitmap. Also what the picture is drawn from (renderer/draw). */
+export function glyphLines(v: Variant) {
+  if (!lineCache.has(v.alpha)) lineCache.set(v.alpha, centerlines(v.alpha, v.w, v.h));
+  return lineCache.get(v.alpha)!;
+}
 
 /** Every pen stroke on a laid-out page, in page mm. weight: the "Strichstärke" setting, as in the picture (draw.ts) 0.1 mm wider per step. */
 export function inkStrokes(page: Page, get: (src: string) => Variant, weight = 0): InkStroke[] {
   const out: InkStroke[] = [], extra = 0.1 * weight;
   for (const { g, m, accent } of page.glyphs) {
-    const v = get(g.src);
-    if (!lineCache.has(g.src)) lineCache.set(g.src, centerlines(v.alpha, v.w, v.h));
     const k = Math.sqrt(Math.abs(m[0] * m[3] - m[1] * m[2]));
-    for (const line of lineCache.get(g.src)!) {
+    for (const line of glyphLines(get(g.src))) {
       out.push({ pts: line.pts.map(([x, y]) => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]]), w: line.w * k + extra, accent });
     }
   }

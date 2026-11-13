@@ -176,6 +176,16 @@ describe('layout', () => {
     expect(next.m[4] + next.m[2] * next.g.baseline).toBeGreaterThan(ringR + 0.3 * S.xh);
   });
 
+  it('draws the box of a boxed word with straight, level and plumb lines', () => {
+    const plain = layout('ab', lib, S).pages[0].connectors.length;
+    const frame = layout('ab', lib, S).pages[0].connectors.slice(plain);
+    expect(frame).toHaveLength(4);
+    for (const c of frame) {
+      const xs = c.p.map((p) => p[0]), ys = c.p.map((p) => p[1]);
+      expect(Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys))).toBeLessThan(1e-9); // no slant, no bow
+    }
+  });
+
   it('lets the left edge wander and indents wrapped list items under their text', () => {
     const long = Array.from({ length: 40 }, () => 'abc').join(' ');
     const { pages } = layout(`${long}\n- ${long}`, lib, { ...S, seed: 3 });

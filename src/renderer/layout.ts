@@ -354,11 +354,16 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
       const room = y - s.lineH + 0.9 * xh;
       if (y + up < room) shiftLine(Math.ceil((room - y - up) / s.lineH) * s.lineH);
       lineDown = Math.max(lineDown, Math.ceil((down - s.lineH + 1.6 * xh) / s.lineH));
-      const top = (x: number) => y + drift(x) + up, bot = (x: number) => y + drift(x) + down;
-      stroke(l - o, top(l), r + o, top(r));
-      stroke(r, top(r) - o, r, bot(r) + o);
-      stroke(r + o, bot(r), l - o, bot(l));
-      stroke(l, bot(l) + o, l, top(l) - o);
+      // like drawn with a ruler: dead level and plumb (the line's drift taken at the box's middle), no bow, corners overshoot a little
+      const top = y + drift((l + r) / 2) + up, bot = y + drift((l + r) / 2) + down;
+      const ruler = (x0: number, y0: number, x1: number, y1: number) => {
+        page!.connectors.push({ p: [[x0, y0], [x0 + (x1 - x0) / 3, y0 + (y1 - y0) / 3], [x0 + (2 * (x1 - x0)) / 3, y0 + (2 * (y1 - y0)) / 3], [x1, y1]], w0: penW, w1: penW });
+      };
+      const oj = () => o * Math.max(0.3, 1 + 0.3 * gauss());
+      ruler(l - oj(), top, r + oj(), top);
+      ruler(r, top - oj(), r, bot + oj());
+      ruler(r + oj(), bot, l - oj(), bot);
+      ruler(l, bot + oj(), l, top - oj());
       return;
     }
     // an ellipse in one go, a bit more than once round; it widens slightly so the ends do not meet exactly

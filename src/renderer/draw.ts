@@ -1,4 +1,5 @@
 import { sampleConnector } from '../connectors/connect';
+import { glyphLines } from '../export/goodnotes';
 import type { Variant } from '../glyphstore/types';
 import type { Page } from './layout';
 
@@ -10,21 +11,6 @@ export interface DrawOpts {
   background: Background;
   pageW: number; pageH: number; lineH: number; margin: number; crop: boolean;
 }
-
-const masks = new Map<string, HTMLCanvasElement>();
-function mask(v: Variant): HTMLCanvasElement {
-  let c = masks.get(v.src);
-  if (!c) {
-    c = document.createElement('canvas');
-    c.width = v.w; c.height = v.h;
-    const img = new ImageData(v.w, v.h);
-    for (let i = 0; i < v.alpha.length; i++) img.data[i * 4 + 3] = v.alpha[i];
-    c.getContext('2d')!.putImageData(img, 0, 0);
-    masks.set(v.src, c);
-  }
-  return c;
-}
-export const clearMaskCache = () => masks.clear();
 
 function bounds(page: Page) {
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -48,23 +34,26 @@ export function drawPage(page: Page, o: DrawOpts, variant: (src: string) => Vari
     ox = b.x0 - pad; oy = b.y0 - pad; Wmm = b.x1 - b.x0 + 2 * pad; Hmm = b.y1 - b.y0 + 2 * pad;
   }
   const W = Math.max(1, Math.round(Wmm * px)), H = Math.max(1, Math.round(Hmm * px));
-  const extra = o.weight * 0.05 * px; // thicker pen: stamp the bitmap around a small circle
-  const offs: [number, number][] = [[0, 0]];
-  if (extra > 0.2) for (let i = 0; i < 8; i++) offs.push([Math.cos((i * Math.PI) / 4) * extra, Math.sin((i * Math.PI) / 4) * extra]);
+  const extra = o.weight * 0.05 * px; // thicker pen: every stroke wider by 2 x extra
 
   /** One colour layer: these glyphs and connectors into an alpha mask, coloured once. accent null = all ink. */
   const layer = (accent: boolean | null, colour: string) => {
     const ink = document.createElement('canvas');
     ink.width = W; ink.height = H;
     const ic = ink.getContext('2d')!;
-    ic.imageSmoothingEnabled = true;
-    ic.imageSmoothingQuality = 'high';
+    // Letters are drawn as smooth pen strokes (the glyph's centre lines, as in the GoodNotes file), not stamped as bitmaps:
+    // sharp at every size and zoom instead of a blurred, stair-stepped scan.
+    ic.lineCap = ic.lineJoin = 'round';
     for (const { g, m, accent: a } of page.glyphs) {
       if (accent !== null && !!a !== accent) continue;
-      const v = variant(g.src);
-      for (const [dx, dy] of offs) {
-        ic.setTransform(m[0] * px, m[1] * px, m[2] * px, m[3] * px, (m[4] - ox) * px + dx, (m[5] - oy) * px + dy);
-        ic.drawImage(mask(v), 0, 0);
+      const k = Math.sqrt(Math.abs(m[0] * m[3] - m[1] * m[2]));
+      ic.setTransform(m[0] * px, m[1] * px, m[2] * px, m[3] * px, (m[4] - ox) * px, (m[5] - oy) * px);
+      for (const line of glyphLines(variant(g.src))) {
+        ic.lineWidth = line.w + (2 * extra) / (k * px);
+        ic.beginPath();
+        line.pts.forEach(([x, y], i) => (i ? ic.lineTo(x, y) : ic.moveTo(x, y)));
+        if (line.pts.length === 1) ic.lineTo(line.pts[0][0] + 0.01, line.pts[0][1]);
+        ic.stroke();
       }
     }
     ic.setTransform(1, 0, 0, 1, 0, 0);

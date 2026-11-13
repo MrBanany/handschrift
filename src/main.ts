@@ -9,7 +9,7 @@ import { toPdf } from './export/pdf';
 import { GN_PAGE, goodnotesFile } from './export/goodnotes';
 import { pagesOf } from './import/load';
 import { paint, setupPencil } from './import/pencil';
-import { clearMaskCache, drawPage, type Background, type DrawOpts } from './renderer/draw';
+import { drawPage, type Background, type DrawOpts } from './renderer/draw';
 import { DEFAULT_WORD_GAP, glyphAt, layout, profile, swapVariant, type Page, type Settings } from './renderer/layout';
 import { extractBox, extractPage } from './segmentation/extract';
 import { clean } from './renderer/clean';
@@ -56,7 +56,6 @@ function rebuild() {
   bySrc = new Map(all.map((v) => [v.src, v]));
   lib = new Map();
   for (const v of all) lib.set(v.key, [...(lib.get(v.key) ?? []), v]);
-  clearMaskCache(); // box ids repeat across sets
   schedule();
   renderGrid();
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { connectionModel } from '../src/connectors/connect';
 import type { GlyphMeta } from '../src/glyphstore/types';
+import { inkStrokes } from '../src/export/goodnotes';
 import { layout, segment, type Settings } from '../src/renderer/layout';
 import { EMPH, HEAD, MARK, STRUCT, clean } from '../src/renderer/clean';
 import { extractPage } from '../src/segmentation/extract';
@@ -153,6 +154,8 @@ describe('layout', () => {
     expect(Math.min(...after)).toBeGreaterThan(Math.max(...inMap) + S.lineH / 2);
     // frame, links and underlines all end above the following line's letters
     expect(pages[0].connectors.filter((c) => c.p.every((q) => q[1] < Math.min(...after) - 1.2 * S.xh)).length).toBeGreaterThanOrEqual(4 + 3 + 3);
+    // the GoodNotes file gets every stroke (frame, links, underlines) as pen ink
+    expect(inkStrokes({ ...pages[0], glyphs: [] }, () => { throw new Error('no glyphs'); })).toHaveLength(pages[0].connectors.length);
     // more than 8 branches: an indented list instead
     const list = layout(clean('Mindmap: zelle\n' + [...'abcdefghi'].map((c) => `- ${c}${c}`).join('\n'), () => true), lib, S);
     expect(list.pages[0].lines.length).toBeGreaterThan(9);

@@ -152,8 +152,8 @@ export function planMindmap(t: MapTree, o: PlanOpts): MapPlan | null {
   const place = (side: typeof bs, at: number[], isRight: boolean) => {
     side.forEach((b, i) => {
       const bx = isRight ? rightX : boxX0 - gap - b.w;
-      // on the left the title ends at the block's inner edge, where its stroke arrives
-      const tx = (l: MapText) => (!isRight && l.size === TITLE ? b.w - measure(l.text, TITLE) : l.x);
+      // on the left every line ends at the block's inner edge, where the stroke arrives: sub-points never stick out past it
+      const tx = (l: MapText) => (isRight ? l.x : b.w - measure(l.text, l.size));
       for (const l of b.lines) texts.push({ ...l, x: bx + tx(l), row: at[i] + l.row });
       const last = b.lines[b.titleRows - 1], ux = bx + tx(last);
       underlines.push({ x0: ux, x1: ux + measure(last.text, TITLE), row: at[i] + b.titleRows - 1 });

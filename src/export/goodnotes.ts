@@ -163,23 +163,49 @@ export function tpl(width: number, pts: Pt[]): number[] {
   return [...new TextEncoder().encode('tpl'), 0, ...le(4, 8 + format.length + body.length), ...format, ...body];
 }
 
-/** Apple's framed LZ4 ("bv41" blocks, "bv4$" end). Literal-only blocks: valid LZ4, just not smaller. */
-export function appleLz4(data: number[]): number[] {
-  const out: number[] = [];
-  for (let at = 0; at < data.length; at += 32768) {
-    const chunk = data.slice(at, at + 32768), block: number[] = [];
-    let n = chunk.length;
-    block.push(Math.min(n, 15) << 4);
-    if (n >= 15) { for (n -= 15; n >= 255; n -= 255) block.push(255); block.push(n); }
-    for (const b of chunk) block.push(b);
-    out.push(...new TextEncoder().encode('bv41'), ...le(4, chunk.length), ...le(4, block.length), ...block);
+/** One LZ4 block (greedy matching, 4-byte hash table). Ends like the spec asks: last match starts >= 12 and ends >= 5 bytes before the end. */
+function lz4Block(src: Uint8Array): number[] {
+  const n = src.length, out: number[] = [], table = new Int32Array(1 << 14).fill(-1);
+  const len = (r: number) => { for (; r >= 255; r -= 255) out.push(255); out.push(r); };
+  const seq = (from: number, to: number, mlen = 0, off = 0) => {
+    const ll = to - from, ml = mlen ? mlen - 4 : 0;
+    out.push((Math.min(ll, 15) << 4) | Math.min(ml, 15));
+    if (ll >= 15) len(ll - 15);
+    for (let k = from; k < to; k++) out.push(src[k]);
+    if (!mlen) return;
+    out.push(off & 255, off >> 8);
+    if (ml >= 15) len(ml - 15);
+  };
+  let anchor = 0, i = 0;
+  while (i < n - 11) {
+    const v = src[i] | (src[i + 1] << 8) | (src[i + 2] << 16) | (src[i + 3] << 24), h = Math.imul(v, -1640531535) >>> 18;
+    const ref = table[h];
+    table[h] = i;
+    if (ref < 0 || i - ref > 65535 || (src[ref] | (src[ref + 1] << 8) | (src[ref + 2] << 16) | (src[ref + 3] << 24)) !== v) { i++; continue; }
+    let m = 4;
+    while (i + m < n - 5 && src[ref + m] === src[i + m]) m++;
+    seq(anchor, i, m, i - ref);
+    i += m; anchor = i;
   }
-  return [...out, ...new TextEncoder().encode('bv4$')];
+  seq(anchor, n);
+  return out;
+}
+
+/** Apple's framed LZ4 ("bv41" blocks of up to 32 KB, each decodable on its own; "bv4$" end). */
+export function appleLz4(data: ArrayLike<number>): number[] {
+  const all = Uint8Array.from(data as ArrayLike<number>), out: number[] = [], magic = (s: string) => [...new TextEncoder().encode(s)];
+  for (let at = 0; at < all.length; at += 32768) {
+    const chunk = all.subarray(at, at + 32768), block = lz4Block(chunk);
+    out.push(...magic('bv41'), ...le(4, chunk.length), ...le(4, block.length));
+    for (const b of block) out.push(b);
+  }
+  return [...out, ...magic('bv4$')];
 }
 
 let counter = 3_653_600;
 function strokeRecords(s: InkStroke, rgba: number[]): number[] {
-  const pts = s.pts.map(([x, y]): Pt => [x * GN_PER_MM, y * GN_PER_MM]);
+  // connectors come as 13 curve samples: drop the ones within 0.15 GN units (0.03 mm) of the line between their neighbours
+  const pts = simplify(s.pts.map(([x, y]): Pt => [x * GN_PER_MM, y * GN_PER_MM]), 0.15);
   if (pts.length === 1) pts.push([pts[0][0] + 0.01, pts[0][1] + 0.01]); // a dot
   const uuid = crypto.randomUUID().toUpperCase(), n = ++counter;
   const clock = new Proto().varint(1, 2).varint(2, (Math.random() * 2 ** 32) >>> 0);
@@ -193,18 +219,24 @@ function strokeRecords(s: InkStroke, rgba: number[]): number[] {
   return [...meta.record(), ...new Proto().msg(7, inner).record()];
 }
 
-// ---------- zip (stored entries) ----------
+// ---------- zip (deflate, like GoodNotes' own files; stored where that does not help) ----------
 
 const CRC = Array.from({ length: 256 }, (_, i) => { let c = i; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
 const crc32 = (d: Uint8Array) => { let c = 0xffffffff; for (const b of d) c = CRC[(c ^ b) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
 
-export function zip(files: [string, Uint8Array][]): Uint8Array {
+async function deflate(d: Uint8Array): Promise<Uint8Array | null> {
+  if (typeof CompressionStream === 'undefined') return null; // very old browsers: store the entry
+  return new Uint8Array(await new Response(new Blob([d as BlobPart]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer());
+}
+
+export async function zip(files: [string, Uint8Array][]): Promise<Uint8Array> {
   const body: number[] = [], central: number[] = [];
   for (const [name, data] of files) {
     const nm = [...new TextEncoder().encode(name)], crc = crc32(data), off = body.length;
-    const head = [...le(2, 20), ...le(2, 0x0800), ...le(2, 0), ...le(2, 0), ...le(2, 0), ...le(4, crc), ...le(4, data.length), ...le(4, data.length), ...le(2, nm.length), ...le(2, 0)];
+    const z = data.length > 64 ? await deflate(data) : null, packed = z && z.length < data.length ? z : data;
+    const head = [...le(2, 20), ...le(2, 0x0800), ...le(2, packed === data ? 0 : 8), ...le(2, 0), ...le(2, 0), ...le(4, crc), ...le(4, packed.length), ...le(4, data.length), ...le(2, nm.length), ...le(2, 0)];
     body.push(...le(4, 0x04034b50), ...head, ...nm);
-    for (const b of data) body.push(b);
+    for (const b of packed) body.push(b);
     central.push(...le(4, 0x02014b50), ...le(2, 20), ...head, ...le(2, 0), ...le(2, 0), ...le(2, 0), ...le(4, 0), ...le(4, off), ...nm);
   }
   const end = [...le(4, 0x06054b50), ...le(2, 0), ...le(2, 0), ...le(2, files.length), ...le(2, files.length), ...le(4, central.length), ...le(4, body.length), ...le(2, 0)];
@@ -214,7 +246,7 @@ export function zip(files: [string, Uint8Array][]): Uint8Array {
 const b64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 
 /** One page as a .goodnotes document (page laid out on GN_PAGE). ink, head (headings): '#rrggbb'. */
-export function goodnotesFile(page: Page, get: (src: string) => Variant, ink: string, thumbnail?: Uint8Array, head = ink, weight = 0): Uint8Array {
+export function goodnotesFile(page: Page, get: (src: string) => Variant, ink: string, thumbnail?: Uint8Array, head = ink, weight = 0): Promise<Uint8Array> {
   const rgbaOf = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).concat(1);
   const rgba = rgbaOf(ink), rgbaHead = rgbaOf(head);
   const notes: number[] = [];

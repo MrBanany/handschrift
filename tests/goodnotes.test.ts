@@ -1,3 +1,4 @@
+import { inflateRawSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { appleLz4, centerlines, goodnotesFile, tpl } from '../src/export/goodnotes';
 import type { Variant } from '../src/glyphstore/types';
@@ -6,9 +7,10 @@ import type { Variant } from '../src/glyphstore/types';
 function unzip(z: Uint8Array) {
   const dv = new DataView(z.buffer, z.byteOffset), out = new Map<string, Uint8Array>();
   for (let at = 0; dv.getUint32(at, true) === 0x04034b50;) {
-    const size = dv.getUint32(at + 18, true), nl = dv.getUint16(at + 26, true), xl = dv.getUint16(at + 28, true);
+    const method = dv.getUint16(at + 8, true), size = dv.getUint32(at + 18, true), nl = dv.getUint16(at + 26, true), xl = dv.getUint16(at + 28, true);
     const name = new TextDecoder().decode(z.subarray(at + 30, at + 30 + nl)), start = at + 30 + nl + xl;
-    out.set(name, z.subarray(start, start + size));
+    const raw = z.subarray(start, start + size);
+    out.set(name, method === 8 ? new Uint8Array(inflateRawSync(raw)) : raw);
     at = start + size;
   }
   return out;
@@ -37,10 +39,20 @@ function unLz4(b: Uint8Array): Uint8Array {
     expect(magic).toBe('bv41');
     const dv = new DataView(b.buffer, b.byteOffset + at), raw = dv.getUint32(4, true), enc = dv.getUint32(8, true);
     const blk = b.subarray(at + 12, at + 12 + enc);
-    let i = 0, n = blk[i++] >> 4;
-    if (n === 15) { let x; do { x = blk[i++]; n += x; } while (x === 255); }
-    out.push(...blk.subarray(i, i + n));
-    expect(n).toBe(raw);
+    const start = out.length;
+    for (let i = 0; i < blk.length;) {
+      const tok = blk[i++];
+      let n = tok >> 4;
+      if (n === 15) { let x; do { x = blk[i++]; n += x; } while (x === 255); }
+      for (let k = 0; k < n; k++) out.push(blk[i++]);
+      if (i >= blk.length) break; // the last sequence has literals only
+      const off = blk[i] | (blk[i + 1] << 8); i += 2;
+      let m = (tok & 15) + 4;
+      if ((tok & 15) === 15) { let x; do { x = blk[i++]; m += x; } while (x === 255); }
+      expect(off).toBeGreaterThan(0);
+      for (let k = 0; k < m; k++) out.push(out[out.length - off]); // may overlap itself
+    }
+    expect(out.length - start).toBe(raw);
     at += 12 + enc;
   }
 }
@@ -81,7 +93,19 @@ describe('goodnotes export', () => {
     expect([...unLz4(new Uint8Array(appleLz4(data)))]).toEqual(data);
   });
 
-  it('writes a zip with one stroke record pair per stroke and a valid TPL image', () => {
+  it('really compresses repeated data and still round-trips', () => {
+    const data = Array.from({ length: 70000 }, (_, i) => (i % 40) * 3 + ((i / 5000) | 0));
+    const z = appleLz4(data);
+    expect(z.length).toBeLessThan(data.length / 8);
+    expect([...unLz4(new Uint8Array(z))]).toEqual(data);
+    const run = new Array(1000).fill(7); // a run: matches that overlap themselves
+    expect([...unLz4(new Uint8Array(appleLz4(run)))]).toEqual(run);
+    expect([...unLz4(new Uint8Array(appleLz4([])))]).toEqual([]);
+    const noise = Array.from({ length: 5000 }, (_, i) => (i * 2654435761) >>> 24); // little to match
+    expect([...unLz4(new Uint8Array(appleLz4(noise)))]).toEqual(noise);
+  });
+
+  it('writes a zip with one stroke record pair per stroke and a valid TPL image', async () => {
     const w = 10, h = 10, alpha = new Uint8Array(w * h);
     for (let x = 1; x < 9; x++) alpha[5 * w + x] = alpha[4 * w + x] = 255;
     const v = { src: 's', key: '-', w, h, alpha, baseline: 8, strokeW: 2, entry: null, exit: null } as unknown as Variant;
@@ -90,7 +114,7 @@ describe('goodnotes export', () => {
       connectors: [{ p: [[0, 0], [1, 0], [2, 0], [3, 0]] as [number, number][], w0: 0.4, w1: 0.4 }] as never,
       missing: [], lines: [], marks: [],
     };
-    const files = unzip(goodnotesFile(page, () => v, '#203040'));
+    const files = unzip(await goodnotesFile(page, () => v, '#203040'));
     expect([...files.keys()]).toContain('notes/47C42002-8FC8-521C-80C0-A3C6E11DA9C1');
     expect(new TextDecoder().decode(files.get('attachments/F8C077F2-68CA-5AFC-B1D1-EFEA5ED4D254')!.subarray(0, 5))).toBe('%PDF-');
     const notes = files.get('notes/47C42002-8FC8-521C-80C0-A3C6E11DA9C1')!, recs: Uint8Array[] = [];

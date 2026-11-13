@@ -352,7 +352,7 @@ $('shareGn').onclick = () => shareAs('gn', async () => {
     const thumb = drawPage(p, { ...o, background: 'blank', crop: false, pxPerMm: 2, pageW: GN_PAGE.w, pageH: GN_PAGE.h, lineH: s.lineH, margin: s.margin }, get);
     const jpg = new Uint8Array(await (await new Promise<Blob>((ok) => thumb.toBlob((b) => ok(b!), 'image/jpeg', 0.8))).arrayBuffer());
     const name = res.pages.length > 1 ? `handschrift-${i + 1}.goodnotes` : 'handschrift.goodnotes';
-    return new File([goodnotesFile(p, get, o.ink, jpg, o.head ?? o.ink, o.weight) as BlobPart], name, { type: 'application/octet-stream' });
+    return new File([(await goodnotesFile(p, get, o.ink, jpg, o.head ?? o.ink, o.weight)) as BlobPart], name, { type: 'application/octet-stream' });
   }));
 });
 $('copy').onclick = () => {

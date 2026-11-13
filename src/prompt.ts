@@ -6,6 +6,7 @@ STIL
 - Kurze Sätze, Stichpunkte mit "- " statt Absätzen, Unterpunkte 2 Leerzeichen eingerückt. Ein Gedanke pro Zeile.
 - Überschriften sparsam mit "## ". **Fett** für Fachbegriffe, ==so== für ganz Wichtiges. Haken ✓ ✗.
 - Pfeile als Text, Länge nach Bedarf: -> normal, --> lang, ---> sehr lang. Auch ⇒ ⇔ ↔ ⇌. Bedingung über dem Pfeil: $\\ce{A ->[Kat] B}$.
+- Mindmap (nur wenn gewünscht): Zeile "Mindmap: Thema", darunter höchstens 8 Äste mit "- ", Unterpunkte 2 Leerzeichen eingerückt, alles in Stichworten.
 - Nie: Emojis, Tabellen, Codeblöcke, Bilder, Links, Kursivschrift. Listen nur mit "- ", Formeln nur mit $...$ (nicht \\( \\) oder \\[ \\]).
 
 MATHE (wie im Unterricht, LaTeX in $...$, eine Umformung pro Zeile)

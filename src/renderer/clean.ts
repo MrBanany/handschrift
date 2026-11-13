@@ -1,4 +1,5 @@
 import { latex } from './latex';
+import { MAP, encodeMap, extractMindmaps, type MapTree } from './mindmap';
 
 /** Start and end of emphasised text (Markdown bold, headings); the layout underlines it. */
 export const EMPH = ['\u0002', '\u0003'] as const;
@@ -11,7 +12,7 @@ export const STRUCT = ['\u000E', '\u000F'] as const;
 /** Start and end of circled text; the layout draws a ring around it by hand. Not produced by clean() for now (see the ((text)) rule). */
 export const CIRC = ['\u0014', '\u0015'] as const;
 /** Put before an arrow character: a long / very long shaft. A label (\u001b…\u001c) before the arrow is written small above the shaft. */
-export const ARROW = ['\u0019', '\u001a'] as const;
+export const ARROW = ['\u0001', '\u001f'] as const;
 export const LABEL = ['\u001b', '\u001c'] as const;
 /** Superscript and subscript digits 0–9. */
 export const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹', SUB = '₀₁₂₃₄₅₆₇₈₉';
@@ -50,7 +51,10 @@ export function clean(text: string, has: (ch: string) => boolean): string {
   const pick = (...opts: string[]) => opts.find((o) => [...o].every((c) => c === ' ' || has(c))) ?? opts.at(-1)!;
   // [[...]] is kept away from all rules below: SMILES is full of = # ( ) / \ that they would rewrite.
   const mols: string[] = [];
-  const kept = unflatten(text.replace(/\r\n?/g, '\n')).replace(/\[\[([^\]\n]+)\]\]/g, (_, s: string) => `${STRUCT[0]}${mols.push(s.trim()) - 1}${STRUCT[1]}`);
+  // a "Mindmap: topic" line with its list is kept away too and drawn as a mind map (see mindmap.ts)
+  const maps: Omit<MapTree, 'bullet'>[] = [];
+  const node = (x: string) => clean(x, has).replace(/[\u0001-\u0006\u000E\u000F\u0014-\u0018\u001b\u001c\u001f]/g, '').replace(/\s+/g, ' ').trim();
+  const kept = unflatten(extractMindmaps(text.replace(/\r\n?/g, '\n'), (t) => `${MAP[0]}${maps.push(t) - 1}${MAP[1]}`)).replace(/\[\[([^\]\n]+)\]\]/g, (_, s: string) => `${STRUCT[0]}${mols.push(s.trim()) - 1}${STRUCT[1]}`);
   // one indent step is the smallest indent in the text (2 spaces or a tab; Gemini uses 4)
   const step = Math.max(2, Math.min(4, ...[...kept.matchAll(/^([ \t]{2,})(?:[-*+•●▪◦]|\d+[.)])\s/gm)].map((m) => m[1].replace(/\t/g, '  ').length)));
   return latex(kept)
@@ -87,10 +91,10 @@ export function clean(text: string, has: (ch: string) => boolean): string {
     // Long ones (-->, ==>, --->, ⟶, ⟹) are marked, so the shaft is as long as the writer wants.
     .replace(/\s*(-{3,}>|={3,}>|⟶|⟹|-->|==>)\s*/g, (_, a: string) => ` ${/^[-=]{3,}>$/.test(a) ? ARROW[1] : ARROW[0]}${a[0] === '=' || a === '⟹' ? '⇒' : '→'} `)
     .replace(/\s*(\u001b[^\u001c\n]*\u001c→)\s*/g, ' $1 ') // an arrow with a label stands alone too
-    .replace(/(?<![\u0019\u001a\u001c])\s*(?:⇔|⟺|<=>)\s*/g, ' ⇔ ')
-    .replace(/(?<![\u0019\u001a\u001c])\s*(?:↔|⟷|<->)\s*/g, ' ↔ ')
-    .replace(/(?<![\u0019\u001a\u001c])\s*(?:⇒|=>)\s*/g, ' ⇒ ')
-    .replace(/(?<![\u0019\u001a\u001c])\s*(?:→|➔|➜|->)\s*/g, ' → ')
+    .replace(/(?<![\u0001\u001f\u001c])\s*(?:⇔|⟺|<=>)\s*/g, ' ⇔ ')
+    .replace(/(?<![\u0001\u001f\u001c])\s*(?:↔|⟷|<->)\s*/g, ' ↔ ')
+    .replace(/(?<![\u0001\u001f\u001c])\s*(?:⇒|=>)\s*/g, ' ⇒ ')
+    .replace(/(?<![\u0001\u001f\u001c])\s*(?:→|➔|➜|->)\s*/g, ' → ')
     .replace(/\s*(?:←|<-)\s*/g, ' ← ')
     .replace(/\s*⇌\s*/g, ' ⇌ ')
     .replace(/[“”„‟″]/g, (q) => (has(q) ? q : pick('"', "'")))
@@ -117,6 +121,11 @@ export function clean(text: string, has: (ch: string) => boolean): string {
     // a stacked fraction too; punctuation right after it stays attached
     .replace(/[ \t]*\u0011([^\u0012\n]*)\u0012([^\u0013\n]*)\u0013[ \t]*/g, (_, a: string, b: string) => ` \u0011${a.trim().replace(/ +/g, '\u0010')}\u0012${b.trim().replace(/ +/g, '\u0010')}\u0013 `)
     .replace(/\u0013 (?=[.,;:!?)])/g, '\u0013')
+    // the mind map: one token on a line of its own, its texts cleaned like any other (after the rules above, which would split it)
+    .replace(/\u0019(\d+)\u001A/g, (_, i: string) => {
+      const t = maps[+i], bullet = pick('•', '-');
+      return encodeMap({ bullet, topic: node(t.topic), branches: t.branches.map((b) => ({ title: node(b.title), items: b.items.map((x) => `${bullet} ${node(x)}`) })) });
+    })
     .replace(/^ +| +$/gm, '')
     // room between topics: an empty line before every heading, and after a boxed result
     .replace(/\n+(?=\u0006)/g, '\n\n')

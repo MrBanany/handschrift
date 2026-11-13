@@ -307,23 +307,36 @@ export function withAttachmentSize(events: Uint8Array, size: number): Uint8Array
   return new Uint8Array(out);
 }
 
+/**
+ * Fresh ids for one export. The template's ids (document, page, attachment, events) are the same in every file we write;
+ * GoodNotes keeps attachments and page renderings by id, so a second import with other paper could be shown with the first one's.
+ * Every file GoodNotes writes itself has ids of its own. The paper's name ("<uuid>_standard_1_2 - White") keeps its uuid.
+ */
+function freshIds() {
+  const ids = new Map<string, string>();
+  const id = (u: string) => ids.get(u) ?? (ids.set(u, crypto.randomUUID().toUpperCase()), ids.get(u)!);
+  const swap = (b: Uint8Array) => Uint8Array.from(String.fromCharCode(...b).replace(/[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}(?!_)/g, id), (c) => c.charCodeAt(0));
+  return { id, swap };
+}
+
 /** One page as a .goodnotes document (page laid out on GN_PAGE). ink, head (headings): '#rrggbb'. background: PDF of GN_PAGE size (backgroundPdf), else the template's dot grid. */
 export function goodnotesFile(page: Page, get: (src: string) => Variant, ink: string, thumbnail?: Uint8Array, head = ink, weight = 0, background?: Uint8Array): Promise<Uint8Array> {
   const rgbaOf = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).concat(1);
   const rgba = rgbaOf(ink), rgbaHead = rgbaOf(head);
   const notes: number[] = [];
   for (const s of inkStrokes(page, get, weight)) if (s.pts.length) notes.push(...strokeRecords(s, s.accent ? rgbaHead : rgba));
+  const { id, swap } = freshIds(), pageId = id(PAGE_UUID), attId = id(ATTACHMENT_UUID);
   return zip([
     ['document.info.pb', new Uint8Array()],
-    ['index.search.pb', b64(TEMPLATE.search)],
-    ['index.notes.pb', b64(TEMPLATE.notes)],
-    [`search/${PAGE_UUID}`, new Uint8Array([0x04, 0x10, 0x01, 0x1a, 0x00])],
-    [`search/${ATTACHMENT_UUID}`, b64(TEMPLATE.attSearch)],
-    [`notes/${PAGE_UUID}`, new Uint8Array(notes)],
-    ['index.events.pb', background ? withAttachmentSize(b64(TEMPLATE.events), background.length) : b64(TEMPLATE.events)],
+    ['index.search.pb', swap(b64(TEMPLATE.search))],
+    ['index.notes.pb', swap(b64(TEMPLATE.notes))],
+    [`search/${pageId}`, new Uint8Array([0x04, 0x10, 0x01, 0x1a, 0x00])],
+    [`search/${attId}`, b64(TEMPLATE.attSearch)],
+    [`notes/${pageId}`, new Uint8Array(notes)],
+    ['index.events.pb', swap(background ? withAttachmentSize(b64(TEMPLATE.events), background.length) : b64(TEMPLATE.events))],
     ...(thumbnail ? [['thumbnail.jpg', thumbnail] as [string, Uint8Array]] : []),
-    ['index.attachments.pb', b64(TEMPLATE.attachments)],
-    [`attachments/${ATTACHMENT_UUID}`, background ?? b64(TEMPLATE.background)],
+    ['index.attachments.pb', swap(b64(TEMPLATE.attachments))],
+    [`attachments/${attId}`, background ?? b64(TEMPLATE.background)],
     ['schema.pb', b64(TEMPLATE.schema)],
   ]);
 }

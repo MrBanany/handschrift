@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { connectionModel } from '../src/connectors/connect';
 import type { GlyphMeta } from '../src/glyphstore/types';
+import { inkStrokes } from '../src/export/goodnotes';
 import { layout, segment, type Settings } from '../src/renderer/layout';
-import { clean, EMPH, HEAD, MARK, STRUCT } from '../src/renderer/clean';
+import { EMPH, HEAD, MARK, STRUCT, clean } from '../src/renderer/clean';
 import { extractPage } from '../src/segmentation/extract';
 import { readPageCode, register, type Affine } from '../src/segmentation/register';
 import { PDFDocument } from 'pdf-lib';
@@ -142,6 +143,22 @@ describe('layout', () => {
     const a = layout('hallo welt', lib, S), b = layout('hallo welt', lib, S), c = layout('hallo welt', lib, { ...S, seed: 8 });
     expect(a).toEqual(b);
     expect(a.pages[0].glyphs.map((g) => g.m)).not.toEqual(c.pages[0].glyphs.map((g) => g.m));
+  });
+
+  it('draws a mind map and pushes the following line below it', () => {
+    const map = clean('Mindmap: zelle\n- kern\n  - dna\n- wand\n- plasma', () => true);
+    const { pages } = layout(`${map}\nab`, lib, S);
+    expect(pages).toHaveLength(1);
+    const ys = pages[0].glyphs.map((g) => g.m[5]), after = ys.slice(-2), inMap = ys.slice(0, -2);
+    expect(pages[0].connectors.length).toBeGreaterThanOrEqual(4 + 3 + 3); // frame, links, underlines
+    expect(Math.min(...after)).toBeGreaterThan(Math.max(...inMap) + S.lineH / 2);
+    // frame, links and underlines all end above the following line's letters
+    expect(pages[0].connectors.filter((c) => c.p.every((q) => q[1] < Math.min(...after) - 1.2 * S.xh)).length).toBeGreaterThanOrEqual(4 + 3 + 3);
+    // the GoodNotes file gets every stroke (frame, links, underlines) as pen ink
+    expect(inkStrokes({ ...pages[0], glyphs: [] }, () => { throw new Error('no glyphs'); })).toHaveLength(pages[0].connectors.length);
+    // more than 8 branches: an indented list instead
+    const list = layout(clean('Mindmap: zelle\n' + [...'abcdefghi'].map((c) => `- ${c}${c}`).join('\n'), () => true), lib, S);
+    expect(list.pages[0].lines.length).toBeGreaterThan(9);
   });
 
   it('writes a fraction stacked: numerator above, denominator below a bar', () => {
@@ -312,6 +329,7 @@ describe('layout', () => {
       expect([a, pg.connectors.length, pg.glyphs.length, pg.missing.length]).toEqual([a, n, 2, 0]);
       for (const c of pg.connectors) for (const q of c.p) expect(Math.abs(q[1] - (S.margin + S.lineH - 0.5 * S.xh))).toBeLessThan(0.75 * S.xh);
     }
+    expect(inkStrokes(run('⇒'), () => { throw new Error('no glyphs here'); })).toHaveLength(4); // real ink in the GoodNotes file
     expect(span('A -> B')).toBeLessThan(span('A --> B'));
     expect(span('A --> B')).toBeLessThan(span('A ---> B'));
     const pg = run('$\\ce{A ->[bei hoher temperatur] B}$'), lx = pg.glyphs.slice(1, -1).map((g) => g.m[4]);

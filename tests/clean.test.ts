@@ -33,8 +33,9 @@ describe('clean pasted AI text', () => {
     expect(clean('$\\lim_{x \\to 0}$, $\\sum_{i=1}^{n} i$, $\\sqrt[3]{8}$, $\\vec{v}$', () => true)).toBe('lim(x → 0), Σ(i=1 bis n) i, ³√8, v');
     expect(clean('$\\ce{H2O(l) + NaCl(aq) ->[Kat] X}$', () => true)).toBe('H₂O(l) + NaCl(aq) \u001bKat\u001c→ X'); // label above the arrow
     // long and very long arrows keep their length for the layout
-    expect(clean('A --> B ---> C ==> D $\\longrightarrow$ E -> F', () => true)).toBe('A \u0019→ B \u001a→ C \u0019⇒ D \u0019→ E → F');
-    expect(clean('A --> B', (c) => c !== '→')).toBe('A \u0019→ B'); // drawn as pen strokes, so the set need not hold it
+    expect(clean('A --> B ---> C ==> D $\\longrightarrow$ E -> F', () => true)).toBe('A \u0001→ B \u001f→ C \u0001⇒ D \u0001→ E → F');
+    expect(clean('A --> B', (c) => c !== '→')).toBe('A \u0001→ B'); // drawn as pen strokes, so the set need not hold it
+    expect(clean('Mindmap: Thema\n- A --> B\n- C ->[Kat] D', () => true)).not.toMatch(/[\u0001\u001b\u001f]/); // a mind map writes its arrows as letters (\u001c is its own separator)
     expect(clean('a [b] {c}', (c) => !'[]{}'.includes(c))).toBe('a (b) (c)'); // brackets the writer lacks
   });
   it('turns tables into lines and keeps nested bullets indented', () => {

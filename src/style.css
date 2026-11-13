@@ -213,4 +213,14 @@ details > * + * { margin-top: 10px; }
 .add-part input { flex: 1; min-width: 0; font: inherit; height: 42px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); color: var(--text); }
 .textbar { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .small-btn { font-size: 13px; min-height: 34px; padding: 0 12px; border-radius: 10px; color: var(--muted); }
+/* design polish: calmer inline buttons, clear focus, visible active tab */
+.steps li > button, .steps li > .button { min-height: 32px; padding: 0 10px; font-size: 14px; margin: 2px 0; vertical-align: baseline; }
+.steps li { line-height: 1.6; }
+textarea { transition: border-color .15s, box-shadow .15s; }
+textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.tabbar button { border-radius: 12px; }
+.tabbar button.on { background: var(--accent-soft); }
+.tabbar button.on:hover { background: var(--accent-soft); }
+.card h2 { letter-spacing: -.01em; }
+.page-view { border-radius: 6px; }
 .history { align-self: flex-end;font: inherit; font-size: 13px; height: 34px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); color: var(--muted); max-width: 100%; }

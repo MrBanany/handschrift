@@ -281,7 +281,8 @@ function preview() {
     return sheet;
   }));
   $('missing').hidden = !missing.size;
-  $('missing').textContent = `Fehlt in dieser Handschrift (rot markiert): ${[...missing].join(' ')}`;
+  $('missing').replaceChildren(`${missing.size === 1 ? '1 Zeichen fehlt' : `${missing.size} Zeichen fehlen`} in diesem Text (rot markiert) – jetzt schreiben: `,
+    ...[...missing].map((k) => button(k, () => openLetter(k), 'chip gone')));
 }
 
 document.querySelectorAll('#write textarea, #settings input').forEach((el) => el.addEventListener('input', () => {
@@ -441,7 +442,7 @@ async function importInto(sources: [label: string, pages: () => AsyncIterable<{ 
     } catch (e) { log(`${label}: konnte nicht gelesen werden (${(e as Error).message})`); }
   }
   sets = await listSets();
-  if (total) { await useSet(name); log(`Fertig – „${name}“ ist jetzt aktiv.`); toast(`„${name}“ importiert.`); }
+  if (total) { await useSet(name); log(`Fertig – „${name}“ ist jetzt aktiv.`); toast(`„${name}“ importiert.`); openSetup(); }
   else log('Keine Proben gefunden.');
   return total > 0;
 }
@@ -781,6 +782,36 @@ const KNOWN = new Set([...GROUPS.flatMap(([, keys]) => keys), ...CURSIVE_KEYS]);
 // Most frequent letters in German text: with few variants the same shapes repeat visibly.
 const FREQUENT = [...'enisratdhulgmocbfkwz'];
 
+/** Single characters worth having, most important first (arrows, maths signs, digits, umlauts, punctuation, letters). */
+const rank = (k: string) => /[→←↑↓⇒⇔↔]/.test(k) ? 0 : /[+=≠≈<>≤≥±×÷]/.test(k) ? 1 : /\p{N}/u.test(k) ? 2 : /[äöüÄÖÜß]/.test(k) ? 3 : /\p{L}/u.test(k) ? 5 : 4;
+const missingKeys = () => {
+  const have = new Set(raw.map((v) => v.key));
+  return [...new Set([...SINGLES, ...SYMBOL_KEYS])].filter((k) => !have.has(k)).sort((a, b) => rank(a) - rank(b));
+};
+const SHOWN = 36;
+
+/** "Diese Zeichen fehlen noch": not written at all (red) or only drawn as stand-in strokes (dashed). A tap opens the writing pad. */
+function missingCard() {
+  const miss = missingKeys();
+  if (!active || !miss.length) return null;
+  const card = document.createElement('div');
+  card.className = 'card missing-card';
+  const part = (keys: string[], cls: string) => {
+    const p = document.createElement('p');
+    p.className = 'note info need';
+    p.append(...keys.slice(0, SHOWN).map((k) => button(k, () => openLetter(k), `chip ${cls}`)),
+      ...(keys.length > SHOWN ? [`… und ${keys.length - SHOWN} weitere (Reiter Zeichen)`] : []));
+    return p;
+  };
+  const note = (text: string) => Object.assign(document.createElement('p'), { className: 'muted small', textContent: text });
+  const gone = miss.filter((k) => !lib.has(k)), stand = miss.filter((k) => lib.has(k));
+  card.append(Object.assign(document.createElement('h2'), { textContent: 'Diese Zeichen fehlen noch' }),
+    note('Antippen und mit dem Pencil schreiben. Pfeile, Rechenzeichen und Ziffern zuerst – sie kommen in Texten oft vor.'),
+    ...(gone.length ? [part(gone, 'gone')] : []),
+    ...(stand.length ? [note('Ersatz – wird gerade aus einfachen Strichen gezeichnet, besser selbst schreiben:'), part(stand, 'sub')] : []));
+  return card;
+}
+
 function renderGrid() {
   const byKey = new Map<string, Variant[]>();
   for (const v of raw) byKey.set(v.key, [...(byKey.get(v.key) ?? []), v]);
@@ -798,6 +829,8 @@ function renderGrid() {
   $('reviewOpen').textContent = open ? `Optimierung prüfen (${open} offen)` : 'Optimierung erneut prüfen';
   $('acceptAll').hidden = !open;
 
+  const gone = missingCard();
+  $('missingManage').replaceChildren(...(active && gone ? [gone] : []));
   const few = FREQUENT.filter((k) => (byKey.get(k)?.length ?? 0) < 3);
   const need = document.createElement('p');
   need.className = 'note info need';
@@ -815,7 +848,7 @@ function renderGrid() {
     if (k) openLetter(k);
   };
 
-  $('grid').replaceChildren(...(!active ? [] : [...(few.length ? [need] : []), ...groups.flatMap(([title, keys]) => {
+  $('grid').replaceChildren(...(!active ? [] : [...(gone ? [missingCard()!] : []), ...(few.length ? [need] : []), ...groups.flatMap(([title, keys]) => {
     const h = document.createElement('h3');
     h.textContent = title;
     const group = document.createElement('div');
@@ -900,6 +933,20 @@ $('welcomeLater').onclick = welcomed;
 const howto = (on: boolean) => { $('howto').hidden = !on; };
 $('howtoOpen').onclick = $('welcomeHowto').onclick = () => howto(true);
 $('howtoClose').onclick = () => howto(false);
+// Setup checklist: shown after an import (what is missing now?) and any time from the Handschriften tab.
+function openSetup() {
+  const own = sets.some((n) => n !== SAMPLE_SET), miss = active && active !== SAMPLE_SET ? missingKeys().length : 0;
+  $('setup1').textContent = own ? 'erledigt' : 'noch offen';
+  $('setup2').textContent = !own ? '' : miss ? `${miss} Zeichen fehlen noch` : 'alles da';
+  $('setup').hidden = false;
+}
+const closeSetup = () => { $('setup').hidden = true; };
+$('setupOpen').onclick = openSetup;
+$('setupClose').onclick = closeSetup;
+$('setupPencil').onclick = () => { closeSetup(); show('manage'); $('pencilOpen').click(); };
+$('setupPdf').onclick = () => { closeSetup(); show('manage'); $('template').scrollIntoView({ block: 'center' }); };
+$('setupMissing').onclick = () => { closeSetup(); show('glyphs'); };
+$('setupWrite').onclick = () => { closeSetup(); show('write'); };
 $('shareApp').onclick = async () => {
   const data = { title: 'Handschrift', text: 'Mit dieser App schreibt dein iPad getippten Text in deiner eigenen Handschrift – zum Einfügen in GoodNotes. Alles bleibt auf deinem Gerät.', url: 'https://mrbanany.github.io/handschrift/' };
   try {

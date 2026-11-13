@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EMPH, HEAD, MARK, STRUCT, clean } from '../src/renderer/clean';
+import { EMPH, HEAD, MARK, STRUCT, SUB, SUB_LETTERS, clean } from '../src/renderer/clean';
 import { chem } from '../src/renderer/latex';
 
 describe('clean pasted AI text', () => {
@@ -72,6 +72,65 @@ describe('clean pasted AI text', () => {
   });
   it('writes German decimal commas {,} and \\% from AI answers', () => {
     expect(clean(String.raw`$g = 9{,}81\,\text{m/s}^2$, $20\%$`, () => true)).toBe('g = 9,81 m/s², 20%');
+  });
+  it('keeps the empty lines around tables, quotes and code fences, and underlines the real header row', () => {
+    const [b, e] = EMPH, all = () => true;
+    expect(clean('Titel\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\nDanach', all)).toBe(`Titel\n\n${b}A – B${e}\n1 – 2\n\nDanach`);
+    expect(clean('Text\n\n> Zitat\n\nEnde', all)).toBe('Text\n\nZitat\n\nEnde');
+    expect(clean('Text\n\n```py\nx = 1\n```\n\nEnde', all)).toBe('Text\n\nx = 1\n\nEnde');
+  });
+  it('indents nested numbered items and nested task lists', () => {
+    const all = () => true;
+    expect(clean('1. Eins\n   1. Unter', all)).toBe('1. Eins\n\u00181. Unter');
+    expect(clean('- [ ] oben\n  - [x] unten', all)).toBe('• oben\n\u0018✓ unten');
+  });
+  it('keeps braces inside fractions and roots from blocking them, and does not raise x^{n-1} wrongly', () => {
+    const all = () => true;
+    expect(clean(String.raw`$\frac{x^{n+1}}{n+1}$`, all)).toBe('\u0011x^(n+1)\u0012n+1\u0013');
+    expect(clean(String.raw`$\sqrt{b^{2}-4ac}$, $\frac{x_{1}}{2}$`, all)).toBe('√(b²-4ac), \u0011x₁\u00122\u0013');
+    expect(clean('$x^{n-1}$, $2^{n+1}$, $x^{n}$, $e^{2x}$, $a^{-1}$, $x^{T}$', all)).toBe('x^(n-1), 2^(n+1), xⁿ, e²ˣ, a⁻¹, x^T');
+  });
+  it('writes binom, set symbols, spacing commands and style switches without leaving their names', () => {
+    const all = () => true;
+    expect(clean(String.raw`$\binom{n}{k}$, $A \cap B$, $x \in \mathbb{R}$, $\forall x$`, all)).toBe('(n über k), A ∩ B, x ∈ R, ∀ x');
+    expect(clean(String.raw`$\displaystyle a\quad b$, $\textbf{fett}$, $\frac12$, $\sqrt2$`, all)).toBe('a b, fett, \u00111\u00122\u0013, √2');
+    expect(clean(String.raw`$\xrightarrow{\text{Kat.}}$, $\overset{!}{=}$`, all)).toBe('→ (Kat.), =');
+  });
+  it('writes the limits of an evaluation bar in words and x_{1,2} with small digits', () => {
+    const all = () => true;
+    expect(clean(String.raw`$\left[x^3\right]_0^2$`, all)).toBe('[x³] von 0 bis 2');
+    expect(clean(String.raw`$\left.\frac{x^2}{2}\right|_0^1$`, all)).toBe('\u0011x²\u00122\u0013 | von 0 bis 1');
+    expect(clean('$x_{1,2}$', all)).toBe('x₁,₂');
+  });
+  it('reads NH4+ as ammonium (subscript) but Ca2+ as a charge, with state symbols behind it', () => {
+    const all = () => true;
+    expect(clean(String.raw`$\ce{NH4+ + Ca2+ + H3O+}$`, all)).toBe('NH₄⁺ + Ca²⁺ + H₃O⁺');
+    expect(clean(String.raw`$\ce{Cu^2+(aq)}$, $-\log[\ce{H3O+}]$`, all)).toBe('Cu²⁺(aq), -log[H₃O⁺]');
+  });
+  it('keeps dollar signs of prices, strips them around formulas (also around a box)', () => {
+    const all = () => true;
+    expect(clean('Kosten $5 und $10, aber $x$ ist Mathe', all)).toBe('Kosten $5 und $10, aber x ist Mathe');
+    expect(clean(String.raw`$\boxed{A = 10}$`, all)).toBe('\u0016A = 10\u0017');
+  });
+  it('lowers several letters and capitals from the writer\'s own letters, but leaves snake_case and long names alone', () => {
+    const all = () => true, sub = (s: string) => [...s].map((c) => SUB_LETTERS[c] ?? SUB[+c]).join('');
+    expect(clean(String.raw`$E_\text{pot}$, $E_{\text{kin}}$, $F_G$, $\Delta_R H$, $v_{max}$`, all)).toBe(`E${sub('pot')}, E${sub('kin')}, F${sub('G')}, Δ${sub('R')} H, v${sub('max')}`);
+    expect(clean(String.raw`$a_{n+1}$, $m_{Gesamtmasse}$, snake_case, MAX_VALUE`, all)).toBe('a_(n+1), m_Gesamtmasse, snake_case, MAX_VALUE');
+    expect(clean(String.raw`$E_\text{pot}$`, (c) => c !== SUB_LETTERS.p)).toBe('E_pot'); // the writer lacks the letter: stays readable
+  });
+  it('writes the index after a bracket in complex ions: [Cu(NH3)4]2+', () => {
+    expect(clean(String.raw`$\ce{[Cu(NH3)4]^2+}$`, () => true)).toBe('[Cu(NH₃)₄]²⁺');
+  });
+  it('writes therefore, angle, partial, nabla and more Greek letters as symbols', () => {
+    expect(clean(String.raw`$\therefore \angle ABC$, $\nabla f$, $\partial x$, $\psi \chi \xi \zeta$, $\triangle ABC$`, () => true)).toBe('∴ ∠ ABC, ∇ f, ∂ x, ψ χ ξ ζ, Δ ABC');
+  });
+  it('removes the space before a punctuation mark when an emoji in between is dropped', () => {
+    expect(clean('Beispiel 🐍: Text 🌱 hier 🌱.', (c) => !/\p{Extended_Pictographic}/u.test(c))).toBe('Beispiel: Text hier.');
+  });
+  it('turns tables without outer pipes into lines too', () => {
+    const [b, e] = EMPH;
+    expect(clean('Stoff | Formel\n--- | :---:\nWasser | H2O\nSalz | NaCl |\nDanach', () => true)).toBe(`${b}Stoff – Formel${e}\nWasser – H₂O\nSalz – NaCl\nDanach`);
+    expect(clean('x |-3 und a | b\nkeine Tabelle', () => true)).toBe('x | -3 und a | b\nkeine Tabelle');
   });
   it('keeps Geg./Ges. and writes |:2 notes with room after the bar', () => {
     expect(clean(String.raw`Geg.: $2x = 8$ |:2 und $x \quad y$ |-3`, () => true)).toBe('Geg.: 2x = 8 | :2 und x y | -3');

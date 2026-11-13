@@ -7,6 +7,7 @@ const SYMBOL: Record<string, string> = {
   to: '→', rightarrow: '→', longrightarrow: '→', leftarrow: '←', Rightarrow: '⇒', implies: '⇒', Leftrightarrow: '⇔', iff: '⇔',
   cap: '∩', cup: '∪', subset: '⊂', in: '∈', forall: '∀', exists: '∃', equiv: '≡', perp: '⊥', emptyset: '∅', varnothing: '∅', epsilon: 'ε', varepsilon: 'ε', tau: 'τ', eta: 'η', nu: 'ν', kappa: 'κ',
   displaystyle: '', textstyle: '', limits: '', nolimits: '', big: '', Big: '', bigl: '', bigr: '', Bigl: '', Bigr: '',
+  therefore: '∴', because: '∵', angle: '∠', partial: '∂', nabla: '∇', psi: 'ψ', chi: 'χ', xi: 'ξ', zeta: 'ζ', triangle: 'Δ', parallel: '||',
   prime: "'", quad: ' ', qquad: ' ', mid: '|', ll: '<<', gg: '>>', propto: '~', land: '∧', lor: '∨', neg: '¬', cdotp: '·', ast: '*', colon: ':',
   leftrightarrow: '↔', rightleftharpoons: '⇌', uparrow: '↑', downarrow: '↓', cdots: '...', ldots: '...', dots: '...',
 };
@@ -30,11 +31,11 @@ export function chem(word: string): string {
   const state = /\((?:s|l|g|aq)\)$/.exec(word)?.[0]; // H2O(l), NaCl(aq)
   if (state) return chem(word.slice(0, -state.length)) + state;
   const [, n, f] = /^(\d*)(.*)$/s.exec(word)!; // "6CO2": 6 molecules of CO2
-  if (!/\d/.test(f) || !/^(?:[A-Z][a-z]?\d*|\(|\)\d*)+$/.test(f)) return word;
+  if (!/\d/.test(f) || !/^(?:[A-Z][a-z]?\d*|\(|\)\d*|\[|\]\d*)+$/.test(f)) return word;
   const parts = f.match(/[A-Z][a-z]?/g) ?? [];
   if (!parts.every((p) => ELEMENTS.has(p))) return word;
   if (parts.length < 2 && !/^(?:H|N|O|F|Cl|Br|I)[23]$/.test(f)) return word; // H2, O2, O3 – but not "F1" or "B2"
-  return n + f.replace(/([A-Za-z)])(\d+)/g, '$1_$2');
+  return n + f.replace(/([A-Za-z)\]])(\d+)/g, '$1_$2');
 }
 
 /** mhchem species with charge: "Na+", "Ca2+", "SO4^2-", "SO4^{2-}" -> formula with ^{charge}. */
@@ -62,6 +63,7 @@ export function latex(text: string): string {
     .replace(/\\(?:frac|dfrac|tfrac)(\d)(\d)/g, '\\frac{$1}{$2}').replace(/\\sqrt(\d)/g, '\\sqrt{$1}') // \frac12, \sqrt2
     .replace(/\\(?:overset|underset)\{[^{}]*\}\{([^{}]*)\}/g, '$1')
     .replace(/\\underbrace\{([^{}]*)\}_\{[^{}]*\}/g, '$1')
+    .replace(/_\\(?:text|mathrm|textrm)\{([^{}]*)\}/g, '_{$1}') // E_\text{pot}
     .replace(/\\(?:text|textbf|textit|textrm|textsf|mathrm|mathbf|mathit|mathsf|operatorname|vec|overline|bar|hat|widehat|tilde|mathbb|mathcal|boldsymbol|underline|dot|ddot|color)\{([^{}]*)\}/g, '$1')
     .replace(/\\xrightarrow\{([^{}]*)\}/g, '→ ($1)')
     // limits written out in words: a writer puts them under the sign, the app on the line
@@ -88,6 +90,7 @@ export function latex(text: string): string {
     .replace(/\\([A-Za-z]+)/g, (m, name: string) => SYMBOL[name] ?? name) // \sin -> sin
     // x^{n-1}: only plain digits/letters and charges can be raised; anything else keeps its brackets as x^(n-1)
     .replace(/\^\{([^{}]+)\}/g, (m, x: string) => (/^[0-9a-z]{2,}$|^\d+$|^\d*[+-]$|^-\d+$/.test(x) ? m : /^[A-Za-z]$/.test(x) ? '^' + x : `^(${x})`))
-    .replace(/_\{([^{}0-9,][^{},]*)\}/g, '_$1') // x_{i,j} keeps its brackets
+    // x_{kin} and x_{1,2} keep their brackets for clean() to lower them; x_{Gesamtmasse} loses them, x_{n+1} becomes x_(n+1)
+    .replace(/_\{([^{}]+)\}/g, (m, x: string) => (/^\w{1,8}$|^\w+,\w+$/.test(x) ? m : /^[A-Za-z]+$/.test(x) ? '_' + x : `_(${x})`))
     .replace(/(^|[\s(])(\d*(?:[A-Z][a-z]?\d*|\(|\)\d*)+(?:\((?:s|l|g|aq)\))?)(?=[\s.,;:)+]|$)/gm, (m, pre: string, f: string) => pre + chem(f));
 }

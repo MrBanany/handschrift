@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EMPH, HEAD, MARK, STRUCT, clean } from '../src/renderer/clean';
+import { EMPH, HEAD, MARK, STRUCT, SUB, SUB_LETTERS, clean } from '../src/renderer/clean';
 import { chem } from '../src/renderer/latex';
 
 describe('clean pasted AI text', () => {
@@ -111,6 +111,26 @@ describe('clean pasted AI text', () => {
     const all = () => true;
     expect(clean('Kosten $5 und $10, aber $x$ ist Mathe', all)).toBe('Kosten $5 und $10, aber x ist Mathe');
     expect(clean(String.raw`$\boxed{A = 10}$`, all)).toBe('\u0016A = 10\u0017');
+  });
+  it('lowers several letters and capitals from the writer\'s own letters, but leaves snake_case and long names alone', () => {
+    const all = () => true, sub = (s: string) => [...s].map((c) => SUB_LETTERS[c] ?? SUB[+c]).join('');
+    expect(clean(String.raw`$E_\text{pot}$, $E_{\text{kin}}$, $F_G$, $\Delta_R H$, $v_{max}$`, all)).toBe(`E${sub('pot')}, E${sub('kin')}, F${sub('G')}, Δ${sub('R')} H, v${sub('max')}`);
+    expect(clean(String.raw`$a_{n+1}$, $m_{Gesamtmasse}$, snake_case, MAX_VALUE`, all)).toBe('a_(n+1), m_Gesamtmasse, snake_case, MAX_VALUE');
+    expect(clean(String.raw`$E_\text{pot}$`, (c) => c !== SUB_LETTERS.p)).toBe('E_pot'); // the writer lacks the letter: stays readable
+  });
+  it('writes the index after a bracket in complex ions: [Cu(NH3)4]2+', () => {
+    expect(clean(String.raw`$\ce{[Cu(NH3)4]^2+}$`, () => true)).toBe('[Cu(NH₃)₄]²⁺');
+  });
+  it('writes therefore, angle, partial, nabla and more Greek letters as symbols', () => {
+    expect(clean(String.raw`$\therefore \angle ABC$, $\nabla f$, $\partial x$, $\psi \chi \xi \zeta$, $\triangle ABC$`, () => true)).toBe('∴ ∠ ABC, ∇ f, ∂ x, ψ χ ξ ζ, Δ ABC');
+  });
+  it('removes the space before a punctuation mark when an emoji in between is dropped', () => {
+    expect(clean('Beispiel 🐍: Text 🌱 hier 🌱.', (c) => !/\p{Extended_Pictographic}/u.test(c))).toBe('Beispiel: Text hier.');
+  });
+  it('turns tables without outer pipes into lines too', () => {
+    const [b, e] = EMPH;
+    expect(clean('Stoff | Formel\n--- | :---:\nWasser | H2O\nSalz | NaCl |\nDanach', () => true)).toBe(`${b}Stoff – Formel${e}\nWasser – H₂O\nSalz – NaCl\nDanach`);
+    expect(clean('x |-3 und a | b\nkeine Tabelle', () => true)).toBe('x | -3 und a | b\nkeine Tabelle');
   });
   it('keeps Geg./Ges. and writes |:2 notes with room after the bar', () => {
     expect(clean(String.raw`Geg.: $2x = 8$ |:2 und $x \quad y$ |-3`, () => true)).toBe('Geg.: 2x = 8 | :2 und x y | -3');

@@ -14,7 +14,9 @@ export const CIRC = ['\u0014', '\u0015'] as const;
 export const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹', SUB = '₀₁₂₃₄₅₆₇₈₉';
 /** Raised and lowered letters (Unicode has no raised q and only some lowered ones); drawn from the writer's own letters. */
 export const SUP_LETTERS: Record<string, string> = { a: 'ᵃ', b: 'ᵇ', c: 'ᶜ', d: 'ᵈ', e: 'ᵉ', f: 'ᶠ', g: 'ᵍ', h: 'ʰ', i: 'ⁱ', j: 'ʲ', k: 'ᵏ', l: 'ˡ', m: 'ᵐ', n: 'ⁿ', o: 'ᵒ', p: 'ᵖ', r: 'ʳ', s: 'ˢ', t: 'ᵗ', u: 'ᵘ', v: 'ᵛ', w: 'ʷ', x: 'ˣ', y: 'ʸ', z: 'ᶻ' };
-export const SUB_LETTERS: Record<string, string> = { a: 'ₐ', e: 'ₑ', h: 'ₕ', i: 'ᵢ', j: 'ⱼ', k: 'ₖ', l: 'ₗ', m: 'ₘ', n: 'ₙ', o: 'ₒ', p: 'ₚ', r: 'ᵣ', s: 'ₛ', t: 'ₜ', u: 'ᵤ', v: 'ᵥ', x: 'ₓ' };
+export const SUB_LETTERS: Record<string, string> = { a: 'ₐ', e: 'ₑ', h: 'ₕ', i: 'ᵢ', j: 'ⱼ', k: 'ₖ', l: 'ₗ', m: 'ₘ', n: 'ₙ', o: 'ₒ', p: 'ₚ', r: 'ᵣ', s: 'ₛ', t: 'ₜ', u: 'ᵤ', v: 'ᵥ', x: 'ₓ',
+  // Unicode has no lowered b c d f g q w y z or capitals: private-use stand-ins, drawn from the writer's own letters (symbols.ts)
+  ...Object.fromEntries([...'bcdfgqwyzABCDEFGHIJKLMNOPQRSTUVWXYZ'].map((c, i) => [c, String.fromCodePoint(0xe000 + i)])) };
 /** Indents a list line one step (nested bullets); the layout moves the line right. */
 export const INDENT = '\u0018';
 const indent = (sp: string) => INDENT.repeat(Math.min(3, Math.floor(sp.replace(/\t/g, '  ').length / 2)));
@@ -53,6 +55,9 @@ export function clean(text: string, has: (ch: string) => boolean): string {
     .replace(/^[ \t]{0,3}#{1,6}[ \t]+(.*\S)[ \t]*$/gm, (_, t: string) => HEAD + EMPH[0] + t.replace(/\*\*|__/g, '') + EMPH[1]) // headings: bigger, underlined
     .replace(/^[ \t]*>[ \t]?/gm, '') // quotes (not \s: that would swallow the empty line before)
     // Markdown tables: the divider row goes, cells are written with a dash between them, the header row underlined
+    // ("A | B" over "--|--" without outer pipes gets them first, so one rule handles both)
+    .replace(/^(?![ \t]*\|)([^\n|]*\|[^\n]*)\n([ \t]*:?-{2,}:?[ \t]*(?:\|[ \t]*:?-{2,}:?[ \t]*)+)\n((?:[^\n|]*\|[^\n]*(?:\n|$))*)/gm, (_, head: string, div: string, rows: string) =>
+      [head, div, ...rows.split('\n').filter(Boolean)].map((r) => (/^[ \t]*:?-{2,}/.test(r) ? r : `| ${r.trim().replace(/\|$/, '').trim()} |`)).join('\n') + '\n')
     .replace(/^[ \t]*\|?[ \t]*:?-{2,}:?[ \t]*(?:\|[ \t]*:?-{2,}:?[ \t]*)*\|?[ \t]*$\n?/gm, '')
     .replace(/((?:^[ \t]*\|.*\|[ \t]*(?:\n|$))+)/gm, (block: string) => block.trimEnd().split('\n').map((row, i) => {
       const cells = row.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim()).filter(Boolean).join(` ${pick('–', '-')} `);
@@ -87,14 +92,15 @@ export function clean(text: string, has: (ch: string) => boolean): string {
     .replace(/\^\{?-(\d+)\}?/g, (m, d: string) => pick('⁻' + digits(d, SUP), m)) // 10^{-3}, s^-1
     .replace(/\^(?:\{([0-9a-z]+)\}|(\d+|[a-z])(?![a-z]))/g, (m, a?: string, b?: string) => { const r = raise(a ?? b!, SUP, SUP_LETTERS); return r ? pick(r, m) : m; }) // x^2, m^{3}, x^n, e^{2x}
     .replace(/(\p{L})_\{(\d),(\d)\}/gu, (m, l: string, a: string, b: string) => pick(l + SUB[+a] + ',' + SUB[+b], m)) // x_{1,2} -> x₁,₂
-    .replace(/(\p{L}|\))_(?:\{([0-9a-z]+)\}|(\d+|[a-z])(?![a-z]))/gu, (m, l: string, a?: string, b?: string) => { const r = raise(a ?? b!, SUB, SUB_LETTERS); return l + (r ? pick(r, m.slice(l.length)) : m.slice(l.length)); }) // H_2O, a_n
+    .replace(/(\p{L}|\))_(?:\{([0-9A-Za-z]{1,8})\}|(\d+(?![a-z])|[A-Za-z](?![A-Za-z])))/gu,(m, l: string, a?: string, b?: string) => { const r = raise(a ?? b!, SUB, SUB_LETTERS), plain = '_' + (a ?? b!); return l + (r ? pick(r, plain) : plain); }) // H_2O, a_n, E_{pot}
     .replace(/[[\]{}]/g, (c) => (has(c) ? c : '()()'['[]{}'.indexOf(c)]))
     .replace(/…/g, '...')
     .replace(/×/g, pick('×', 'x'))
     .replace(/≈/g, pick('≈', 'ca.'))
     .replace(/[✅✔☑]/gu, pick('✓', ''))
     .replace(/[❌✖❎]/gu, pick('✗', 'x'))
-    .replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}]/gu, (c) => (has(c) ? c : '')) // emoji; ↔ counts as one too
+    // emoji (↔ counts as one too); the space in front of one goes too when a punctuation mark follows ("Beispiel 🐍:")
+    .replace(/([ \t]*)([\p{Extended_Pictographic}\u{FE0F}\u{200D}]+)(?=([.,;:!?]?))/gu, (_, sp: string, e: string, next: string) => { const kept = [...e].filter(has).join(''); return kept ? sp + kept : next ? '' : sp; })
     .replace(/[ \t]+$/gm, '')
     .replace(/[ \t]{2,}/g, ' ')
     // a structure is one "word" for the layout: spaces around it, its own spaces hidden

@@ -26,6 +26,7 @@ Stand: 6. November 2026. Live: https://mrbanany.github.io/handschrift/ (jeder Pu
   - **Umbenennen** neu (Einstellungen ziehen mit um). **Löschen** räumt jetzt auch die Einstellungen weg (vorher blieben sie liegen und eine neue Handschrift gleichen Namens erbte sie).
   - **Erinnerung**: Ist eine Handschrift seit 3 Tagen geändert und nicht gesichert, erscheint oben auf „Schreiben“ ein Hinweis mit „Jetzt sichern“. (Die Anfrage `storage.persist()` gab es schon.)
   - Offen am iPad testen: Teilen-Menü mit der .json-Datei (ggf. nur Download), „In Dateien sichern“, Datei dort wieder laden.
+- [x] **Start für Freunde**: Kurzanleitung „So geht's“ (5 Schritte, Reiter Handschriften und Willkommen-Fenster), Knopf „App weiterempfehlen“ (Teilen-Menü, sonst Link kopieren), im Willkommen-Fenster „Handschrift von jemand anderem laden“ (für Freunde, die eine geteilte Datei bekommen haben).
 
 ## Erledigt am 6. November 2026
 

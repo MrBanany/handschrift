@@ -556,7 +556,7 @@ function probeStyle() {
 }
 $('styleReset').onclick = () => { localStorage.removeItem(`style:${active}`); style = null; renderStyle(); schedule(); };
 
-$<HTMLInputElement>('restore').onchange = async (ev) => {
+async function restoreFrom(ev: Event) {
   const input = ev.target as HTMLInputElement;
   const f = input.files?.[0];
   input.value = '';
@@ -568,10 +568,13 @@ $<HTMLInputElement>('restore').onchange = async (ev) => {
 (Derselbe Name ergänzt die vorhandene Handschrift.)`, freeName(name, existing)) : name);
     sets = await listSets();
     if (!got.length) return;
+    welcomed(); // a handwriting loaded from the first-start window counts as set up
     await useSet(got[0]);
     toast(got.length === 1 ? `„${got[0]}“ geladen (${count} Proben).` : `${got.length} Handschriften geladen.`);
   } catch (e) { toast((e as Error).message); }
-};
+}
+$('restore').onchange = restoreFrom;
+$('welcomeRestore').onchange = restoreFrom;
 
 // ---------- swap one letter in the written text: tap it in the preview ----------
 // n-th letter of the text (across pages, so any page size keeps it) -> variant src. Typing clears it.
@@ -893,3 +896,13 @@ const welcomed = () => { localStorage.setItem('welcomed', '1'); $('welcome').hid
 $('welcomeOwn').onclick = () => { welcomed(); show('manage'); $('pencilOpen').click(); };
 $('welcomeSample').onclick = () => { welcomed(); void useSet(SAMPLE_SET); };
 $('welcomeLater').onclick = welcomed;
+const howto = (on: boolean) => { $('howto').hidden = !on; };
+$('howtoOpen').onclick = $('welcomeHowto').onclick = () => howto(true);
+$('howtoClose').onclick = () => howto(false);
+$('shareApp').onclick = async () => {
+  const data = { title: 'Handschrift', text: 'Mit dieser App schreibt dein iPad getippten Text in deiner eigenen Handschrift – zum Einfügen in GoodNotes. Alles bleibt auf deinem Gerät.', url: 'https://mrbanany.github.io/handschrift/' };
+  try {
+    if (navigator.share) await navigator.share(data);
+    else { await navigator.clipboard.writeText(data.url); toast('Link kopiert.'); }
+  } catch (e) { if ((e as Error).name !== 'AbortError') toast('Link: ' + data.url); }
+};

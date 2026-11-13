@@ -58,6 +58,9 @@
     <section id="manage" class="tab">
       <h1>Handschriften</h1>
       <div class="card">
+        <div class="row"><button id="howtoOpen">So geht's</button><button id="shareApp">App weiterempfehlen</button></div>
+      </div>
+      <div class="card">
         <h2>Auf diesem Gerät</h2>
         <ul id="sets" class="list"></ul>
       </div>
@@ -253,8 +256,24 @@
       <div class="row">
         <button id="welcomeOwn" class="primary">Meine Handschrift anlegen</button>
         <button id="welcomeSample">Erst mit Muster ausprobieren</button>
+        <label class="button">Handschrift von jemand anderem laden<input id="welcomeRestore" type="file" accept=".json,application/json" hidden /></label>
       </div>
+      <button id="welcomeHowto" class="link">So geht's – Kurzanleitung</button>
       <button id="welcomeLater" class="link">Später</button>
+    </div>
+  </div>
+
+  <div id="howto" class="overlay" hidden>
+    <div class="sheet welcome">
+      <h2>So geht's</h2>
+      <ol class="steps">
+        <li><b>App installieren:</b> am iPad in Safari auf Teilen tippen, dann „Zum Home-Bildschirm“. Die App danach immer dort öffnen – Safari und die App auf dem Home-Bildschirm haben getrennten Speicher.</li>
+        <li><b>Handschrift anlegen:</b> unter „Handschriften“ auf „Hier mit dem Pencil ausfüllen“ tippen und die Kästchen in deiner Schrift ausfüllen. Das machst du nur einmal.</li>
+        <li><b>Text schreiben lassen:</b> unter „Schreiben“ Text eintippen oder eine Antwort aus ChatGPT & Co. einfügen. „KI-Vorgabe kopieren“ sorgt dafür, dass Brüche und Formeln gut ankommen.</li>
+        <li><b>In GoodNotes öffnen:</b> auf „In GoodNotes öffnen“ tippen und im Teilen-Menü GoodNotes wählen.</li>
+        <li><b>Handschrift sichern:</b> unter „Handschriften“ bei deiner Handschrift „Backup speichern“ und im Teilen-Menü „In Dateien sichern“ wählen. Dieselbe Datei kann ein Freund unter „Backup laden“ öffnen.</li>
+      </ol>
+      <button id="howtoClose" class="primary">Fertig</button>
     </div>
   </div>
 

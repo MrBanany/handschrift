@@ -224,3 +224,12 @@ textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3
 .card h2 { letter-spacing: -.01em; }
 .page-view { border-radius: 6px; }
 .history { align-self: flex-end;font: inherit; font-size: 13px; height: 34px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); color: var(--muted); max-width: 100%; }
+
+/* missing characters */
+.missing-card h2 { margin-bottom: 6px; }
+.missing-card .need { margin-top: 0; padding: 0; background: none; }
+.missing-card .need + .muted { margin: 10px 0 6px; }
+.chip.gone { border-color: var(--warn); color: var(--warn); }
+.chip.sub { border-style: dashed; }
+#setup .row { margin-top: 8px; }
+#setup li > b + span::before { content: '– '; }

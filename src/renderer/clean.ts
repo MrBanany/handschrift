@@ -1,6 +1,6 @@
 import { markBlocks } from './cards';
 import { latex } from './latex';
-import { ARROW, CIRC, EMPH, HEAD, INCOMING_CONTROL, INDENT, MAP, MARK, PLOT, STRUCT } from './markers';
+import { ARROW, CIRC, CODE, EMPH, HEAD, INCOMING_CONTROL, INDENT, MAP, MARK, PLOT, STRUCT } from './markers';
 import { encodeMap, extractMindmaps, type MapTree } from './mindmap';
 import { encodePlot, extractPlots } from './plot';
 
@@ -44,7 +44,8 @@ const OUTRO = /^(?:Ich hoffe|Hoffentlich|Soll ich|Möchtest du|Willst du|Sag (?:
 export function tidy(text: string): string {
   const t = text
     .replace(/[     ]/g, ' ').replace(/[‐‑]/g, '-').replace(/[​⁠﻿]/g, '')
-    .replace(/(?<=[\p{L}\p{N}.,;:!?)])(?<!\\[a-zA-Z]+)\[\d{1,2}(?:\s*[,–-]\s*\d{1,2})*\]|[ \t]?\[cite(?:_start|_end)?[^\]\n]*\](?=[ \t\n.,;:!?)]|$)|\[cite(?:_start|_end)?[^\]\n]*\]/gu, ''); // \sqrt[3]{8} is no citation
+    .replace(/^\[\^[^\]\n]+\]:.*(?:\n(?: {2,}|\t).*)*/gm, '').replace(/\[\^[^\]\s]+\]/g, '') // footnotes: "[^1]" and its "[^1]: …" line
+    .replace(/(?<=[\p{L}\p{N}.,;:!?)\]])(?<!\\[a-zA-Z]+)\[\d{1,2}(?:\s*[,–-]\s*\d{1,2})*\]|[ \t]?\[cite(?:_start|_end)?[^\]\n]*\](?=[ \t\n.,;:!?)]|$)|\[cite(?:_start|_end)?[^\]\n]*\]/gu, ''); // \sqrt[3]{8} is no citation
   const paras = t.trim().split(/\n[ \t]*\n/);
   const first = paras[0].trim();
   if (paras.length > 1 && !first.includes('\n') && INTRO.test(first)) paras.shift();
@@ -68,13 +69,28 @@ export function clean(text: string, has: (ch: string) => boolean): string {
   // incoming control characters are just dropped: only the markers clean() puts in itself may stand in the result
   // [[plot: x^2, -3..3]] too: drawn as a function graph on a line of its own (see plot.ts)
   const plots: string[] = [];
-  const kept = extractPlots(unflatten(extractMindmaps(markBlocks(tidy(text.replace(/\r\n?/g, '\n').replace(INCOMING_CONTROL, ''))), (t) => `${MAP[0]}${maps.push(t) - 1}${MAP[1]}`)), (spec) => `${PLOT[0]}${plots.push(spec) - 1}${PLOT[1]}`).replace(/\[\[([^\]\n]+)\]\]/g, (_, s: string) => `${STRUCT[0]}${mols.push(s.trim()) - 1}${STRUCT[1]}`);
+  // a code block with its language (```python) is written as it stands, line by line with its indents: no heading, bold or
+  // LaTeX rule touches it. Without a language it is often a formula "in Textform" (Gemini), which the rules should see.
+  const codes: string[] = [];
+  const src = text.replace(/\r\n?/g, '\n').replace(INCOMING_CONTROL, '')
+    .replace(/^[ \t]*```[ \t]*(?!(?:text|plaintext|txt|markdown|md)\b)[A-Za-z][\w+#-]*[ \t]*\n([\s\S]*?)^[ \t]*```[ \t]*$/gm, (_, body: string) => {
+      const lines = body.replace(/\n$/, '').split('\n'), lead = (l: string) => /^[ \t]*/.exec(l)![0].replace(/\t/g, '  ').length;
+      const st = Math.max(2, Math.min(4, ...lines.map(lead).filter(Boolean)));
+      return `${CODE[0]}${codes.push(lines.map((l) => indent(' '.repeat(lead(l)), st) + l.trim()).join('\n')) - 1}${CODE[1]}`;
+    })
+    // HTML that ChatGPT puts into tables and formulas: <br> (", " inside a table row), <sub>, <sup>, <b>; <https://…> autolinks
+    .replace(/^[ \t]*\|.*$/gm, (row) => row.replace(/[ \t]*<br\s*\/?>[ \t]*/gi, ', ')).replace(/[ \t]*<br\s*\/?>[ \t]*/gi, '\n')
+    .replace(/<sub>([^<\n]*)<\/sub>/gi, '_{$1}').replace(/<sup>([^<\n]*)<\/sup>/gi, '^{$1}')
+    .replace(/<\/?(?:b|strong)>/gi, '**').replace(/<\/?(?:i|em|u|code|span|p|small)>/gi, '')
+    .replace(/<(https?:\/\/[^\s>]+)>/g, '$1').replace(/[?&]utm_[^\s)]*/g, '');
+  const kept = extractPlots(unflatten(extractMindmaps(markBlocks(tidy(src)), (t) => `${MAP[0]}${maps.push(t) - 1}${MAP[1]}`)), (spec) => `${PLOT[0]}${plots.push(spec) - 1}${PLOT[1]}`).replace(/\[\[([^\]\n]+)\]\]/g, (_, s: string) => `${STRUCT[0]}${mols.push(s.trim()) - 1}${STRUCT[1]}`);
   // one indent step is the smallest indent in the text (2 spaces or a tab; Gemini uses 4)
   const step = Math.max(2, Math.min(4, ...[...kept.matchAll(/^([ \t]{2,})(?:[-*+•●▪◦]|\d+[.)])\s/gm)].map((m) => m[1].replace(/\t/g, '  ').length)));
   return latex(kept)
+    .replace(/^([^\s|#>*+•-][^\n]*)\n[ \t]*(?:={2,}|-{2,})[ \t]*$/gm, '## $1') // "Titel" underlined with === or ---: a heading
     .replace(/^[ \t]*```.*$/gm, '') // code fences
     .replace(/^[ \t]*(?:-{3,}|\*{3,}|_{3,})[ \t]*$/gm, '') // horizontal rules
-    .replace(/^[ \t]{0,3}#{1,6}[ \t]+(.*\S)[ \t]*$/gm, (_, t: string) => HEAD + EMPH[0] + t.replace(/\*\*|__/g, '') + EMPH[1]) // headings: bigger, underlined
+    .replace(/^[ \t]{0,3}#{1,6}[ \t]+(.*\S)[ \t]*$/gm, (_, t: string) => HEAD + EMPH[0] + t.replace(/\*\*|__/g, '').replace(/[ 	]+#+$/, '') + EMPH[1]) // "## Aufbau ##" too // headings: bigger, underlined
     .replace(/^[ \t]*>[ \t]?/gm, '') // quotes (not \s: that would swallow the empty line before)
     // Markdown tables: the divider row goes, cells are written with a dash between them, the header row underlined
     // ("A | B" over "--|--" without outer pipes gets them first, so one rule handles both)
@@ -98,6 +114,7 @@ export function clean(text: string, has: (ch: string) => boolean): string {
     .replace(/(?<![\p{L}\p{N})])\(\((?=\S)([^()\n]+?)(?<=\S)\)\)/gu, '$1') // ((text)), but not f((x))
     .replace(/(\*\*|__)(.+?)\1/g, `${EMPH[0]}$2${EMPH[1]}`) // bold: underlined
     .replace(/(^|[^*\w])\*(?!\s)([^*\n]+?)\*/g, '$1$2') // italic
+    .replace(/(?<=\p{L})\*(\p{L}+)\*/gu, '$1') // Zell*plasma*
     .replace(/`([^`]*)`/g, '$1') // inline code
     .replace(/\$([^$\n]+)\$/g, (m, x: string) => (/^\d.*\s$/.test(x) ? m : x)) // inline math; but "$5 und $10" (prices) stays
     .replace(/\|(?=[:+\-·*/÷][\p{N}\p{L}])/gu, '| ') // "|:2", "|-3": the tall bar would swallow the colon or sign
@@ -111,8 +128,8 @@ export function clean(text: string, has: (ch: string) => boolean): string {
     .replace(/(?<![\u0001\u001f\u001c])\s*(?:→|➔|➜|->)\s*/g, ' → ')
     .replace(/\s*(?:←|<-)\s*/g, ' ← ')
     .replace(/\s*⇌\s*/g, ' ⇌ ')
-    .replace(/[“”„‟″]/g, (q) => (has(q) ? q : pick('"', "'")))
-    .replace(/[‘’‚′]/g, (q) => (has(q) ? q : "'"))
+    .replace(/[“”„‟″«»]/g, (q) => (has(q) ? q : pick('"', "'")))
+    .replace(/[‘’‚′‹›]/g, (q) => (has(q) ? q : "'"))
     .replace(/[—―]/g, pick('–', '-'))
     .replace(/−/g, '-') // minus sign
     .replace(/\^\{?(\d*)([+-])\}?(?=[\s,.;:)\]]|$|\p{Lu}|\((?:s|l|g|aq)\))/gmu, (m, d: string, q: string) => pick(digits(d, SUP) + (q === '+' ? '⁺' : '⁻'), m)) // Na^+, SO_4^{2-}
@@ -120,21 +137,27 @@ export function clean(text: string, has: (ch: string) => boolean): string {
     .replace(/\^(?:\{([0-9a-z]+)\}|(\d+|[a-z])(?![a-z]))/g, (m, a?: string, b?: string) => { const r = raise(a ?? b!, SUP, SUP_LETTERS); return r ? pick(r, m) : m; }) // x^2, m^{3}, x^n, e^{2x}
     .replace(/(\p{L})_\{(\d),(\d)\}/gu, (m, l: string, a: string, b: string) => pick(l + SUB[+a] + ',' + SUB[+b], m)) // x_{1,2} -> x₁,₂
     .replace(/(\p{L}|\))_(?:\{([0-9A-Za-z]{1,8})\}|(\d+(?![a-z])|[A-Za-z](?![A-Za-z])))/gu,(m, l: string, a?: string, b?: string) => { const r = raise(a ?? b!, SUB, SUB_LETTERS), plain = '_' + (a ?? b!); return l + (r ? pick(r, plain) : plain); }) // H_2O, a_n, E_{pot}
+    .replace(/\uF714(\d+)\uF715/g, (_, i: string) => codes[+i])
     .replace(/[[\]{}]/g, (c) => (has(c) ? c : '()()'['[]{}'.indexOf(c)]))
     .replace(/…/g, '...')
+    .replace(/‰/g, pick('‰', ' Promille'))
+    .replace(/[ℕℤℚℝℂ]/g, (c) => pick(c, 'NZQRC'['ℕℤℚℝℂ'.indexOf(c)]))
+    .replace(/©/g, pick('©', '(c)'))
+    .replace(/(\d)️?⃣/g, '$1.') // keycap 1️⃣
     .replace(/×/g, pick('×', 'x'))
     .replace(/≈/g, pick('≈', 'ca.'))
     .replace(/[✅✔☑]/gu, pick('✓', ''))
     .replace(/[❌✖❎]/gu, pick('✗', 'x'))
     // emoji (↔ counts as one too, but is an arrow the layout draws); the space in front of one goes too when a punctuation mark follows ("Beispiel 🐍:")
     .replace(/([ \t]*)([\p{Extended_Pictographic}\u{FE0F}\u{200D}]+)(?=([.,;:!?]?))/gu, (_, sp: string, e: string, next: string) => { const kept = [...e].filter((c) => c === '↔' || has(c)).join(''); return kept ? sp + kept : next ? '' : sp; })
+    .replace(/(?<=[\u0002\u0004])[ \t]+|[ \t]+(?=[\u0003\u0005])/g, '') // "## 🧪 Versuch": no space left inside the underline
     .replace(/[ \t]+$/gm, '')
     .replace(/[ \t]{2,}/g, ' ')
     // a structure is one "word" for the layout: spaces around it, its own spaces hidden
     .replace(/[ \t]*\u000E(\d+)\u000F[ \t]*/g, (_, i: string) => ` ${STRUCT[0]}${mols[+i].replace(/ /g, '\u0010')}${STRUCT[1]} `)
     // a stacked fraction too; punctuation right after it stays attached
     .replace(/[ \t]*\u0011([^\u0012\n]*)\u0012([^\u0013\n]*)\u0013[ \t]*/g, (_, a: string, b: string) => ` \u0011${a.trim().replace(/ +/g, '\u0010')}\u0012${b.trim().replace(/ +/g, '\u0010')}\u0013 `)
-    .replace(/\u0013 (?=[.,;:!?)])/g, '\u0013')
+    .replace(/\u0013 (?=[.,;:!?)]|-\p{L})/gu, '\u0013') // \cfrac{1}{2}-Wert too
     // the mind map: one token on a line of its own, its texts cleaned like any other (after the rules above, which would split it)
     .replace(/\u0019(\d+)\u001A/g, (_, i: string) => {
       const t = maps[+i], bullet = pick('•', '-');

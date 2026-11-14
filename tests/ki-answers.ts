@@ -1,8 +1,10 @@
 import { GEMINI } from './ki-gemini';
+import { MEHR } from './ki-mehr';
 
 // Realistic AI answers (ChatGPT/Claude style, following src/prompt.ts and also sloppy ones; Gemini ones from ki-gemini.ts) for the leftover/overflow sweep in ki-texte.test.ts.
 export const ANSWERS: Record<string, string> = {
   ...GEMINI,
+  ...MEHR,
   ableitung: `## Ableitung von $f(x) = 3x^4 - 2x^2 + 5x - 7$
 
 - **Potenzregel**: $(x^n)' = n \\cdot x^{n-1}$

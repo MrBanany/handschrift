@@ -13,7 +13,8 @@ const BALLPOINT = 24;
 const DEVICE_TAG = 1184897455800006800n, APP_TAG = 5381; // opaque constants from files GoodNotes wrote
 
 type Pt = [number, number];
-export interface InkStroke { pts: Pt[]; w: number; accent?: boolean } // mm
+export interface InkStroke { pts: Pt[]; w: number; accent?: boolean; missing?: boolean } // mm
+const MISSING_RGBA = [0xdd / 255, 0x11 / 255, 0x11 / 255, 1]; // the preview's red (draw.ts #d11)
 
 // ---------- glyph bitmap -> centre lines ----------
 
@@ -139,7 +140,19 @@ export function inkStrokes(page: Page, get: (src: string) => Variant, weight = 0
     }
     out.push({ pts, w: (c.w0 + c.w1) / 2 + extra, accent: c.accent });
   }
+  // A character the handwriting lacks: a red box where it belongs, as in the picture, so the gap is never silent.
+  for (const { x, y, w, h } of page.missing) out.push({ pts: [[x, y], [x + w, y], [x + w, y + h], [x, y + h], [x, y]], w: 0.25, missing: true });
   return out;
+}
+
+/** What to say when the GoodNotes file is made: missing characters (red boxes there) and that it is always A4. '' if nothing to say. */
+export function gnHint(missing: Iterable<string>, format: string): string {
+  const keys = [...missing], shown = keys.slice(0, 8).join(' ') + (keys.length > 8 ? ' …' : '');
+  const parts = [];
+  const one = keys.length === 1;
+  if (keys.length) parts.push(`${one ? '1 Zeichen fehlt' : `${keys.length} Zeichen fehlen`} in deiner Handschrift: ${shown}. In GoodNotes ${one ? 'ist die Stelle' : 'sind die Stellen'} rot umrandet. Schreib ${one ? 'es' : 'sie'} unter „Zeichen“ nach.`);
+  if (format !== 'a4') parts.push('Die GoodNotes-Datei ist immer A4 hochkant.');
+  return parts.join(' ');
 }
 
 // ---------- bytes ----------
@@ -382,7 +395,7 @@ export async function goodnotesFile(page: Page, get: (src: string) => Variant, i
   const rgba = rgbaOf(ink), rgbaHead = rgbaOf(head);
   const { id, swap } = freshIds(), pageId = id(PAGE_UUID), attId = id(ATTACHMENT_UUID), pdf = await paperPdf(paper);
   const notes: number[] = [];
-  for (const s of inkStrokes(page, get, weight)) if (s.pts.length) notes.push(...strokeRecords(s, s.accent ? rgbaHead : rgba));
+  for (const s of inkStrokes(page, get, weight)) if (s.pts.length) notes.push(...strokeRecords(s, s.missing ? MISSING_RGBA : s.accent ? rgbaHead : rgba));
   return zip([
     ['document.info.pb', new Uint8Array()],
     ['index.search.pb', swap(b64(TEMPLATE.search))],

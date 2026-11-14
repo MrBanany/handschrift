@@ -185,8 +185,8 @@ describe('layout', () => {
     expect(Math.min(...after)).toBeGreaterThan(Math.max(...inMap) + S.lineH / 2);
     // frame, links and underlines all end above the following line's letters
     expect(pages[0].connectors.filter((c) => c.p.every((q) => q[1] < Math.min(...after) - 1.2 * S.xh)).length).toBeGreaterThanOrEqual(4 + 3 + 3);
-    // the GoodNotes file gets every stroke (frame, links, underlines) as pen ink
-    expect(inkStrokes({ ...pages[0], glyphs: [] }, () => { throw new Error('no glyphs'); })).toHaveLength(pages[0].connectors.length);
+    // the GoodNotes file gets every stroke (frame, links, underlines) as pen ink, plus a red box per missing character
+    expect(inkStrokes({ ...pages[0], glyphs: [] }, () => { throw new Error('no glyphs'); })).toHaveLength(pages[0].connectors.length + pages[0].missing.length);
     // more than 8 branches: an indented list instead
     const list = layout(clean('Mindmap: zelle\n' + [...'abcdefghi'].map((c) => `- ${c}${c}`).join('\n'), () => true), lib, S);
     expect(list.pages[0].lines.length).toBeGreaterThan(9);

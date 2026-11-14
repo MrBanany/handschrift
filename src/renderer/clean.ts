@@ -1,19 +1,10 @@
 import { latex } from './latex';
-import { MAP, encodeMap, extractMindmaps, type MapTree } from './mindmap';
+import { ARROW, CIRC, EMPH, HEAD, INCOMING_CONTROL, INDENT, MAP, MARK, STRUCT } from './markers';
+import { encodeMap, extractMindmaps, type MapTree } from './mindmap';
 
-/** Start and end of emphasised text (Markdown bold, headings); the layout underlines it. */
-export const EMPH = ['\u0002', '\u0003'] as const;
-/** Start and end of highlighted text (Markdown ==text==); the layout puts a highlighter stroke behind it. */
-export const MARK = ['\u0004', '\u0005'] as const;
-/** Starts a heading line; the layout writes it bigger. */
-export const HEAD = '\u0006';
-/** Wraps a structural formula ([[Ethanol]], [[CCO]]) that stands on its own line; the layout draws the molecule. */
-export const STRUCT = ['\u000E', '\u000F'] as const;
-/** Start and end of circled text; the layout draws a ring around it by hand. Not produced by clean() for now (see the ((text)) rule). */
-export const CIRC = ['\u0014', '\u0015'] as const;
-/** Put before an arrow character: a long / very long shaft. A label (\u001b…\u001c) before the arrow is written small above the shaft. */
-export const ARROW = ['\u0001', '\u001f'] as const;
-export const LABEL = ['\u001b', '\u001c'] as const;
+// the marker codes live in markers.ts; re-exported because much of the code and its tests import them from here
+export { ARROW, CIRC, EMPH, HEAD, INDENT, LABEL, MARK, STRUCT } from './markers';
+
 /** Superscript and subscript digits 0–9. */
 export const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹', SUB = '₀₁₂₃₄₅₆₇₈₉';
 /** Raised and lowered letters (Unicode has no raised q and only some lowered ones); drawn from the writer's own letters. */
@@ -21,8 +12,6 @@ export const SUP_LETTERS: Record<string, string> = { a: 'ᵃ', b: 'ᵇ', c: 'ᶜ
 export const SUB_LETTERS: Record<string, string> = { a: 'ₐ', e: 'ₑ', h: 'ₕ', i: 'ᵢ', j: 'ⱼ', k: 'ₖ', l: 'ₗ', m: 'ₘ', n: 'ₙ', o: 'ₒ', p: 'ₚ', r: 'ᵣ', s: 'ₛ', t: 'ₜ', u: 'ᵤ', v: 'ᵥ', x: 'ₓ',
   // Unicode has no lowered b c d f g q w y z or capitals: private-use stand-ins, drawn from the writer's own letters (symbols.ts)
   ...Object.fromEntries([...'bcdfgqwyzABCDEFGHIJKLMNOPQRSTUVWXYZ'].map((c, i) => [c, String.fromCodePoint(0xe000 + i)])) };
-/** Indents a list line one step (nested bullets); the layout moves the line right. */
-export const INDENT = '\u0018';
 const indent = (sp: string, step: number) => INDENT.repeat(Math.min(3, Math.floor(sp.replace(/\t/g, '  ').length / step)));
 const digits = (d: string, set: string) => [...d].map((c) => set[+c]).join('');
 /** "2x" -> "²ˣ" with the given digit/letter sets, or null if a character has no raised/lowered form. */
@@ -53,8 +42,10 @@ export function clean(text: string, has: (ch: string) => boolean): string {
   const mols: string[] = [];
   // a "Mindmap: topic" line with its list is kept away too and drawn as a mind map (see mindmap.ts)
   const maps: Omit<MapTree, 'bullet'>[] = [];
-  const node = (x: string) => clean(x, has).replace(/[\u0001-\u0006\u000E\u000F\u0014-\u0018\u001b\u001c\u001f]/g, '').replace(/\s+/g, ' ').trim();
-  const kept = unflatten(extractMindmaps(text.replace(/\r\n?/g, '\n'), (t) => `${MAP[0]}${maps.push(t) - 1}${MAP[1]}`)).replace(/\[\[([^\]\n]+)\]\]/g, (_, s: string) => `${STRUCT[0]}${mols.push(s.trim()) - 1}${STRUCT[1]}`);
+  // a node is plain text: an arrow's label becomes "→ (label)", every other marker goes
+  const node = (x: string) => clean(x, has).replace(/\u001b([^\u001c]*)\u001c([→←⇒⇔↔⇌])/g, (_, l: string, a: string) => `${a} (${l})`).replace(/[\u0001-\u0006\u000E\u000F\u0014-\u0018\u001b\u001c\u001f]/g, '').replace(/\u0010/g, ' ').replace(/\s+/g, ' ').trim();
+  // incoming control characters are just dropped: only the markers clean() puts in itself may stand in the result
+  const kept = unflatten(extractMindmaps(text.replace(/\r\n?/g, '\n').replace(INCOMING_CONTROL, ''), (t) => `${MAP[0]}${maps.push(t) - 1}${MAP[1]}`)).replace(/\[\[([^\]\n]+)\]\]/g, (_, s: string) => `${STRUCT[0]}${mols.push(s.trim()) - 1}${STRUCT[1]}`);
   // one indent step is the smallest indent in the text (2 spaces or a tab; Gemini uses 4)
   const step = Math.max(2, Math.min(4, ...[...kept.matchAll(/^([ \t]{2,})(?:[-*+•●▪◦]|\d+[.)])\s/gm)].map((m) => m[1].replace(/\t/g, '  ').length)));
   return latex(kept)

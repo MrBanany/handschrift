@@ -10,9 +10,10 @@
  * parses it, encodes it, and plans where everything goes. Drawing is done by layout() (it owns the handwriting).
  */
 
-/** Start and end of an encoded mind map token. */
-export const MAP = ['\u0019', '\u001A'] as const;
-const F = '\u001C', B = '\u001D', I = '\u001E', SP = '\u0010'; // field, branch and item separators, a protected space
+import { MAP, MAP_SEP, SP } from './markers';
+
+export { MAP } from './markers'; // the codes live in markers.ts
+const { field: F, branch: B, item: I } = MAP_SEP;
 
 export interface MapTree { bullet: string; topic: string; branches: { title: string; items: string[] }[] }
 

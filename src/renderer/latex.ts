@@ -1,4 +1,7 @@
 // Formulas in AI answers (LaTeX, mhchem) -> plain characters a handwriting can write.
+import { BOX, FRAC, LABEL, SP, TEX_BRACE } from './markers';
+
+export { BOX, FRAC } from './markers'; // the codes live in markers.ts
 
 const SYMBOL: Record<string, string> = {
   cdot: '·', times: '×', div: '÷', pm: '±', mp: '∓', approx: '≈', sim: '~', neq: '≠', ne: '≠', leq: '≤', le: '≤', geq: '≥', ge: '≥',
@@ -19,10 +22,6 @@ const ELEMENTS = new Set(('H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar K Ca Sc
 
 const group = (x: string) => (/^[\p{L}\p{N}.,²³]+$/u.test(x) ? x : `(${x})`);
 
-/** Stacked fraction: FRAC[0] numerator FRAC[1] denominator FRAC[2]; the layout writes it over a fraction bar. */
-export const FRAC = ['\u0011', '\u0012', '\u0013'] as const;
-/** Start and end of boxed text (\boxed{…}, final results); the layout draws a box around it by hand. */
-export const BOX = ['\u0016', '\u0017'] as const;
 /** Stacked fractions inside x back to a/b (a fraction inside a fraction or a root stays on one line). */
 export const flatFrac = (x: string) => x.replace(/\u0011([^\u0012]*)\u0012([^\u0013]*)\u0013/g, (_, a: string, b: string) => `${group(a.trim())}/${group(b.trim())}`);
 
@@ -50,7 +49,7 @@ function ion(tok: string): string {
 }
 
 /** An arrow with its condition above it (->[Kat], \xrightarrow{Kat}): the label between \u001b and \u001c, its spaces hidden; the layout writes it over the shaft. */
-const over = (l: string) => (l.trim() ? `\u001b${l.trim().replace(/\s+/g, '\u0010')}\u001c→` : '⟶');
+const over = (l: string) => (l.trim() ? `${LABEL[0]}${l.trim().replace(/\s+/g, SP)}${LABEL[1]}→` : '⟶');
 
 export function latex(text: string): string {
   let t = text
@@ -79,7 +78,7 @@ export function latex(text: string): string {
     .replace(/\\left\./g, '')
     .replace(/\\(?:left|right)(?![A-Za-z])/g, '') // \left( … \right), not \rightarrow
     .replace(/\\[,;:! ]/g, ' ');
-  t = t.replace(/([\^_])\{([^{}]*)\}/g, '$1\u001d$2\u001e'); // x^{n+1} inside a fraction or root must not block it
+  t = t.replace(/([\^_])\{([^{}]*)\}/g, (_, c: string, x: string) => c + TEX_BRACE[0] + x + TEX_BRACE[1]); // x^{n+1} inside a fraction or root must not block it
   // Innermost first, so nested fractions and roots come out right.
   for (let prev = ''; prev !== t;) {
     prev = t;
@@ -89,7 +88,7 @@ export function latex(text: string): string {
       .replace(/\\boxed\{([^{}]*)\}/g, (_, a: string) => ` ${BOX[0]}${a.trim()}${BOX[1]} `);
   }
   return t
-    .replace(/\u001d/g, '{').replace(/\u001e/g, '}') // not \u001b \u001c: those hold an arrow's label
+    .replaceAll(TEX_BRACE[0], '{').replaceAll(TEX_BRACE[1], '}')
     .replace(/\\binom\{([^{}]*)\}\{([^{}]*)\}/g, '($1 über $2)')
     .replace(/\\([A-Za-z]+)/g, (m, name: string) => SYMBOL[name] ?? name) // \sin -> sin
     // x^{n-1}: only plain digits/letters and charges can be raised; anything else keeps its brackets as x^(n-1)

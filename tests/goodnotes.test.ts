@@ -1,64 +1,11 @@
-import { inflateRawSync, inflateSync } from 'node:zlib';
+import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
 import { appleLz4, backgroundPdf, centerlines, goodnotesFile, tpl, withAttachmentSize } from '../src/export/goodnotes';
 import { TEMPLATE } from '../src/export/goodnotes-template';
 import type { Variant } from '../src/glyphstore/types';
 
-// Minimal readers, independent of the writer's helpers.
-function unzip(z: Uint8Array) {
-  const dv = new DataView(z.buffer, z.byteOffset), out = new Map<string, Uint8Array>();
-  for (let at = 0; dv.getUint32(at, true) === 0x04034b50;) {
-    const method = dv.getUint16(at + 8, true), size = dv.getUint32(at + 18, true), nl = dv.getUint16(at + 26, true), xl = dv.getUint16(at + 28, true);
-    const name = new TextDecoder().decode(z.subarray(at + 30, at + 30 + nl)), start = at + 30 + nl + xl;
-    const raw = z.subarray(start, start + size);
-    out.set(name, method === 8 ? new Uint8Array(inflateRawSync(raw)) : raw);
-    at = start + size;
-  }
-  return out;
-}
-function varint(b: Uint8Array, at: number): [number, number] {
-  let v = 0, s = 1;
-  for (;;) { const x = b[at++]; v += (x & 0x7f) * s; s *= 128; if (x < 128) return [v, at]; }
-}
-function fields(b: Uint8Array) {
-  const out: [number, number, Uint8Array | number][] = [];
-  for (let at = 0; at < b.length;) {
-    const [k, a1] = varint(b, at); const f = Math.floor(k / 8), w = k & 7; at = a1;
-    if (w === 0) { const [v, a2] = varint(b, at); out.push([f, w, v]); at = a2; }
-    else if (w === 2) { const [l, a2] = varint(b, at); out.push([f, w, b.subarray(a2, a2 + l)]); at = a2 + l; }
-    else if (w === 5) { out.push([f, w, b.subarray(at, at + 4)]); at += 4; }
-    else if (w === 1) { out.push([f, w, b.subarray(at, at + 8)]); at += 8; }
-    else throw new Error(`wire ${w}`);
-  }
-  return out;
-}
-function unLz4(b: Uint8Array): Uint8Array {
-  const out: number[] = [];
-  let at = 0;
-  for (;;) {
-    const magic = new TextDecoder().decode(b.subarray(at, at + 4));
-    if (magic === 'bv4$') return new Uint8Array(out);
-    expect(magic).toBe('bv41');
-    const dv = new DataView(b.buffer, b.byteOffset + at), raw = dv.getUint32(4, true), enc = dv.getUint32(8, true);
-    const blk = b.subarray(at + 12, at + 12 + enc);
-    const start = out.length;
-    for (let i = 0; i < blk.length;) {
-      const tok = blk[i++];
-      let n = tok >> 4;
-      if (n === 15) { let x; do { x = blk[i++]; n += x; } while (x === 255); }
-      for (let k = 0; k < n; k++) out.push(blk[i++]);
-      if (i >= blk.length) break; // the last sequence has literals only
-      const off = blk[i] | (blk[i + 1] << 8); i += 2;
-      let m = (tok & 15) + 4;
-      if ((tok & 15) === 15) { let x; do { x = blk[i++]; m += x; } while (x === 255); }
-      expect(off).toBeGreaterThan(0);
-      for (let k = 0; k < m; k++) out.push(out[out.length - off]); // may overlap itself
-    }
-    expect(out.length - start).toBe(raw);
-    at += 12 + enc;
-  }
-}
+import { fields, readGoodnotes, unLz4, unzip, varint } from './gn-reader';
 
 const nameOf = (files: Map<string, Uint8Array>, prefix: string) => [...files.keys()].find((k) => k.startsWith(prefix))!;
 
@@ -217,5 +164,72 @@ describe('goodnotes export', () => {
       const raw = Uint8Array.from(atob(TEMPLATE.events), (c) => c.charCodeAt(0));
       expect(f.get('index.events.pb')!.length).toBe(raw.length); // same length: no field was resized
     }
+  });
+
+  it('round trip: an independent reader gets strokes, colours, paper and the id rules back out of the file', async () => {
+    const K = 132 / 25.4; // GoodNotes units per mm
+    const w = 10, h = 10, alpha = new Uint8Array(w * h);
+    for (let x = 1; x < 9; x++) alpha[5 * w + x] = alpha[4 * w + x] = 255;
+    const v = { src: 's', key: '-', w, h, alpha, baseline: 8, strokeW: 2, entry: null, exit: null } as unknown as Variant;
+    const line = (p: [number, number][], w0: number, accent?: boolean) => ({ p, w0, w1: w0, accent });
+    const page = {
+      glyphs: [{ g: v, m: [0.1, 0, 0, 0.1, 20, 30] as [number, number, number, number, number, number] }],
+      connectors: [
+        line([[20, 40], [30, 40], [40, 40], [50, 40]], 0.3), // straight, ink colour
+        line([[20, 50], [20, 55], [20, 60], [20, 65]], 0.4, true), // straight, heading colour
+        line([[60, 50], [70, 40], [80, 60], [90, 50]], 0.3), // an S curve
+      ] as never,
+      missing: [], lines: [], marks: [],
+    };
+    const bg = await backgroundPdf('grid', 7.1, 12), thumb = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+    const gn = readGoodnotes(await goodnotesFile(page, () => v, '#203040', thumb, '#c02010', 0, bg));
+
+    // every index entry names a file that is in the archive
+    for (const e of [...gn.notes, ...gn.attachments, ...gn.search]) expect(gn.files.has(e.path)).toBe(true);
+    expect([gn.notes.length, gn.attachments.length]).toEqual([1, 1]);
+    expect(gn.notes[0].path).toBe(`notes/${gn.notes[0].id}`);
+    expect(gn.files.get('thumbnail.jpg')).toEqual(thumb);
+
+    // strokes: the glyph's centre line, then the three pen strokes, in GoodNotes units
+    const strokes = gn.strokes(gn.notes[0].path);
+    expect(strokes).toHaveLength(4);
+    expect(new Set(strokes.map((s) => s.id)).size).toBe(4);
+    for (const s of strokes) { expect(s.tool).toBe(24); expect(s.pts.length % 2).toBe(1); } // ballpoint; a start point plus pairs
+    const [glyph, a, b, c] = strokes, ends = (s: typeof a) => [s.pts[0], s.pts.at(-1)!].flat().map((x) => x / K);
+    for (const [x, y] of glyph.pts) { expect(x / K).toBeGreaterThan(20); expect(x / K).toBeLessThan(21); expect(y / K).toBeGreaterThan(30.3); expect(y / K).toBeLessThan(30.7); }
+    const near = (got: number[], want: number[]) => got.forEach((g, i) => expect(g).toBeCloseTo(want[i], 2));
+    near(ends(a), [20, 40, 50, 40]);
+    near(ends(b), [20, 50, 20, 65]);
+    near(ends(c), [60, 50, 90, 50]);
+    expect(c.pts.length).toBeGreaterThan(3); // the curve keeps points in between, all inside its hull
+    for (const [x, y] of c.pts) { expect(x / K).toBeGreaterThanOrEqual(59.99); expect(x / K).toBeLessThanOrEqual(90.01); expect(y / K).toBeGreaterThan(40); expect(y / K).toBeLessThan(60); }
+    near([a.width / K, b.width / K, c.width / K], [0.3, 0.4, 0.3]);
+    near(a.rgba, [0x20 / 255, 0x30 / 255, 0x40 / 255, 1]);
+    near(b.rgba, [0xc0 / 255, 0x20 / 255, 0x10 / 255, 1]); // headings in their own colour
+    near(glyph.rgba, a.rgba);
+
+    // the event log: one page (f54), its ink under page id + 1, its paper (f2) is the attachment with our PDF
+    const kind = (k: number) => gn.events.filter((e) => e.kind === k);
+    const [pageEv] = kind(54), [paper] = kind(2), [added] = kind(6), doc = kind(30)[0];
+    expect(kind(54)).toHaveLength(1);
+    const big = (u: string) => BigInt('0x' + u.replace(/-/g, ''));
+    expect(big(gn.notes[0].id)).toBe(big(pageEv.id) + 1n);
+    expect(kind(102).map((e) => e.id)).toEqual([gn.notes[0].id]);
+    expect(gn.text(pageEv, 3)).toContain(paper.id); // page -> paper
+    expect(gn.text(paper, 4)).toBe(gn.attachments[0].id); // paper -> attachment
+    expect(gn.num(paper, 5)).toBe(1); // page 1 of that PDF
+    expect(gn.text(paper, 9)).toBe('CC365888-75C9-5DBF-B1D4-A7E8E0AD3B7F_standard_1_2 - White');
+    expect(gn.num(added, 5)).toBe(bg.length);
+    expect(gn.files.get(gn.attachments[0].path)).toEqual(bg);
+    for (const e of [pageEv, paper, added]) expect(gn.text(e, e === added ? 6 : 1)).toBe(doc.id); // all belong to the document
+    // ids every real file shares stay as they are
+    expect(gn.text(doc, 3)).toContain('5A53E89E-F4C2-4548-8DD3-E9DF9FB4592E');
+    expect(gn.text(doc, 7)).toContain('5A53E89E-F4C2-4548-8DD3-E9DF9FB4592E');
+    expect(gn.text(kind(10)[0], 3)).toBe('PagingViewServiceUpdater:E1940363-20DF-415F-9D75-9F6BC464911B');
+    // the paper has the page's size: 455.04 x 588.45 pt = 834.24 x 1078.82 GoodNotes units
+    const size = fields(paper.body.find((f) => f[0] === 8)![2] as Uint8Array).map((f) => new DataView((f[2] as Uint8Array).slice().buffer).getFloat32(0, true));
+    near(size, [834.24, 1078.825]);
+    const pdfPage = (await PDFDocument.load(bg)).getPage(0).getSize();
+    near([pdfPage.width * (132 / 72), pdfPage.height * (132 / 72)], size);
   });
 });

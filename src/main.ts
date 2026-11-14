@@ -229,11 +229,38 @@ function settings() {
   return { s, o };
 }
 
+// Layout only changes with the text, the settings, the handwriting or a swapped letter – not with the window size.
+let laid: { key: string; lib: typeof lib; res: ReturnType<typeof layout> } | null = null;
+function laidOut(s: Settings, text = $<HTMLTextAreaElement>('text').value, swaps = true) {
+  const key = JSON.stringify([text, s, swaps ? [...overrides] : null]);
+  if (laid?.key !== key || laid.lib !== lib) {
+    const res = layout(clean(text, (ch) => lib.has(ch)), lib, s);
+    if (swaps) applyOverrides(res.pages);
+    laid = { key, lib, res };
+  }
+  return laid.res;
+}
+
+// Marked text in the field: only that is exported (the preview keeps showing everything).
+// shortcut: letter swaps are counted from the start of the whole text, so a marked part gets none, until swaps are stored per word.
+function exportText() {
+  const a = $<HTMLTextAreaElement>('text'), part = a.value.slice(a.selectionStart, a.selectionEnd);
+  return part.trim() ? { text: part, whole: false } : { text: a.value, whole: true };
+}
+let lastSel = '';
+function selectionNote() {
+  const { text, whole } = exportText();
+  if (text !== lastSel) { lastSel = text; ready = null; } // a finished export belongs to the text it was made from
+  $('selNote').hidden = whole;
+  $('selNote').textContent = whole ? '' : `Nur der markierte Text wird exportiert (${text.trim().length} Zeichen). Markierung aufheben, dann kommt wieder alles.`;
+}
+for (const ev of ['select', 'keyup', 'pointerup', 'input']) $('text').addEventListener(ev, selectionNote);
+
 /** page: paper + ink for export · ink: transparent full page (preview) · clip: transparent, cut to the text (copy) */
 function renderAll(pxPerMm: number, mode: 'page' | 'ink' | 'clip') {
   const { s, o } = settings();
-  const res = layout(clean($<HTMLTextAreaElement>('text').value, (ch) => lib.has(ch)), lib, s);
-  applyOverrides(res.pages);
+  const part = mode === 'ink' ? null : exportText(); // the preview shows everything
+  const res = part?.whole === false ? laidOut(s, part.text, false) : laidOut(s);
   const paper: DrawOpts = { ...o, crop: false, pxPerMm, pageW: s.pageW, pageH: s.pageH, lineH: s.lineH, margin: s.margin };
   const opts: DrawOpts = {
     ...paper,
@@ -247,6 +274,21 @@ function renderAll(pxPerMm: number, mode: 'page' | 'ink' | 'clip') {
 let timer = 0, gen = 0, urls: string[] = [];
 let ready: { kind: string; files: File[]; asked?: boolean } | null = null; // rendered export, kept if the share sheet needs a second tap
 function schedule() { ready = null; clearTimeout(timer); timer = window.setTimeout(preview, 150); }
+
+const EAGER_PAGES = 2;
+let io: IntersectionObserver | null = null, lastW = 0;
+let paperCache: { key: string; url: string } | null = null;
+/** The ruled/grid paper is the same on every page: draw it once per format and line type. */
+function paperUrl(paper: DrawOpts) {
+  if (paper.background === 'transparent') return '';
+  const key = [paper.background, paper.pageW, paper.pageH, paper.lineH, paper.margin, paper.pxPerMm].join('|');
+  if (paperCache?.key !== key) {
+    const c = drawPage({ glyphs: [], connectors: [], missing: [], lines: [], marks: [] }, paper, () => { throw new Error('no glyphs'); });
+    paperCache = { key, url: c.toDataURL() };
+    c.width = 0;
+  }
+  return paperCache.url;
+}
 
 function preview() {
   for (const out of document.querySelectorAll<HTMLOutputElement>('output[data-for]')) out.value = FORMAT[out.dataset.for!](n(out.dataset.for!));
@@ -263,18 +305,24 @@ function preview() {
   const box = $('preview');
   box.hidden = $('previewHint').hidden = !raw.length;
   if (!raw.length) { $('missing').hidden = true; return; }
-  const px = Math.max(2, (box.clientWidth * devicePixelRatio) / pageSize().w);
-  const { pages, draw, paper, missing } = renderAll(Math.min(px, 8), 'ink');
-  const canvases = pages.map((_, i) => draw(i));
+  lastW = box.clientWidth;
+  const px = Math.min(6, Math.max(2, (lastW * devicePixelRatio) / pageSize().w)); // 6 px/mm is sharp enough on screen
+  const { pages, draw, paper, missing } = renderAll(px, 'ink');
   shown = pages;
   const my = ++gen;
   urls.forEach((u) => URL.revokeObjectURL(u));
   urls = [];
-  // Paper underneath, ink on top as its own transparent layer.
-  box.replaceChildren(...canvases.map((ink, i) => {
-    const sheet = document.createElement('div');
-    sheet.className = paper.background === 'transparent' ? 'page-view clear' : 'page-view';
-    sheet.append(drawPage({ glyphs: [], connectors: [], missing: [], lines: [], marks: [] }, paper, () => { throw new Error('no glyphs'); }), ink);
+  io?.disconnect();
+  io = new IntersectionObserver((hits) => hits.forEach((h) => {
+    if (h.isIntersecting) { io!.unobserve(h.target); fill(h.target as HTMLElement); }
+  }), { rootMargin: '600px 0px' });
+  const url = paperUrl(paper);
+  // Paper underneath (one shared image), ink on top as its own transparent layer. The first pages are drawn now,
+  // the others only when they get near the screen.
+  const fill = (sheet: HTMLElement) => {
+    if (my !== gen) return;
+    const i = Number(sheet.dataset.i), ink = draw(i);
+    sheet.append(ink);
     // As an image the ink can be long-pressed → Kopieren, or dragged into GoodNotes, on the iPad.
     toPng(ink).then((b) => {
       if (my !== gen) return;
@@ -282,8 +330,16 @@ function preview() {
       img.src = URL.createObjectURL(b);
       img.alt = pages[i].lines.map((l) => l.text).join('\n');
       urls.push(img.src);
-      img.onload = () => ink.replaceWith(img);
+      img.onload = () => { ink.replaceWith(img); ink.width = 0; };
     }, () => {}); // the canvas stays visible
+  };
+  box.replaceChildren(...pages.map((_, i) => {
+    const sheet = document.createElement('div');
+    sheet.className = paper.background === 'transparent' ? 'page-view clear' : 'page-view';
+    sheet.dataset.i = String(i);
+    sheet.style.aspectRatio = `${paper.pageW} / ${paper.pageH}`;
+    if (url) sheet.style.backgroundImage = `url(${url})`;
+    if (i < EAGER_PAGES) fill(sheet); else io!.observe(sheet);
     return sheet;
   }));
   $('missing').hidden = !missing.size;
@@ -308,7 +364,7 @@ for (const [attr, id] of SEGS) {
   });
 }
 $('dice').onclick = () => { $<HTMLInputElement>('seed').value = String(Math.floor(Math.random() * 1e6)); schedule(); };
-addEventListener('resize', schedule);
+addEventListener('resize', () => { if ($('preview').clientWidth !== lastW) schedule(); }); // height alone (iPad address bar) changes nothing
 
 $('clearText').onclick = () => {
   const area = $<HTMLTextAreaElement>('text');
@@ -399,8 +455,9 @@ $('share').onclick = () => shareAs('pdf', async () => {
 $('shareGn').onclick = () => shareAs('gn', async () => {
   const { s, o } = settings();
   const margin = Math.min(s.margin, 12), paper = o.background === 'transparent' ? 'blank' : o.background; // no transparent paper in a notebook
-  const res = layout(clean($<HTMLTextAreaElement>('text').value, (ch) => lib.has(ch)), lib, { ...s, pageW: GN_PAGE.w, pageH: GN_PAGE.h, margin });
-  applyOverrides(res.pages);
+  const { text, whole } = exportText();
+  const res = layout(clean(text, (ch) => lib.has(ch)), lib, { ...s, pageW: GN_PAGE.w, pageH: GN_PAGE.h, margin });
+  if (whole) applyOverrides(res.pages);
   const get = (src: string) => bySrc.get(src)!;
   const bg = await backgroundPdf(paper, s.lineH, margin);
   const thumbOpts: DrawOpts = { ...o, background: paper, crop: false, pxPerMm: 2, pageW: GN_PAGE.w, pageH: GN_PAGE.h, lineH: s.lineH, margin };

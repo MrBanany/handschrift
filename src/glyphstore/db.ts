@@ -53,6 +53,8 @@ const prefsOf = (set: string) => Object.fromEntries(PREFS.flatMap((p) => { const
 const markDirty = (set: string) => { if (!localStorage.getItem(`${DIRTY}:${set}`)) localStorage.setItem(`${DIRTY}:${set}`, String(Date.now())); };
 /** Names of handwritings changed more than `days` ago and not backed up since. */
 export const staleSets = (days: number) => Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i)!).filter((k) => k.startsWith(`${DIRTY}:`) && Date.now() - Number(localStorage.getItem(k)) > days * 864e5).map((k) => k.slice(DIRTY.length + 1));
+/** Changed since the last backup (or never backed up since it was made here). */
+export const isDirty = (set: string) => localStorage.getItem(`${DIRTY}:${set}`) !== null;
 export const markSaved = (sets: string[]) => sets.forEach((s) => localStorage.removeItem(`${DIRTY}:${s}`));
 export { markDirty };
 
@@ -82,6 +84,7 @@ export async function renameSet(from: string, to: string) {
   if (to === from) return;
   if ((await listSets()).includes(to)) throw new Error(`„${to}“ gibt es schon.`);
   await saveMany(to, await loadSet(from));
+  localStorage.removeItem(`${DIRTY}:${to}`); // saveMany marked it changed; a rename must keep the backed-up state of the old name
   for (const p of [...PREFS, DIRTY]) { const v = localStorage.getItem(`${p}:${from}`); if (v !== null) localStorage.setItem(`${p}:${to}`, v); }
   await deleteSet(from);
 }
@@ -168,15 +171,20 @@ export async function importBackup(file: File, pick: (name: string, existing: st
   const sets: string[] = [];
   let count = 0;
   for (const { name, vs, prefs } of parsed) {
-    const to = pick(name, await listSets())?.trim();
+    const existing = await listSets();
+    const to = pick(name, existing)?.trim();
     if (!to) continue;
-    await saveMany(to, vs);
+    // Into an existing handwriting the file only adds: samples and settings already there are newer than the backup
+    // (re-imported pages, rewritten letters) and are never overwritten.
+    const have = existing.includes(to) ? new Set((await loadSet(to)).map((v) => v.src)) : null;
+    const add = have ? vs.filter((v) => !have.has(v.src)) : vs;
+    if (add.length) await saveMany(to, add);
     for (const p of PREFS) {
       const v = cleanPref(p, prefs[p]);
-      if (v !== null) localStorage.setItem(`${p}:${to}`, v);
+      if (v !== null && !(have && localStorage.getItem(`${p}:${to}`) !== null)) localStorage.setItem(`${p}:${to}`, v);
     }
     sets.push(to);
-    count += vs.length;
+    count += add.length;
   }
   return { sets, count };
 }

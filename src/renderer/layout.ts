@@ -1,10 +1,9 @@
 import { connectionModel, makeConnector, type Connector, type Library } from '../connectors/connect';
 import type { Anchor, GlyphMeta } from '../glyphstore/types';
 import { MM, XH } from '../template/layout';
-import { ARROW, CIRC, EMPH, HEAD, INDENT, MARK, STRUCT } from './clean';
-import { CARD, CORNELL, NOTE } from './cards';
-import { BOX, flatFrac } from './latex';
-import { MAP, decodeMap, mapAsList, planMindmap, type MapPlan } from './mindmap';
+import { flatFrac } from './latex';
+import { ARROW, BOX, CARD, CIRC, CORNELL, EMPH, HEAD, INDENT, MAP, MARK, NOTE, STRUCT } from './markers';
+import { decodeMap, mapAsList, planMindmap, type MapPlan } from './mindmap';
 import { molecule, type Molecule } from './structure';
 
 /** Gap between words (x-heights, ink to ink) when none was learned. */

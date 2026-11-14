@@ -14,12 +14,9 @@
  * normal clean() rules (fractions, bold, arrows work inside). layout() writes the marked lines into a frame.
  */
 
-/** Ends a card's question line / each of its answer lines. Private-use characters: the C0 controls are taken (clean.ts, latex.ts, mindmap.ts). */
-export const CARD = ['\uf701', '\uf702'] as const;
-/** Ends each line of a boxed note. */
-export const NOTE = '\uf703';
-/** Cornell notes: ends a cue / a line of its notes / a line of the summary. */
-export const CORNELL = ['\uf704', '\uf705', '\uf706'] as const;
+import { CARD, CORNELL, NOTE } from './markers';
+
+export { CARD, CORNELL, NOTE } from './markers'; // the codes live in markers.ts
 
 const B = '(?:\\*\\*|__)?', PRE = '^[ \\t]*(?:[-*+•][ \\t]+)?(?:#{1,6}[ \\t]*)?';
 const Q = new RegExp(`${PRE}${B}(?:Karteikarte|Karte|Frage)(?:[ \\t]*\\d+)?[ \\t]*[:：]${B}[ \\t]*(.*)$`, 'i');

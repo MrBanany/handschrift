@@ -38,6 +38,8 @@ export const MAP_SEP = { field: '\uF720', branch: '\uF721', item: '\uF722' } as 
 export const CARD = ['\uF701', '\uF702'] as const;
 /** Ends each line of a boxed note (cards.ts). */
 export const NOTE = '\uF703';
+/** Cornell notes (claude/lernzettel, cards.ts there): ends a cue line / a notes line / a summary line. Reserved here so nothing else takes them. */
+export const CORNELL = ['\uF704', '\uF705', '\uF706'] as const;
 /** x^{n+1}: while latex() works, the braces of a super/subscript are these, so the fraction/root rules skip them. */
 export const TEX_BRACE = ['\uF710', '\uF711'] as const;
 
@@ -48,6 +50,7 @@ const ALL: Record<string, string> = {
   'ARROW[0]': ARROW[0], 'ARROW[1]': ARROW[1], 'LABEL[0]': LABEL[0], 'LABEL[1]': LABEL[1],
   'MAP_SEP.field': MAP_SEP.field, 'MAP_SEP.branch': MAP_SEP.branch, 'MAP_SEP.item': MAP_SEP.item,
   'CARD[0]': CARD[0], 'CARD[1]': CARD[1], NOTE,
+  'CORNELL[0]': CORNELL[0], 'CORNELL[1]': CORNELL[1], 'CORNELL[2]': CORNELL[2],
   'TEX_BRACE[0]': TEX_BRACE[0], 'TEX_BRACE[1]': TEX_BRACE[1],
 };
 

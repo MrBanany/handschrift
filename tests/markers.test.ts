@@ -18,7 +18,7 @@ describe('markers', () => {
   it('checkMarkers catches a duplicate and a code outside the ranges', () => {
     expect(() => checkMarkers({ a: '\u0002', b: '\u0002' })).toThrow(/both/);
     expect(() => checkMarkers({ a: 'x' })).toThrow(/outside/);
-    expect(() => checkMarkers({ a: '' })).toThrow(/outside/); // U+E000+ belongs to the lowered letters
+    expect(() => checkMarkers({ a: '\uE000' })).toThrow(/outside/); // U+E000+ belongs to the lowered letters
   });
 
   it('a mind map keeps an arrow with a label and x^{n+1} in a branch', () => {

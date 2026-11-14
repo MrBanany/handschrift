@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { defineConfig } from 'vite';
 
@@ -12,7 +12,9 @@ const swBuildId = {
   closeBundle() {
     const id = createHash('sha1').update(readFileSync(join(outDir, 'index.html'))).digest('hex').slice(0, 10);
     const sw = join(outDir, 'sw.js');
-    writeFileSync(sw, readFileSync(sw, 'utf8').replace('__BUILD__', id));
+    // the sample fonts are loaded only when a sample is picked, so index.html does not name them: hand sw.js the list
+    const fonts = readdirSync(join(outDir, 'assets')).filter((f) => f.endsWith('.ttf')).map((f) => `./assets/${f}`);
+    writeFileSync(sw, readFileSync(sw, 'utf8').replace('__BUILD__', id).replace('__FONTS__', fonts.join(',')));
   },
 };
 

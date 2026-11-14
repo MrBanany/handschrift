@@ -187,6 +187,31 @@ describe('layout', () => {
     }
   });
 
+  it('writes Cornell notes: cues left of a pen line, notes right of it, the summary below a line across', () => {
+    const long = (c: Page['connectors'][number]) => Math.hypot(c.p[3][0] - c.p[0][0], c.p[3][1] - c.p[0][1]) > 15;
+    const { pages } = layout(clean('Cornell: ab\nwas | das\naber\nwo | da\nZusammenfassung: gut', () => true), lib, S);
+    const g = pages[0].glyphs.map((p) => p.m), x = S.margin + 0.3 * (S.pageW - 2 * S.margin);
+    const vert = pages[0].connectors.filter(long).find((c) => Math.abs(c.p[0][0] - c.p[3][0]) < 1)!;
+    const across = pages[0].connectors.find((c) => Math.abs(c.p[0][0] - c.p[3][0]) > 100)!;
+    expect(Math.abs(vert.p[0][0] - x)).toBeLessThan(0.5);
+    expect(Math.abs(vert.p[3][0] - x)).toBeLessThan(0.5);
+    expect(Math.abs(across.p[0][1] - across.p[3][1])).toBeLessThan(0.5);
+    expect(Math.abs(vert.p[3][1] - across.p[0][1])).toBeLessThan(0.5); // the column line ends on the line across
+    // ab | was das aber | wo da | (summary): cues left, notes right, each row level, rows in order
+    for (const i of [2, 3, 4, 12, 13]) expect(g[i][4]).toBeLessThan(x);
+    for (const i of [5, 6, 7, 8, 9, 10, 11, 14, 15]) expect(g[i][4]).toBeGreaterThan(x);
+    expect(Math.abs(g[2][5] - g[5][5])).toBeLessThan(1);
+    expect(g[8][5]).toBeGreaterThan(g[5][5] + S.lineH / 2);
+    expect(Math.abs(g[12][5] - g[14][5])).toBeLessThan(1);
+    expect(g[12][5]).toBeGreaterThan(g[8][5] + S.lineH / 2);
+    for (const m of g.slice(16)) expect(m[5]).toBeGreaterThan(across.p[0][1]); // the summary
+    // over two pages: a column line on each, every row whole
+    const two = layout(clean('Cornell: ab\n' + Array.from({ length: 40 }, () => 'was | das').join('\n'), () => true), lib, S).pages;
+    expect(two).toHaveLength(2);
+    for (const p of two) expect(p.connectors.filter(long).filter((c) => Math.abs(c.p[0][0] - c.p[3][0]) < 1)).toHaveLength(1);
+    expect((two[0].glyphs.length - 2) % 6).toBe(0);
+  });
+
   it('writes a card taller than a whole page as plain lines over the pages', () => {
     const long = (c: Page['connectors'][number]) => Math.hypot(c.p[3][0] - c.p[0][0], c.p[3][1] - c.p[0][1]) > 15;
     const { pages } = layout(clean('Karteikarte: was\nAntwort: das\n' + Array(40).fill('ab').join('\n'), () => true), lib, S);

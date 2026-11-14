@@ -2,7 +2,7 @@ import { connectionModel, makeConnector, type Connector, type Library } from '..
 import type { Anchor, GlyphMeta } from '../glyphstore/types';
 import { MM, XH } from '../template/layout';
 import { ARROW, CIRC, EMPH, HEAD, INDENT, MARK, STRUCT } from './clean';
-import { CARD, NOTE } from './cards';
+import { CARD, CORNELL, NOTE } from './cards';
 import { BOX, flatFrac } from './latex';
 import { MAP, decodeMap, mapAsList, planMindmap, type MapPlan } from './mindmap';
 import { molecule, type Molecule } from './structure';
@@ -666,20 +666,21 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
   // Flash cards and note boxes (cards.ts marks their lines): the lines are written into columns inside a ruled frame.
   // A block is never split over two pages: one that does not fit moves to the next page as a whole.
   // One taller than a whole page is written as plain lines instead.
-  const rule = (x0: number, y0: number, x1: number, y1: number) => {
+  const rule = (x0: number, y0: number, x1: number, y1: number, on = page!) => {
     const j = () => gauss() * 0.02 * xh;
     x0 += j(); y0 += j(); x1 += j(); y1 += j();
-    page!.connectors.push({ p: [[x0, y0], [x0 + (x1 - x0) / 3, y0 + (y1 - y0) / 3], [x0 + (2 * (x1 - x0)) / 3, y0 + (2 * (y1 - y0)) / 3], [x1, y1]], w0: penW, w1: penW });
+    on.connectors.push({ p: [[x0, y0], [x0 + (x1 - x0) / 3, y0 + (y1 - y0) / 3], [x0 + (2 * (x1 - x0)) / 3, y0 + (2 * (y1 - y0)) / 3], [x1, y1]], w0: penW, w1: penW });
   };
-  function placeBlock(cols: string[][], gap: boolean) {
-    const L = s.lineH, l = s.margin, r = s.pageW - s.margin, pad = 1.2 * xh, w = (r - l) / cols.length;
+  /** split: where the first of two columns ends (share of the width). Without a frame (Cornell rows) the block tiles with the next one; returns its extent then, null if it became plain lines. */
+  function placeBlock(cols: string[][], gap: boolean, split = 0.5, frame = true) {
+    const L = s.lineH, l = s.margin, r = s.pageW - s.margin, pad = 1.2 * xh, xs = cols.length > 1 ? [l, l + split * (r - l), r] : [l, r];
     const yStart = y;
     if (gap && y > s.margin + L) y += L; // a free line between the text above and the frame
-    let y0 = y, end = y0 + (cols.length > 1 ? L : 0); // a card is at least two lines tall
+    let y0 = y, end = y0 + (frame && cols.length > 1 ? L : 0); // a card is at least two lines tall
     const P = page!, at = { g: P.glyphs.length, c: P.connectors.length, m: P.missing.length, l: P.lines.length, k: P.marks.length };
     inBlock = true;
     cols.forEach((lines, c) => {
-      colL = l + c * w + pad; colR = l + (c + 1) * w - pad; y = y0 - L; lineDown = 0;
+      colL = xs[c] + (frame || c ? pad : 0); colR = xs[c + 1] - (frame || c < cols.length - 1 ? pad : 0); y = y0 - L; lineDown = 0;
       for (const line of lines) { newLine(); writeLine(line); }
       closeUnderline(); closeMark(); closeRing(); accentLine();
       end = Math.max(end, y + lineDown * L);
@@ -689,7 +690,7 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
       P.glyphs.length = at.g; P.connectors.length = at.c; P.missing.length = at.m; P.lines.length = at.l; P.marks.length = at.k;
       y = yStart - L; lineDown = 0;
       for (const line of cols.flat()) { newLine(); writeLine(line); }
-      return;
+      return null;
     }
     if (end > s.pageH - s.margin && y0 > s.margin + L + 0.01) {
       const g = P.glyphs.splice(at.g), c = P.connectors.splice(at.c), m = P.missing.splice(at.m), ln = P.lines.splice(at.l), k = P.marks.splice(at.k);
@@ -702,11 +703,14 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
       page!.glyphs.push(...g); page!.connectors.push(...c); page!.missing.push(...m); page!.lines.push(...ln); page!.marks.push(...k);
       y0 += dy; end += dy;
     }
+    y = end; rec = null;
+    from = { g: page!.glyphs.length, c: page!.connectors.length, m: page!.missing.length, k: page!.marks.length };
+    if (!frame) { lineDown = 0; return { x: xs[1], top: y0 - 0.75 * L, bot: end + 0.25 * L }; }
     const top = y0 - Math.max(0.8 * L, 2.1 * xh), bot = end + 0.45 * L;
     rule(l, top, r, top); rule(r, top, r, bot); rule(r, bot, l, bot); rule(l, bot, l, top);
-    for (let c = 1; c < cols.length; c++) rule(l + c * w, top, l + c * w, bot); // the fold line of a card
-    y = end; lineDown = 1; rec = null; // the next line keeps a line's distance from the frame
-    from = { g: page!.glyphs.length, c: page!.connectors.length, m: page!.missing.length, k: page!.marks.length };
+    if (cols.length > 1) rule(xs[1], top, xs[1], bot); // the fold line of a card
+    lineDown = 1; // the next line keeps a line's distance from the frame
+    return null;
   }
 
   const lines = expandMaps(text);
@@ -726,7 +730,26 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
     afterBlock = kind === CARD[0] || kind === NOTE;
     if (kind === CARD[0]) { i++; placeBlock([[body(line)], take(CARD[1])], gap); }
     else if (kind === NOTE) placeBlock([take(NOTE)], gap);
-    else writeLine(kind === CARD[1] ? body(line) : line); // an answer that lost its question is just text
+    else if (kind === CORNELL[0] || kind === CORNELL[1]) {
+      // Cornell notes: rows of cue | notes, one pen line between the columns on every page, the summary below a line across
+      let seg = null as { x: number; top: number; bot: number; on: Page } | null;
+      const close = () => { if (seg) rule(seg.x, seg.top, seg.x, seg.bot, seg.on); seg = null; };
+      for (let first = true; ; first = false) {
+        const cue = lines[i].endsWith(CORNELL[0]) ? [body(lines[i++])] : [];
+        const b = placeBlock([cue, take(CORNELL[1])], first && gap, 0.3, false);
+        if (!b || seg?.on !== page!) close();
+        if (b) seg = { x: b.x, top: seg?.top ?? b.top, bot: b.bot, on: page! };
+        if (!lines[i + 1]?.endsWith(CORNELL[0]) && !lines[i + 1]?.endsWith(CORNELL[1])) break;
+        i++; newLine();
+      }
+      if (lines[i + 1]?.endsWith(CORNELL[2])) {
+        i++; newLine(); newLine();
+        const b = placeBlock([take(CORNELL[2])], false, 1, false);
+        if (b) { rule(s.margin, b.top, s.pageW - s.margin, b.top); if (seg?.on === page!) seg.bot = b.top; }
+      }
+      close();
+    }
+    else writeLine(kind === CARD[1] || kind === CORNELL[2] ? body(line) : line); // an answer that lost its question is just text
   }
   closeUnderline(); closeMark(); closeRing(); accentLine();
   return { pages, missing: missingSet };

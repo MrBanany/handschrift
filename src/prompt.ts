@@ -8,6 +8,7 @@ STIL
 - Pfeile als Text, Länge nach Bedarf: -> normal, --> lang, ---> sehr lang. Auch ⇒ ⇔ ↔ ⇌. Bedingung über dem Pfeil: $\\ce{A ->[Kat] B}$.
 - Mindmap (nur wenn gewünscht): Zeile "Mindmap: Thema", darunter höchstens 8 Äste mit "- ", Unterpunkte 2 Leerzeichen eingerückt, alles in Stichworten.
 - Karteikarten (nur wenn gewünscht): Zeile "Karteikarte: Frage", direkt darunter "Antwort: ..." (kurz, höchstens 4 Zeilen), dann eine Leerzeile.
+- Cornell-Notizen (nur wenn gewünscht): Zeile "Cornell: Thema", dann pro Zeile "Stichwort | Notiz" (keine Tabelle mit Kopfzeile), zum Schluss "Zusammenfassung: ..." in ein bis zwei Sätzen.
 - Merksätze und Definitionen als eigener Absatz, der mit "Merke: " oder "Definition: " beginnt (wird eingerahmt).
 - Nie: Emojis, Tabellen, Codeblöcke, Bilder, Links, Kursivschrift. Listen nur mit "- ", Formeln nur mit $...$ (nicht \\( \\) oder \\[ \\]).
 

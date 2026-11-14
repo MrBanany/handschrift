@@ -1,6 +1,6 @@
 # Lernzettel-Vorlagen (Entwurf)
 
-Stand: 14. November 2026. Umgesetzt sind Karteikarten und Merkkasten, Cornell ist nur entworfen.
+Stand: 14. November 2026. Umgesetzt sind Karteikarten, Merkkasten und Cornell-Notizen.
 
 ## Was Schülern am meisten bringt
 
@@ -8,7 +8,7 @@ Stand: 14. November 2026. Umgesetzt sind Karteikarten und Merkkasten, Cornell is
 |---|---|---|---|
 | **Karteikarten** (Frage / Antwort) | Am größten: sich selbst abfragen ist die wirksamste Lernmethode, und KIs erzeugen Fragen gern. | mittel | umgesetzt |
 | **Merkkasten** (Merksatz, Definition) | Hoch: steht in fast jedem Schulheft, KIs schreiben „Merke:“ von sich aus. | klein | umgesetzt |
-| **Cornell-Notizen** | Mittel: gute Methode, aber an deutschen Schulen wenig bekannt. | groß (Spalten über Seiten hinweg) | nur Entwurf |
+| **Cornell-Notizen** | Mittel: gute Methode, aber an deutschen Schulen wenig bekannt. | mittel | umgesetzt |
 
 ## Karteikarte = Faltkarte
 
@@ -35,24 +35,27 @@ Vertragen wird, was Gemini, Claude und ChatGPT tatsächlich schreiben: `**Kartei
 
 ## Merkkasten
 
-Ein Absatz, der mit `Merke:`, `Merksatz:` oder `Definition:` beginnt, bekommt einen Rahmen über die ganze Breite. Das Wort davor wird unterstrichen. Der Kasten endet an der Leerzeile.
+Ein Absatz, der mit `Merke:`, `Merksatz:` oder `Definition:` beginnt, bekommt einen Rahmen über die ganze Breite. Das Wort davor wird unterstrichen. Der Kasten endet an der Leerzeile, an einer Aufzählung oder an einer Überschrift.
 
 ```
 Merke: Ohne Sauerstoff entstehen nur 2 ATP.
 ```
 
-## Cornell (noch nicht gebaut)
-
-Vorschlag für die Schreibweise:
+## Cornell-Notizen
 
 ```
 Cornell: Zellatmung
 Glykolyse | im Zytoplasma, 2 ATP
+- weitere Zeile der Notiz
 Citratzyklus | in den Mitochondrien
 Zusammenfassung: Glucose wird in drei Schritten zu CO2 und Wasser abgebaut.
 ```
 
-Schmale Stichwortspalte links (30 %), Notizen rechts, Zusammenfassung als Kasten darunter. Technisch dieselbe Spalten-Funktion wie bei der Karteikarte (`placeBlock` mit zwei ungleich breiten Spalten und ohne Rahmen je Zeile). Offen ist der Seitenwechsel: der senkrechte Strich muss auf jeder Seite neu gezogen werden. Der Block muss vor den Tabellen-Regeln in `clean()` erkannt werden, sonst wird `A | B` zu „A – B“.
+- Das Thema wird eine Überschrift. Die Stichwortspalte links nimmt 30 % der Breite, rechts stehen die Notizen, dazwischen ein senkrechter Stiftstrich.
+- Zeilen ohne `|` gehören zur Notiz darüber. Eine Markdown-Tabelle (`| Stichwort | Notizen |` mit Trennzeile) wird genauso gelesen, Kopf- und Trennzeile fallen weg.
+- Die Zusammenfassung steht unter einem Strich über die ganze Breite, das Wort ist unterstrichen.
+- Seitenwechsel: Ein Stichwort mit seiner Notiz bleibt zusammen, der senkrechte Strich wird auf jeder Seite neu gezogen.
+- Technisch dieselbe Funktion wie die Karteikarte (`placeBlock` mit zwei ungleich breiten Spalten, ohne Rahmen).
 
 ## Technik
 

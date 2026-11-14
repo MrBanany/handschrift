@@ -307,12 +307,15 @@ function preview() {
   $('styleNote').textContent = style ? `Abstände aus deinen Notizen gelernt (${style.lines} Zeilen).` : '';
   const box = $('preview');
   box.hidden = $('previewBar').hidden = !raw.length;
+  if (!raw.length) $('fitNote').hidden = true;
   if (!raw.length) { $('missing').hidden = true; return; }
   lastW = box.clientWidth;
   const px = Math.min(6, Math.max(2, (lastW * devicePixelRatio) / pageSize().w)); // 6 px/mm is sharp enough on screen
   const { pages, draw, paper, missing } = renderAll(px, 'ink');
   shown = pages;
   $('pageCount').textContent = pages.length === 1 ? '1 Seite' : `${pages.length} Seiten`;
+  $('fitNote').hidden = pages.length < 2;
+  $('fitText').textContent = `Der Text braucht ${pages.length} Seiten.`;
   const my = ++gen;
   urls.forEach((u) => URL.revokeObjectURL(u));
   urls = [];
@@ -494,21 +497,20 @@ $('copy').onclick = () => {
   );
 };
 
-// ---------- fit the text on one page: shrink size and line spacing together ----------
+// ---------- fit the text on one page: smaller letters, the line spacing stays ----------
 $('fit').onclick = () => {
   if (!raw.length) return toast('Erst eine Handschrift auswählen oder anlegen.');
   const { s, o } = settings(), text = clean($<HTMLTextAreaElement>('text').value, (ch) => lib.has(ch));
-  const pagesIn = (xh: number, lineH: number, gn: boolean) => { const t = { ...s, xh, lineH }; return layout(text, lib, gn ? gnSetup(t, o.background).set : t).pages.length; };
+  const pagesIn = (xh: number, gn: boolean) => { const t = { ...s, xh }; return layout(text, lib, gn ? gnSetup(t, o.background).set : t).pages.length; };
   // The GoodNotes file has its own page and, on lined or squared paper, the line spacing of that paper: it has to fit there too.
-  const both = fitSize(s.xh, s.lineH, (xh, lineH) => Math.max(pagesIn(xh, lineH, false), pagesIn(xh, lineH, true)));
-  const pdf = both ?? fitSize(s.xh, s.lineH, (xh, lineH) => pagesIn(xh, lineH, false));
-  if (!pdf) return toast('Passt auch klein nicht auf eine Seite.');
-  const gnPages = pagesIn(pdf.xh, pdf.lineH, true), gnNote = `in GoodNotes sind es wegen der Papierlinien ${gnPages} Seiten`;
-  if (pdf.xh === s.xh && pdf.lineH === s.lineH) return toast(gnPages <= 1 ? 'Passt schon auf eine Seite.' : `Als Bild und PDF passt es schon auf eine Seite, ${gnNote}.`);
-  $<HTMLInputElement>('xh').value = String(pdf.xh);
-  $<HTMLInputElement>('lineH').value = String(pdf.lineH);
+  const both = fitSize(s.xh, (xh) => Math.max(pagesIn(xh, false), pagesIn(xh, true)));
+  const xh = both ?? fitSize(s.xh, (v) => pagesIn(v, false));
+  if (xh === null) return toast('Passt auch klein nicht auf eine Seite. Der Zeilenabstand bleibt, wie er ist.');
+  const gnPages = pagesIn(xh, true), gnNote = `in GoodNotes sind es wegen der Papierlinien ${gnPages} Seiten`;
+  if (xh === s.xh) return toast(gnPages <= 1 ? 'Passt schon auf eine Seite.' : `Als Bild und PDF passt es schon auf eine Seite, ${gnNote}.`);
+  $<HTMLInputElement>('xh').value = String(xh);
   schedule();
-  toast(gnPages <= 1 ? `Auf eine Seite eingepasst (Größe ${pdf.xh}, Zeilenabstand ${pdf.lineH} mm).` : `Eingepasst, aber ${gnNote}.`);
+  toast(gnPages <= 1 ? `Auf eine Seite eingepasst (Größe ${xh} mm, Zeilenabstand unverändert).` : `Eingepasst, aber ${gnNote}.`);
 };
 
 // ---------- tabs ----------

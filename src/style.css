@@ -108,6 +108,8 @@ details > * + * { margin-top: 10px; }
 .preview-hint { margin: 0; }
 .preview-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 12px; }
 .preview-bar .preview-hint { flex: 1 1 220px; }
+.fit-note { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; font-size: 14px; }
+.fit-note button { min-height: 40px; padding: 0 14px; }
 .page-count { font-size: 13px; font-weight: 600; color: var(--muted); }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; margin: 0 auto 14px; max-width: 760px; }
 .card p { margin: 0 0 14px; }

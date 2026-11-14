@@ -83,16 +83,27 @@ export interface PlanOpts {
   measure: (text: string, size: number) => number;
 }
 
-const TOPIC = 1.3, TITLE = 1.12;
+/** Sizes to try, relative to the normal writing: a map that does not fit is written smaller before it becomes a list. */
+const SHRINK = [1, 0.9, 0.8, 0.7];
 
 /**
  * Topic in a box in the middle, branches stacked left and right of it (the first half clockwise from the top right,
  * the rest back up the left side), their sub-points listed under them. Every text sits on its own line grid row, so
- * nothing can overlap. null if it does not fit (more than 8 branches, a word wider than its column, too tall).
+ * nothing can overlap. null if it does not fit even at the smallest size (more than 8 branches, a word wider than its
+ * column, too tall).
  */
 export function planMindmap(t: MapTree, o: PlanOpts): MapPlan | null {
-  const n = t.branches.length;
-  if (!n || n > 8) return null;
+  if (!t.branches.length || t.branches.length > 8) return null;
+  for (const k of SHRINK) {
+    const p = planAt(t, o, k);
+    if (p) return p;
+  }
+  return null;
+}
+
+/** The plan with every text (and the margins that go with it) at k times the normal size. */
+function planAt(t: MapTree, o: PlanOpts, k: number): MapPlan | null {
+  const n = t.branches.length, TOPIC = 1.3 * k, TITLE = 1.12 * k;
   const { xh, measure } = o;
 
   /** Greedy line breaking; null when one word alone is too wide. `first` / `rest` are the line widths. */
@@ -109,22 +120,24 @@ export function planMindmap(t: MapTree, o: PlanOpts): MapPlan | null {
     return lines;
   };
 
-  const pad = 0.9 * xh * TOPIC, gapMin = 0.07 * o.width;
+  const pad = 0.9 * xh * TOPIC, gapMin = 0.07 * o.width * k;
   const topicLines = wrap(t.topic, 0.34 * o.width - 2 * pad, 0.34 * o.width - 2 * pad, TOPIC);
   if (!topicLines || topicLines.length > 3) return null;
   const cw = Math.max(...topicLines.map((l) => measure(l, TOPIC))) + 2 * pad;
   const sw = (o.width - cw - 2 * gapMin) / 2; // widest a side column may be
-  if (sw < 24 * (xh / 2.6)) return null;
+  if (sw < 24 * (xh * k / 2.6)) return null;
 
   // one block per branch: lines of text with their indent, in rows
-  const bulletW = measure(t.bullet, 1) + 0.5 * xh, itemX = 1.2 * xh;
+  const bulletW = measure(t.bullet, k) + 0.5 * xh * k, itemX = 1.2 * xh * k;
   const blocks = t.branches.map((b) => {
     const title = wrap(b.title, sw, sw, TITLE);
-    const items = b.items.map((x) => wrap(x, sw - itemX, sw - itemX - bulletW, 1));
+    const items = b.items.map((x) => wrap(x, sw - itemX, sw - itemX - bulletW, k));
     if (!title || items.some((l) => !l)) return null;
+    // a bullet left alone above its text (the word did not fit beside it) looks broken: write smaller instead
+    if (items.some((l) => l![0] !== undefined && l!.length > 1 && /^(?:[•\-–*]|\d{1,2}[.)])$/.test(l![0]))) return null;
     const lines: MapText[] = title.map((text, i) => ({ x: 0, row: i, size: TITLE, text }));
     let r = title.length;
-    for (const it of items as string[][]) it.forEach((text, i) => lines.push({ x: itemX + (i ? bulletW : 0), row: r++, size: 1, text }));
+    for (const it of items as string[][]) it.forEach((text, i) => lines.push({ x: itemX + (i ? bulletW : 0), row: r++, size: k, text }));
     const w = Math.max(...lines.map((l) => l.x + measure(l.text, l.size)));
     return { lines, rows: r, w, titleRows: title.length };
   });

@@ -1,6 +1,8 @@
 import { connectionModel, makeConnector, type Connector, type Library } from '../connectors/connect';
 import type { Anchor, GlyphMeta } from '../glyphstore/types';
 import { MM, XH } from '../template/layout';
+import { SUB, SUB_LETTERS, SUP, SUP_LETTERS } from './clean';
+import { withoutWideGaps } from './gaps';
 import { flatFrac } from './latex';
 import { ARROW, BOX, CARD, CIRC, CORNELL, EMPH, HEAD, INDENT, MAP, MARK, NOTE, STRUCT } from './markers';
 import { decodeMap, mapAsList, planMindmap, type MapPlan } from './mindmap';
@@ -90,6 +92,9 @@ export function segment(word: string, lib: Library, rand?: () => number): string
   return out;
 }
 
+/** Raised/lowered digits and letters, charges and the prime: small marks next to a letter, see layoutWord. */
+const SMALL = new Set([...SUP, ...SUB, ...Object.values(SUP_LETTERS), ...Object.values(SUB_LETTERS), '⁺', '⁻', "'", '′']);
+
 interface WordItem { g: GlyphMeta; m: Mat; join: boolean; from?: Anchor; to?: Anchor }
 /** Fraction bar from x0 to x1 at height y (mm, relative to the word's baseline). */
 interface Bar { x0: number; x1: number; y: number }
@@ -170,7 +175,8 @@ export function glyphAt(page: Page, x: number, y: number, reach = 3): number {
   return best;
 }
 
-export function layout(text: string, lib: Library, s: Settings): { pages: Page[]; missing: Set<string> } {
+export function layout(text: string, library: Library, s: Settings): { pages: Page[]; missing: Set<string> } {
+  const lib = withoutWideGaps(library); // pairs written with a hole in them would read as a gap inside the word
   const rand = mulberry32(s.seed);
   const splitRand = mulberry32(s.seed ^ 0x2f6b); // own stream: which word parts get used does not shift every other random choice
   const gauss = () => Math.sqrt(-2 * Math.log(rand() + 1e-12)) * Math.cos(2 * Math.PI * rand());
@@ -246,6 +252,10 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
         const tuck = prev ? opticalShift(prev.g, prev.m, g, base) : null;
         const own = prev && s.letterGap != null ? Math.max(0.03 * xh, s.letterGap * (1 - 0.3 * h) * xh * pf * (1 + gauss() * 0.2 * sig)) : gap;
         tx = tuck === null ? cursor + gap - left : Math.max(tuck + own, cursor - left - 0.6 * xh);
+        // Raised and lowered marks (², ₄, ⁺, the prime) and commas keep clear of the ink next to them: an index and an exponent
+        // stand side by side (SO₄²⁻), a plus does not sit on the letter, nothing tucks under a comma or a raised mark.
+        const clear = !prev ? 0 : SMALL.has(first) && SMALL.has(prev.last) ? 0.04 : SMALL.has(first) || SMALL.has(prev.last) ? 0.12 : /^[,.;]/.test(first) ? 0.08 : 0;
+        if (clear) tx = Math.max(tx, prev!.inkR + clear * xh - inkX(g, base)[0]);
       }
       const m: Mat = [a, b, c, d, base[4] + tx, base[5] + walk];
       items.push({ g, m, join, from: join ? exitA! : undefined, to: join ? entryA! : undefined });
@@ -672,9 +682,10 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
       if (!word) { close(); lineX += roomAfter; continue; }
       if ((token.includes(CIRC[0]) || token.includes(BOX[0])) && lineX > lineStart) lineX += 0.5 * xh;
       const first = lineX === lineStart + hang;
-      // no two bullets look alike: each is set a little off the line, a bit bigger or smaller and higher or lower
+      // no two bullets look alike (a bit bigger or smaller, higher or lower), but they stand in one column: the line's wandering
+      // left edge does not move them, only a hair of their own
       const bullet = first && /^(?:[•\-–*]|\d{1,2}[.)])$/.test(word);
-      if (bullet) lineX += (rand() - 0.5) * 1.6;
+      if (bullet) lineX = colL + 0.6 + (rand() - 0.5) * 0.3;
       const fr = /^\u0011([^\u0012]*)\u0012([^\u0013]*)\u0013([^\u0011]*)$/.exec(word);
       const wd = fr ? layoutFrac(fr[1], fr[2], fr[3], size) : layoutWord(flatFrac(word), bullet ? size * (0.85 + 0.3 * rand()) : size);
       const lift = bullet ? (rand() - 0.5) * 0.2 * xh : 0;
@@ -709,7 +720,8 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
         ring = { box: boxing, x0: ring?.x0 ?? ox + wd.inkL, x1: ox + wd.inkR, top, bot };
       }
       close();
-      const sentenceEnd = /[.!?]["“”»)]*$/u.test(word) ? 0.3 * xh : 0; // people leave a bit more room after a full stop
+      // people leave a bit more room after a full stop, and some after a comma: its ink is low and small, the next word would look glued on
+      const sentenceEnd = /[.!?]["“”»)]*$/u.test(word) ? 0.3 * xh : /[,;:]["“”»)]*$/u.test(word) ? 0.2 * xh : 0;
       lineX = ox + wd.inkR + sentenceEnd + roomAfter +Math.max(0.6 * xh, ((s.wordGap ?? DEFAULT_WORD_GAP) - 0.15 * h) * xh * size * (1 + gauss() * 0.1 * sig));
       // a list item's wrapped lines start under its text, not under the bullet
       if (bullet) hang = lineX - lineStart;

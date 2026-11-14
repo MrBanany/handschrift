@@ -149,7 +149,19 @@ export function symbolVariants(have: Variant[], n = 3): Variant[] {
   return out;
 }
 
+// Drawn symbols of the last pen width: rebuild() asks for the same ones again on every change, and drawing them is most of its time.
+let cachePen = -1;
+const cache = new Map<string, Variant>();
+
 function rasterize(src: string, key: string, lines: Pt[][], pen: number): Variant {
+  if (pen !== cachePen) { cache.clear(); cachePen = pen; }
+  const id = `${src}|${lines.join(';')}`; // the jitter depends on which symbols come before, so the points are part of the key
+  let v = cache.get(id);
+  if (!v) cache.set(id, v = draw(src, key, lines, pen));
+  return { ...v }; // callers hang their own fields on it; the bitmap is shared and never written to
+}
+
+function draw(src: string, key: string, lines: Pt[][], pen: number): Variant {
   const dot = Math.max(1.8 * pen, 0.14 * X), pad = Math.ceil(dot) + 2;
   const all = lines.flat();
   const x0 = Math.floor(Math.min(...all.map((p) => p[0]))) - pad, y0 = Math.floor(Math.min(...all.map((p) => p[1]))) - pad;

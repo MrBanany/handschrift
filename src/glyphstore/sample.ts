@@ -62,9 +62,9 @@ export async function buildSampleSet(font = FONT, wild = 1): Promise<Variant[]> 
       const amp = (0.15 + 0.1 * Math.abs(rnd())) * MM * XH / 3 * wild, f = (1.5 + rnd()) / (XH * MM), ph = rnd() * 3;
       for (let y = 0; y < g.height; y++) ctx.drawImage(g, 0, y, g.width, 1, b.x * MM + amp * Math.sin(y * f + ph), b.y * MM + y, g.width, 1);
     }
-    const img = ctx.getImageData(0, 0, W, H);
+    const img = { data: ctx.getImageData(0, 0, W, H).data, width: W, height: H }; // plain object: ImageData's getters, read per pixel in extractBox, cost most of the time
     for (const b of boxes) { const v = extractBox(img, T, b); if (v) out.push(v); }
-    await new Promise((ok) => setTimeout(ok)); // keep the UI responsive; requestAnimationFrame never fires in a hidden tab
+    await new Promise((ok) => { const ch = new MessageChannel(); ch.port1.onmessage = ok; ch.port2.postMessage(0); }); // keep the UI responsive; setTimeout waits a second per page in a hidden tab, requestAnimationFrame never fires there
   }
   c.width = 0;
   return out;

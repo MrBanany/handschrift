@@ -17,6 +17,17 @@ describe('stroke symbols', () => {
     expect(symbolVariants([plus])).toEqual(vs); // the same on every start
   });
 
+  it('keeps drawn symbols for the next call, but not across pen widths or callers', () => {
+    const a = symbolVariants([plus]).find((v) => v.key === '→')!;
+    a.prof = { l: [], r: [] };
+    const b = symbolVariants([plus]).find((v) => v.key === '→')!;
+    expect(b.alpha).toBe(a.alpha); // not drawn again
+    expect(b.prof).toBeUndefined(); // what a caller hangs on it stays with that caller
+    const thick = symbolVariants([{ ...plus, strokeW: 9 }]).find((v) => v.key === '→')!;
+    expect(thick.strokeW).toBe(9);
+    expect(thick.alpha.join()).not.toBe(a.alpha.join());
+  });
+
   it('makes ² from the writer\'s own 2, smaller and raised, unless ² was filled in', () => {
     const two: Variant = { ...plus, src: '1-2-3', key: '2', baseline: 100, scale: 1.1 };
     const [sq] = symbolVariants([two]).filter((v) => v.key === '²');

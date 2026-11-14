@@ -1052,13 +1052,14 @@ function backupReminder() {
 if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('./sw.js');
 listSets().then((s) => {
   sets = s;
-  if (!sets.length && !localStorage.getItem('welcomed')) $('welcome').hidden = false; // first start
+  if (!sets.length && !localStorage.getItem('welcomed')) $('intro').hidden = false; // first start: short intro, then the welcome choices
   return useSet(sets.includes(active) ? active : sets[0] ?? '');
 }).then(backupReminder);
 const welcomed = () => { localStorage.setItem('welcomed', '1'); $('welcome').hidden = true; };
 $('welcomeOwn').onclick = () => { welcomed(); show('manage'); $('pencilOpen').click(); };
 $('welcomeSample').onclick = () => { welcomed(); void useSet(SAMPLE_SET); };
 $('welcomeLater').onclick = welcomed;
+$('introGo').onclick = () => { $('intro').hidden = true; $('welcome').classList.add('after-intro'); $('welcome').hidden = false; };
 const howto = (on: boolean) => { $('howto').hidden = !on; };
 $('howtoOpen').onclick = $('welcomeHowto').onclick = () => howto(true);
 $('howtoClose').onclick = () => howto(false);

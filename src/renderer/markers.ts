@@ -45,7 +45,7 @@ export const TEX_BRACE = ['\uF710', '\uF711'] as const;
 /** Start and end of an encoded function graph, one token on its own line (plot.ts). */
 export const PLOT = ['\uF730', '\uF731'] as const;
 /** \{1, 2\}: literal braces while latex() works, so the group rules leave them alone; turned back at the end. */
-export const LIT_BRACE = ['', ''] as const;
+export const LIT_BRACE = ['\uF712', '\uF713'] as const;
 
 const ALL: Record<string, string> = {
   'EMPH[0]': EMPH[0], 'EMPH[1]': EMPH[1], 'MARK[0]': MARK[0], 'MARK[1]': MARK[1], HEAD,

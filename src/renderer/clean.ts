@@ -1,3 +1,4 @@
+import { markBlocks } from './cards';
 import { latex } from './latex';
 import { MAP, encodeMap, extractMindmaps, type MapTree } from './mindmap';
 
@@ -54,7 +55,7 @@ export function clean(text: string, has: (ch: string) => boolean): string {
   // a "Mindmap: topic" line with its list is kept away too and drawn as a mind map (see mindmap.ts)
   const maps: Omit<MapTree, 'bullet'>[] = [];
   const node = (x: string) => clean(x, has).replace(/[\u0001-\u0006\u000E\u000F\u0014-\u0018\u001b\u001c\u001f]/g, '').replace(/\s+/g, ' ').trim();
-  const kept = unflatten(extractMindmaps(text.replace(/\r\n?/g, '\n'), (t) => `${MAP[0]}${maps.push(t) - 1}${MAP[1]}`)).replace(/\[\[([^\]\n]+)\]\]/g, (_, s: string) => `${STRUCT[0]}${mols.push(s.trim()) - 1}${STRUCT[1]}`);
+  const kept = unflatten(extractMindmaps(markBlocks(text.replace(/\r\n?/g, '\n')), (t) => `${MAP[0]}${maps.push(t) - 1}${MAP[1]}`)).replace(/\[\[([^\]\n]+)\]\]/g, (_, s: string) => `${STRUCT[0]}${mols.push(s.trim()) - 1}${STRUCT[1]}`);
   // one indent step is the smallest indent in the text (2 spaces or a tab; Gemini uses 4)
   const step = Math.max(2, Math.min(4, ...[...kept.matchAll(/^([ \t]{2,})(?:[-*+•●▪◦]|\d+[.)])\s/gm)].map((m) => m[1].replace(/\t/g, '  ').length)));
   return latex(kept)

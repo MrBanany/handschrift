@@ -8,7 +8,7 @@ import { copyPng, download, shareFiles, toPng } from './export/png';
 import { toPdf } from './export/pdf';
 import { forEachPage } from './export/pages';
 import { fitSize } from './renderer/fit';
-import { GN_A4, gnPaper, goodnotesFile } from './export/goodnotes';
+import { GN_A4, gnHint, gnPaper, goodnotesFile } from './export/goodnotes';
 import { pagesOf } from './import/load';
 import { paint, setupPencil } from './import/pencil';
 import { drawGuides } from './import/guides';
@@ -475,21 +475,27 @@ $('share').onclick = () => shareAs('pdf', async () => {
   return [new File([await toPdf(pngs, w, h)], 'handschrift.pdf', { type: 'application/pdf' })];
 });
 // Real GoodNotes ink: laid out on the template's page size, one file per page.
-$('shareGn').onclick = () => shareAs('gn', async () => {
-  const { s, o } = settings();
-  const { paper, fit, size, set } = gnSetup(s, o.background), { margin, lineH } = fit;
-  const { text, whole } = exportText();
-  const res = layout(clean(text, (ch) => lib.has(ch)), lib, set);
-  if (whole) applyOverrides(res.pages);
-  const get = (src: string) => bySrc.get(src)!;
-  const thumbOpts: DrawOpts = { ...o, background: paper, crop: false, pxPerMm: 2, pageW: size.w, pageH: size.h, lineH, margin };
-  // one page after the other: thumbnail drawn, encoded, freed before the next page starts
-  return forEachPage(res.pages.length, (i) => drawPage(res.pages[i], thumbOpts, get), async (thumb, i) => {
-    const jpg = new Uint8Array(await (await new Promise<Blob>((ok) => thumb.toBlob((b) => ok(b!), 'image/jpeg', 0.8))).arrayBuffer());
-    const name = res.pages.length > 1 ? `handschrift-${i + 1}.goodnotes` : 'handschrift.goodnotes';
-    return new File([(await goodnotesFile(res.pages[i], get, o.ink, jpg, o.head ?? o.ink, o.weight, fit.paper)) as BlobPart], name, { type: 'application/octet-stream' });
+let gnNote = ''; // said again on the second tap, when the first one only rendered
+$('shareGn').onclick = () => {
+  if (ready?.kind === 'gn' && gnNote) toast(gnNote);
+  return shareAs('gn', async () => {
+    const { s, o } = settings();
+    const { paper, fit, size, set } = gnSetup(s, o.background), { margin, lineH } = fit;
+    const { text, whole } = exportText();
+    const res = layout(clean(text, (ch) => lib.has(ch)), lib, set);
+    if (whole) applyOverrides(res.pages);
+    gnNote = gnHint(res.missing, $<HTMLInputElement>('page').value);
+    if (gnNote) toast(gnNote);
+    const get = (src: string) => bySrc.get(src)!;
+    const thumbOpts: DrawOpts = { ...o, background: paper, crop: false, pxPerMm: 2, pageW: size.w, pageH: size.h, lineH, margin };
+    // one page after the other: thumbnail drawn, encoded, freed before the next page starts
+    return forEachPage(res.pages.length, (i) => drawPage(res.pages[i], thumbOpts, get), async (thumb, i) => {
+      const jpg = new Uint8Array(await (await new Promise<Blob>((ok) => thumb.toBlob((b) => ok(b!), 'image/jpeg', 0.8))).arrayBuffer());
+      const name = res.pages.length > 1 ? `handschrift-${i + 1}.goodnotes` : 'handschrift.goodnotes';
+      return new File([(await goodnotesFile(res.pages[i], get, o.ink, jpg, o.head ?? o.ink, o.weight, fit.paper)) as BlobPart], name, { type: 'application/octet-stream' });
+    });
   });
-});
+};
 $('copy').onclick = () => {
   if (!raw.length) return toast('Erst eine Handschrift auswählen oder anlegen.');
   remember();

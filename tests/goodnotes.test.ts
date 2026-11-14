@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
-import { GN_A4, appleLz4, centerlines, gnPaper, goodnotesFile, paperPdf, tpl, withAttachmentSize, type GnPaper } from '../src/export/goodnotes';
+import { GN_A4, appleLz4, centerlines, cssRgba, gnPaper, goodnotesFile, inkStrokes, paperPdf, tpl, withAttachmentSize, type GnPaper } from '../src/export/goodnotes';
 import { TEMPLATE } from '../src/export/goodnotes-template';
 import type { Variant } from '../src/glyphstore/types';
 
@@ -51,6 +51,19 @@ describe('goodnotes export', () => {
     expect(lines[0].pts.length).toBeGreaterThan(8);
     const xs = lines[0].pts.map((p) => p[0]);
     expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(25);
+  });
+
+  it('does not leave pen-wide dots on a curve where thinning left staircase corners', () => {
+    const w = 40, a = new Uint8Array(w * w);
+    for (let y = 0; y < w; y++) for (let x = 0; x < w; x++) { const r = Math.hypot(x - 20, y - 20); if (r > 12.5 && r < 17.5) a[y * w + x] = 255; } // a small o, 5 px thick
+    const lines = centerlines(a, w, w);
+    expect(lines).toHaveLength(1); // was the ring plus 15 two-point strokes lying on it
+    expect(lines[0].pts.length).toBeGreaterThan(8);
+    for (const [x, y] of lines[0].pts) expect(Math.abs(Math.hypot(x - 20, y - 20) - 15)).toBeLessThan(1.5);
+    // a long wave: one line, not one per bend
+    const b = new Uint8Array(300 * 80);
+    for (let y = 0; y < 80; y++) for (let x = 0; x < 300; x++) if (Math.abs(y - (40 + 20 * Math.sin(x / 15))) < 2.5) b[y * 300 + x] = 255;
+    expect(centerlines(b, 300, 80)).toHaveLength(1);
   });
 
   it('gives a round dot its own width, not the pen width', () => {
@@ -161,6 +174,54 @@ describe('goodnotes export', () => {
       expect(ev).toContain('B03314A5-9B9F-556B-B373-4678E13D0DAC_a4_1_2 - White'); // the paper's name (blank) keeps its id
       expect(f.get('index.events.pb')!.length).toBe(a.get('index.events.pb')!.length); // same length: new ids resize nothing
     }
+  });
+
+  describe('highlighter and colours', () => {
+    const K = 132 / 25.4;
+    const w = 10, h = 10, alpha = new Uint8Array(w * h);
+    for (let x = 1; x < 9; x++) alpha[5 * w + x] = alpha[4 * w + x] = 255;
+    const v = { src: 's', key: '-', w, h, alpha, baseline: 8, strokeW: 2, entry: null, exit: null } as unknown as Variant;
+    const glyph = { g: v, m: [0.1, 0, 0, 0.1, 20, 30] as [number, number, number, number, number, number] };
+    const page = (marks: { x0: number; y0: number; x1: number; y1: number; h: number }[]) => ({ glyphs: [glyph], connectors: [], missing: [], lines: [], marks }) as never;
+
+    it('writes the highlighter (==text==) as a wide see-through stroke under the writing', async () => {
+      const gn = readGoodnotes(await goodnotesFile(page([{ x0: 20, y0: 30, x1: 50, y1: 31, h: 4.5 }]), () => v, '#203040', undefined, '#c02010', 0, 'blank'));
+      const [mark, ink] = gn.strokes(gn.notes[0].path);
+      expect(gn.strokes(gn.notes[0].path)).toHaveLength(2);
+      expect(mark.width / K).toBeCloseTo(4.5, 2);
+      expect(mark.rgba.map((x) => +x.toFixed(2))).toEqual([1, 0.83, 0, 0.42]); // the picture's yellow
+      expect(ink.rgba[3]).toBe(1); // the writing is written after it, on top
+      // the round pen ends reach half the width past the stroke: the line stops that far short of the picture's flat ends
+      expect(mark.pts[0][0] / K).toBeCloseTo(20 + 2.25, 1);
+      expect(mark.pts.at(-1)![0] / K).toBeCloseTo(50 - 2.25, 1);
+    });
+
+    it('draws a highlighter shorter than it is thick as one dot, and takes the chosen colour', async () => {
+      const strokes = inkStrokes(page([{ x0: 20, y0: 30, x1: 23, y1: 30, h: 4.5 }]), () => v);
+      expect(strokes.filter((s) => s.mark)).toEqual([{ pts: [[21.5, 30]], w: 4.5, mark: true }]);
+      const gn = readGoodnotes(await goodnotesFile(page([{ x0: 20, y0: 30, x1: 50, y1: 30, h: 4.5 }]), () => v, '#203040', undefined, '#203040', 0, 'blank', '#a0ffa0'));
+      expect(gn.strokes(gn.notes[0].path)[0].rgba.map((x) => +x.toFixed(2))).toEqual([0.63, 1, 0.63, 1]);
+    });
+
+    it('leaves out a stroke with a NaN in it instead of spoiling the page', async () => {
+      const line = (p: [number, number][], w0 = 0.3) => ({ p, w0, w1: w0 });
+      const bad = { glyphs: [], missing: [], lines: [], marks: [], connectors: [line([[10, 10], [20, 10], [30, 10], [40, 10]]), line([[10, 20], [NaN, 20], [30, 20], [40, 20]]), line([[10, 30], [20, 30], [30, 30], [40, 30]], NaN)] } as never;
+      const gn = readGoodnotes(await goodnotesFile(bad, () => v, '#203040', undefined, '#203040', 0, 'blank'));
+      const strokes = gn.strokes(gn.notes[0].path);
+      expect(strokes).toHaveLength(1);
+      expect(strokes[0].pts.every(([x, y]) => Number.isFinite(x) && Number.isFinite(y))).toBe(true);
+    });
+
+    it('reads CSS colours, and a colour it cannot read never becomes NaN in the file', async () => {
+      expect(cssRgba('#fff')).toEqual([1, 1, 1, 1]);
+      expect(cssRgba('#00000080')?.map((x) => +x.toFixed(2))).toEqual([0, 0, 0, 0.5]);
+      expect(cssRgba('rgba(255, 212, 0, 0.42)')).toEqual([1, 212 / 255, 0, 0.42]);
+      expect(cssRgba('rgb(0 128 255)')?.map((x) => +x.toFixed(2))).toEqual([0, 0.5, 1, 1]);
+      expect(cssRgba('blau')).toBeNull();
+      const gn = readGoodnotes(await goodnotesFile(page([]), () => v, 'blau', undefined, 'kaputt', 0, 'blank', '???'));
+      const [s] = gn.strokes(gn.notes[0].path);
+      expect(s.rgba).toEqual([0, 0, 0, 1]);
+    });
   });
 
   it('round trip: an independent reader gets strokes, colours, paper and the id rules back out of the file', async () => {

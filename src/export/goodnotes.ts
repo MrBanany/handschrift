@@ -13,7 +13,20 @@ const BALLPOINT = 24;
 const DEVICE_TAG = 1184897455800006800n, APP_TAG = 5381; // opaque constants from files GoodNotes wrote
 
 type Pt = [number, number];
-export interface InkStroke { pts: Pt[]; w: number; accent?: boolean } // mm
+export interface InkStroke { pts: Pt[]; w: number; accent?: boolean; missing?: boolean; mark?: boolean } // mm
+const MISSING_RGBA = [0xdd / 255, 0x11 / 255, 0x11 / 255, 1]; // the preview's red (draw.ts #d11)
+const MARK_DEFAULT = 'rgba(255, 212, 0, 0.42)'; // the highlighter of the preview (draw.ts)
+
+/** '#rgb', '#rrggbb', '#rrggbbaa' or 'rgb(a)(r, g, b[, a])' as [r, g, b, a] in 0..1; null if it is none of these. */
+export function cssRgba(css: string): number[] | null {
+  const c = css.trim(), hex = /^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.exec(c);
+  if (hex) {
+    const h = hex[1].length <= 4 ? [...hex[1]].map((d) => d + d).join('') : hex[1];
+    return [0, 2, 4, 6].map((i) => (i < h.length ? parseInt(h.slice(i, i + 2), 16) / 255 : 1));
+  }
+  const fn = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)(?:[\s,/]+([\d.]+))?\s*\)$/i.exec(c);
+  return fn ? [fn[1], fn[2], fn[3]].map((v) => Math.min(255, +v) / 255).concat(fn[4] === undefined ? 1 : Math.min(1, +fn[4])) : null;
+}
 
 // ---------- glyph bitmap -> centre lines ----------
 
@@ -50,7 +63,7 @@ export function centerlines(alpha: Uint8Array, w: number, h: number): { pts: Pt[
     return out;
   };
   const seen = new Uint8Array(w * h), paths: { pts: Pt[]; w: number; comp: number; knot?: boolean }[] = [];
-  const walk = (start: number) => {
+  const walk = (start: number, leftover = false) => {
     const path = [start];
     let joined = false;
     seen[start] = 1;
@@ -70,6 +83,9 @@ export function centerlines(alpha: Uint8Array, w: number, h: number): { pts: Pt[
       path.push(next);
       prev = cur; cur = next;
     }
+    // a pixel or two the walks skipped at a staircase corner, next to a line already drawn: not a stroke of its own
+    // (each came out as a pen-wide dot on the line, 15 of them on a small o: they stay behind when the letter is erased)
+    if (leftover && joined && path.length <= 3) return;
     // -0.5: the soft edge of the picture (alpha below the threshold) still shows, ink area then matches the PNG within ~5 %
     const wid = Math.max(1, (2 * path.reduce((sum, i) => sum + edge(i % w, (i / w) | 0), 0)) / path.length - 0.5);
     // a thinning spur stays inside the blob it sprouts from (shorter than that blob's radius at the junction);
@@ -84,7 +100,7 @@ export function centerlines(alpha: Uint8Array, w: number, h: number): { pts: Pt[
   const pix: number[] = [];
   for (let i = 0; i < sk.length; i++) if (sk[i]) pix.push(i);
   for (const i of pix) if (!seen[i] && nbs(i).length === 1) walk(i); // line ends first
-  for (const i of pix) if (!seen[i]) walk(i); // closed loops (o, 0) and dots
+  for (const i of pix) if (!seen[i]) walk(i, true); // closed loops (o, 0) and dots
   // Specks (dust, scan noise, a stray pixel of the next box) would come out as solid round dots: drop pieces of ink much
   // smaller than a pen-wide dot. A real dot (i, ä, full stop) is at least about as big as the stroke is wide.
   const widths = paths.filter((p) => p.pts.length >= 4).map((p) => p.w).sort((a, b) => a - b);
@@ -125,6 +141,13 @@ export function glyphLines(v: Variant) {
 /** Every pen stroke on a laid-out page, in page mm. weight: the "Strichstärke" setting, as in the picture (draw.ts) 0.1 mm wider per step. */
 export function inkStrokes(page: Page, get: (src: string) => Variant, weight = 0): InkStroke[] {
   const out: InkStroke[] = [], extra = 0.1 * weight;
+  // The highlighter first, so the writing lies on top of it (strokes are stacked in the order they are written).
+  // GoodNotes' round pen ends would stick out by half the width: the line is shortened by that, so the mark ends where the picture's does.
+  for (const k of page.marks) {
+    const len = Math.hypot(k.x1 - k.x0, k.y1 - k.y0), cut = len > k.h ? k.h / 2 / len : 0.5; // shorter than it is thick: one dot in the middle
+    const at = (t: number): Pt => [k.x0 + (k.x1 - k.x0) * t, k.y0 + (k.y1 - k.y0) * t];
+    out.push({ pts: cut === 0.5 ? [at(0.5)] : [at(cut), at(1 - cut)], w: k.h, mark: true });
+  }
   for (const { g, m, accent } of page.glyphs) {
     const k = Math.sqrt(Math.abs(m[0] * m[3] - m[1] * m[2]));
     for (const line of glyphLines(get(g.src))) {
@@ -139,7 +162,19 @@ export function inkStrokes(page: Page, get: (src: string) => Variant, weight = 0
     }
     out.push({ pts, w: (c.w0 + c.w1) / 2 + extra, accent: c.accent });
   }
+  // A character the handwriting lacks: a red box where it belongs, as in the picture, so the gap is never silent.
+  for (const { x, y, w, h } of page.missing) out.push({ pts: [[x, y], [x + w, y], [x + w, y + h], [x, y + h], [x, y]], w: 0.25, missing: true });
   return out;
+}
+
+/** What to say when the GoodNotes file is made: missing characters (red boxes there) and that it is always A4. '' if nothing to say. */
+export function gnHint(missing: Iterable<string>, format: string): string {
+  const keys = [...missing], shown = keys.slice(0, 8).join(' ') + (keys.length > 8 ? ' …' : '');
+  const parts = [];
+  const one = keys.length === 1;
+  if (keys.length) parts.push(`${one ? '1 Zeichen fehlt' : `${keys.length} Zeichen fehlen`} in deiner Handschrift: ${shown}. In GoodNotes ${one ? 'ist die Stelle' : 'sind die Stellen'} rot umrandet. Schreib ${one ? 'es' : 'sie'} unter „Zeichen“ nach.`);
+  if (format !== 'a4') parts.push('Die GoodNotes-Datei ist immer A4 hochkant.');
+  return parts.join(' ');
 }
 
 // ---------- bytes ----------
@@ -376,13 +411,14 @@ function freshIds() {
   return { id, swap };
 }
 
-/** One page as a .goodnotes document: a GN_A4 page of one of GoodNotes' papers (lay the text out with gnPaper). ink, head (headings): '#rrggbb'. */
-export async function goodnotesFile(page: Page, get: (src: string) => Variant, ink: string, thumbnail?: Uint8Array, head = ink, weight = 0, paper: GnPaper = 'blank'): Promise<Uint8Array> {
-  const rgbaOf = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).concat(1);
-  const rgba = rgbaOf(ink), rgbaHead = rgbaOf(head);
+/** One page as a .goodnotes document: a GN_A4 page of one of GoodNotes' papers (lay the text out with gnPaper). ink, head (headings), mark (highlighter): '#rrggbb' or 'rgba(…)'. */
+export async function goodnotesFile(page: Page, get: (src: string) => Variant, ink: string, thumbnail?: Uint8Array, head = ink, weight = 0, paper: GnPaper = 'blank', mark = MARK_DEFAULT): Promise<Uint8Array> {
+  const rgba = cssRgba(ink) ?? [0, 0, 0, 1], rgbaHead = cssRgba(head) ?? rgba, rgbaMark = cssRgba(mark) ?? cssRgba(MARK_DEFAULT)!; // a colour we cannot read must not become NaN in the file
   const { id, swap } = freshIds(), pageId = id(PAGE_UUID), attId = id(ATTACHMENT_UUID), pdf = await paperPdf(paper);
   const notes: number[] = [];
-  for (const s of inkStrokes(page, get, weight)) if (s.pts.length) notes.push(...strokeRecords(s, s.accent ? rgbaHead : rgba));
+  // a stroke with a NaN in it (a layout slip) is left out: written, it would spoil the whole page
+  const sound = (s: InkStroke) => s.pts.length > 0 && Number.isFinite(s.w) && s.pts.every(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
+  for (const s of inkStrokes(page, get, weight)) if (sound(s)) notes.push(...strokeRecords(s, s.missing ? MISSING_RGBA : s.mark ? rgbaMark : s.accent ? rgbaHead : rgba));
   return zip([
     ['document.info.pb', new Uint8Array()],
     ['index.search.pb', swap(b64(TEMPLATE.search))],

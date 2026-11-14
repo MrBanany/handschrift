@@ -7,10 +7,10 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Handschrift" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="theme-color" content="#101217" />
+  <meta name="theme-color" content="#0f1115" />
   <script>
     // Before the CSS loads, so the app never flashes in the wrong theme.
-    { const t = localStorage.getItem('theme') || 'dark';
+    { const t = localStorage.getItem('theme') || 'auto';
       document.documentElement.dataset.theme = t === 'auto' ? (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : t; }
   </script>
   <link rel="manifest" href="./manifest.webmanifest" />
@@ -19,13 +19,20 @@
   <title>Handschrift</title>
 </head>
 <body>
+  <!-- the logo mark: same drawing as public/icon.svg -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="mark" viewBox="0 0 512 512">
+    <rect width="512" height="512" rx="116" fill="var(--logo-bg, #1d2547)" />
+    <path d="M104 352H408" stroke="var(--logo-rule, #3a4672)" stroke-width="12" stroke-linecap="round" />
+    <path d="M110 300C170 290 250 240 240 190C232 150 170 170 175 250C180 320 260 330 300 260C320 225 340 215 350 250C358 285 380 305 405 290" fill="none" stroke="var(--logo-ink, #9fb4ff)" stroke-width="32" stroke-linecap="round" stroke-linejoin="round" />
+  </symbol></svg>
   <header class="topbar">
-    <button data-tab="write" class="brand on">Handschrift</button>
+    <button data-tab="write" class="brand on"><svg class="logo" viewBox="0 0 512 512" aria-hidden="true"><use href="#mark" /></svg>Handschrift</button>
     <select id="set" aria-label="Handschrift auswählen"></select>
     <button id="settingsOpen" class="icon" aria-label="Einstellungen"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10" /><circle cx="16" cy="7" r="2" /><circle cx="8" cy="17" r="2" /></svg></button>
   </header>
   <main>
     <section id="write" class="tab on">
+      <div class="compose">
       <div id="install" class="note info install" hidden>
         <span id="installText"></span>
         <span class="row"><button id="installBtn" class="primary" hidden>Installieren</button><button id="installClose">Später</button></span>
@@ -53,8 +60,11 @@
           <button data-goto="manage">Eigene anlegen</button>
         </div>
       </div>
+      </div>
+      <div class="paper-col">
       <p id="previewHint" class="muted small preview-hint">Buchstaben antippen zum Austauschen · lange drücken zum Kopieren</p>
       <div id="preview" class="preview"></div>
+      </div>
     </section>
 
     <section id="manage" class="tab">
@@ -249,6 +259,7 @@
 
   <div id="welcome" class="overlay" hidden>
     <div class="sheet welcome">
+      <svg class="logo big" viewBox="0 0 512 512" aria-hidden="true"><use href="#mark" /></svg>
       <h2>Willkommen!</h2>
       <p>Diese App schreibt getippten Text in <b>deiner eigenen Handschrift</b> – zum Einfügen in GoodNotes. Alles bleibt auf deinem Gerät.</p>
       <ol class="steps">

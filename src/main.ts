@@ -977,10 +977,10 @@ function renderGrid() {
 // ---------- appearance (the inline script in index.html applies it before first paint) ----------
 const lightQuery = matchMedia('(prefers-color-scheme: light)');
 function applyTheme() {
-  const t = localStorage.getItem('theme') || 'dark';
+  const t = localStorage.getItem('theme') || 'auto';
   const eff = t === 'auto' ? (lightQuery.matches ? 'light' : 'dark') : t;
   document.documentElement.dataset.theme = eff;
-  document.querySelector('meta[name=theme-color]')!.setAttribute('content', eff === 'light' ? '#f3f2ee' : '#101217');
+  document.querySelector('meta[name=theme-color]')!.setAttribute('content', eff === 'light' ? '#f5f4f0' : '#0f1115');
   document.querySelectorAll<HTMLButtonElement>('#theme button').forEach((b) => b.classList.toggle('on', b.dataset.theme === t));
 }
 document.querySelectorAll<HTMLButtonElement>('#theme button').forEach((b) => b.onclick = () => { localStorage.setItem('theme', b.dataset.theme!); applyTheme(); });

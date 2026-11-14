@@ -1,8 +1,20 @@
 // Network first, cache fallback: always fresh when online, still works offline.
-// shortcut: files are cached when first fetched; a feature never used online (e.g. PDF import) is not offline yet — precache the build manifest if that bites.
-const CACHE = 'handschrift-v1';
-self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+// One cache per build (vite.config.ts puts a hash of index.html in the name): a new version fills a new cache
+// and deletes the old ones, so the cache cannot grow with every deploy (a full cache makes Safari clear IndexedDB too).
+// shortcut: only the files index.html names are stored on install; a feature never used online (e.g. PDF import) is not offline yet — precache the build manifest if that bites.
+const CACHE = 'handschrift-__BUILD__';
+// The page and the files it names (hashed JS/CSS), so the new version works offline right after the update.
+const precache = async () => {
+  const cache = await caches.open(CACHE);
+  const page = await fetch('./', { cache: 'no-cache' });
+  const files = [...(await page.clone().text()).matchAll(/(?:src|href)="(\.\/[^"]+)"/g)].map((m) => m[1]);
+  await cache.put('./', page);
+  await Promise.all(files.map((f) => cache.add(f).catch(() => {}))); // a missing file must not stop the update
+};
+self.addEventListener('install', (e) => e.waitUntil(precache().catch(() => {}).then(() => self.skipWaiting())));
+self.addEventListener('activate', (e) => e.waitUntil(
+  caches.keys().then((names) => Promise.all(names.filter((n) => n !== CACHE).map((n) => caches.delete(n)))).then(() => self.clients.claim()),
+));
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
   // The page itself is revalidated every time (GitHub Pages would serve a 10-minute-old copy), so a new version shows on the next start.

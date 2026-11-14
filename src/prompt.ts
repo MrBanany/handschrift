@@ -18,7 +18,7 @@ $2x = 8$ |:2
 $x = 4$
 A: Die Lösung ist $\\boxed{x = 4}$.
 - Erlaubt: $\\frac{a}{b}$ (nicht verschachtelt), $\\sqrt{x}$, $x^2$, $x_1$, $\\cdot$, $\\pm$, $\\neq$, $\\leq$, $\\approx$, $90^\\circ$, $\\pi$, $\\Delta$, $\\alpha$. Einheiten als Text: $v = 5\\,\\text{m/s}$.
-- Funktionsgraph auf eigener Zeile: [[plot: x^2 - 1, -3..3]] (Funktion, dann x-Bereich), mehrere mit ";": [[plot: sin(x); cos(x), -pi..pi]]. Nur + - * / ^, Klammern, sin cos tan exp ln sqrt abs, pi, e.
+- Funktionsgraph nur in Mathe und nur wenn die Aufgabe einen Graphen verlangt oder er wirklich nötig ist, sonst keinen. Auf eigener Zeile: [[plot: x^2 - 1, -3..3]] (Funktion, dann x-Bereich), mehrere mit ";": [[plot: sin(x); cos(x), -pi..pi]]. Nur + - * / ^, Klammern, sin cos tan exp ln sqrt abs, pi, e.
 - Nicht erlaubt: \\begin{align}, \\[ \\], $$ $$ (stattdessen jede Zeile einzeln in $...$).
 
 CHEMIE

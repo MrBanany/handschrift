@@ -150,6 +150,11 @@ const niceStep = (span: number, max: number) => {
 const fmt = (v: number) => String(Number(v.toPrecision(6)) || 0).replace('.', ',');
 /** Rough ink width of a tick label (mm): digits are about 0.75 x-heights wide. Only used to keep labels apart. */
 export const labelWidth = (text: string, xh: number) => [...text].length * 0.75 * xh * LABEL;
+/** Rough ink box of a label (mm): left, top, right, bottom. */
+export const labelBox = (l: PlotLabel, xh: number): [number, number, number, number] => {
+  const w = labelWidth(l.text, xh) * (l.size / LABEL), x0 = l.align === 'left' ? l.x : l.align === 'right' ? l.x - w : l.x - w / 2;
+  return [x0, l.y - 1.3 * xh * l.size, x0 + w, l.y];
+};
 
 /**
  * True if f jumps between a and b (a pole, a step): halving the interval towards the bigger difference does not
@@ -208,19 +213,24 @@ export function planPlot(spec: PlotSpec, o: PlotOpts): PlotPlan | null {
   const over = 0.5 * xh, tip = 1.3 * xh;
   const axes: [Pt, Pt][] = [[[X(a) - over, Y(ay)], [X(b) + tip, Y(ay)]], [[X(ax), Y(lo) + over], [X(ax), Y(hi) - tip]]];
 
-  const ticks: [Pt, Pt][] = [], labels: PlotLabel[] = [], t = 0.35 * xh;
+  // nums: for every tick its number, where it normally stands first, then the places to try if a curve runs through it
+  const ticks: [Pt, Pt][] = [], labels: PlotLabel[] = [], nums: PlotLabel[][] = [], t = 0.35 * xh;
   const sx = niceStep(b - a, iw / (3.4 * xh)), sy = niceStep(hi - lo, ih / (2.4 * xh));
   for (let k = Math.ceil(a / sx - 1e-9); k * sx <= b + 1e-9 * sx; k++) {
     const v = k * sx;
     if (Math.abs(v - ax) < 1e-9 * sx) continue; // no tick on the other axis
     ticks.push([[X(v), Y(ay) - t], [X(v), Y(ay) + t]]);
-    labels.push({ x: X(v), y: Y(ay) + 0.55 * xh + 1.3 * xh * LABEL, text: fmt(v), size: LABEL, align: 'center' });
+    const num = { text: fmt(v), size: LABEL }, below = Y(ay) + 0.55 * xh + 1.3 * xh * LABEL;
+    // below the tick; else above the axis (a full x-height: the hand-drawn axis bows); else below, beside the tick (a curve crossing the axis here takes both middle places)
+    nums.push([{ ...num, x: X(v), y: below, align: 'center' }, { ...num, x: X(v), y: Y(ay) - xh, align: 'center' },
+      { ...num, x: X(v) + 0.3 * xh, y: below, align: 'left' }, { ...num, x: X(v) - 0.3 * xh, y: below, align: 'right' }]);
   }
   for (let k = Math.ceil(lo / sy - 1e-9); k * sy <= hi + 1e-9 * sy; k++) {
     const v = k * sy;
     if (Math.abs(v - ay) < 1e-9 * sy) continue;
     ticks.push([[X(ax) - t, Y(v)], [X(ax) + t, Y(v)]]);
-    labels.push({ x: X(ax) - 0.6 * xh, y: Y(v) + 0.65 * xh * LABEL, text: fmt(v), size: LABEL, align: 'right' });
+    const num = { text: fmt(v), size: LABEL, y: Y(v) + 0.65 * xh * LABEL };
+    nums.push([{ ...num, x: X(ax) - 0.6 * xh, align: 'right' }, { ...num, x: X(ax) + 0.6 * xh, align: 'left' }]); // left of the axis, else right of it
   }
   // axis names: "x" above the right arrow tip, "y" right of the upper one (the numbers stand below and left)
   labels.push({ x: X(b) + 0.9 * xh, y: Y(ay) - 0.5 * xh, text: 'x', size: 0.8, align: 'center' });
@@ -258,5 +268,24 @@ export function planPlot(spec: PlotSpec, o: PlotOpts): PlotPlan | null {
     out.push(pts.at(-1)!);
     return out;
   }
+  // A number the curve would run through moves to its next place; if none is free it is left out (the tick stays).
+  const pad = 0.25 * xh;
+  const free = (l: PlotLabel) => {
+    const [x0, y0, x1, y1] = labelBox(l, xh);
+    if (x0 < 0 || y0 < 0 || x1 > width || y1 > height) return false;
+    if (labels.some((o) => { const [a0, b0, a1, b1] = labelBox(o, xh); return x0 < a1 && a0 < x1 && y0 < b1 && b0 < y1; })) return false;
+    return !curves.some((c) => c.some((q, i) => {
+      if (!i) return false;
+      const p0 = c[i - 1], n = Math.ceil(Math.hypot(q[0] - p0[0], q[1] - p0[1]) / pad); // walk along the piece in steps of `pad`
+      for (let k = 0; k <= n; k++) {
+        const px = p0[0] + ((q[0] - p0[0]) * k) / n, py = p0[1] + ((q[1] - p0[1]) * k) / n;
+        if (px > x0 - pad && px < x1 + pad && py > y0 - pad && py < y1 + pad) return true;
+      }
+      return false;
+    }));
+  };
+  const moved: PlotLabel[][] = [];
+  for (const places of nums) { if (free(places[0])) labels.push(places[0]); else moved.push(places); } // first every number that can stay
+  for (const places of moved) { const l = places.slice(1).find(free); if (l) labels.push(l); }
   return { width, height, rows, axes, ticks, labels, curves, text: `Graph: ${spec.fns.join('; ')}` };
 }

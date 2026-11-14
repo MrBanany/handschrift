@@ -92,6 +92,23 @@ describe('plot plan', () => {
       });
     }
   });
+  it('keeps the curve out of the axis numbers: a number in its way moves or is left out', () => {
+    for (const spec of ['x^2-1, -3..3', '1/x, -4..4', 'sin(x); cos(x), -2pi..2pi', 'x, -3..3', 'x^3, -2..2', 'tan(x), -5..5', '(x-1)(x+2), -4..4']) {
+      const p = plan(spec);
+      for (const l of p.labels) {
+        const b = box(l, opts.xh);
+        for (const c of p.curves) for (let i = 1; i < c.length; i++) for (let k = 0; k <= 20; k++) {
+          const x = c[i - 1][0] + ((c[i][0] - c[i - 1][0]) * k) / 20, y = c[i - 1][1] + ((c[i][1] - c[i - 1][1]) * k) / 20;
+          expect(x > b.x0 && x < b.x1 && y > b.y0 && y < b.y1, `${spec}: curve through "${l.text}"`).toBe(false);
+        }
+      }
+    }
+    // the parabola crosses the axis at ±1: both numbers are still there, beside their ticks
+    const texts = plan('x^2-1, -3..3').labels.map((l) => l.text);
+    expect(texts).toContain('1');
+    expect(texts).toContain('-1');
+    expect(texts.filter((t) => t === '1')).toHaveLength(2); // once on each axis, none twice
+  });
   it('uses the same unit on both axes when the height allows it', () => {
     const p = plan('x, -3..3');
     const [a, b] = p.curves[0], slope = (b[1] - a[1]) / (b[0] - a[0]);

@@ -16,6 +16,7 @@ import { clean } from './renderer/clean';
 import { measureLines, summarize, type LineMeasure, type TextStyle } from './segmentation/style';
 import { buildTemplatePdf } from './template/pdf';
 import { AI_PROMPT } from './prompt';
+import { TEXT_MAX, takeText } from './handover';
 import { CELL, CURSIVE_KEYS, CURSIVE_PAGES, GUIDES, MM, PAIRS, SINGLES, SYMBOL_KEYS, SYMBOL_PAGE, TEMPLATE_PAGES, WORDS } from './template/layout';
 
 const FORMATS: Record<string, { w: number; h: number }> = { a4: { w: 210, h: 297 }, a4q: { w: 297, h: 210 }, a5: { w: 148, h: 210 } };
@@ -342,6 +343,32 @@ $<HTMLSelectElement>('history').onchange = (e) => {
   renderHistory();
 };
 renderHistory();
+
+// ---------- text from outside: copied AI answer, or handed over in the address by a link / iOS shortcut ----------
+/** Replaces the text; the previous one stays under "Verlauf". */
+function setText(t: string) {
+  const area = $<HTMLTextAreaElement>('text');
+  remember();
+  area.value = t.slice(0, TEXT_MAX);
+  area.dispatchEvent(new Event('input')); // saves it, clears letter swaps, redraws
+}
+$('pasteText').hidden = !navigator.clipboard?.readText;
+// Only on a tap: browsers ask before a page may read the clipboard (iPad shows a small "Einsetzen" bubble).
+$('pasteText').onclick = () => navigator.clipboard.readText().then(
+  (t) => { if (t.trim()) { setText(t); toast('Eingefügt. Der vorige Text steht im Verlauf.'); } else toast('In der Zwischenablage ist kein Text.'); },
+  () => toast('Einfügen ging nicht. Tippe ins Textfeld und wähle dort „Einsetzen“.'),
+);
+function handover(starting: boolean) {
+  const handed = takeText(location.href);
+  if (handed.text !== null) window.history.replaceState(null, '', handed.rest); // a reload must not bring it back
+  if (!handed.text?.trim()) return;
+  if (!starting) return setText(handed.text);
+  remember(); // the text from last time stays under "Verlauf"
+  // no input event while the page is still starting: the first preview comes with the handwriting
+  localStorage.setItem('text', $<HTMLTextAreaElement>('text').value = handed.text);
+}
+handover(true);
+addEventListener('hashchange', () => handover(false)); // page already open: a new #text= does not reload it
 
 async function shareAs(kind: string, make: () => Promise<File[]>) {
   if (!raw.length) return toast('Erst eine Handschrift auswählen oder anlegen.');

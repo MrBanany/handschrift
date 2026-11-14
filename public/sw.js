@@ -21,7 +21,8 @@ self.addEventListener('fetch', (e) => {
   const req = e.request.mode === 'navigate' ? new Request(e.request.url, { cache: 'no-cache' }) : e.request;
   e.respondWith(
     fetch(req)
-      .then((res) => { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); return res; })
+      // the page is stored without its query: a handed-over ?text=… must not pile up in the cache
+      .then((res) => { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request.mode === 'navigate' ? e.request.url.split('?')[0] : e.request, copy)); return res; })
       .catch(() => caches.match(e.request, { ignoreSearch: true }).then((r) => r || caches.match('./'))),
   );
 });

@@ -264,7 +264,12 @@ h1 { max-width: var(--content); font-size: 28px; margin: 8px auto 18px; }
 @media (min-width: 1024px) {
   #write.on { display: grid; grid-template-columns: minmax(340px, 400px) minmax(0, 1fr); gap: 28px; max-width: 1280px; align-items: start; }
   .compose { position: sticky; top: calc(var(--touch) + 32px + env(safe-area-inset-top)); }
-  #write textarea { min-height: 42vh; }
+  #write textarea { height: 42vh; min-height: 120px; }
+  /* the column stays on screen: with the missing-characters and the fit note it was taller than a landscape iPad, and the fit button sat behind the tab bar; the text box gives way */
+  .compose { max-height: calc(100dvh - var(--touch) - 32px - var(--tabbar) - 12px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); }
+  .compose > :not(textarea) { flex-shrink: 0; }
+  /* Schreiben, two columns: the toast sits over the page, not over the buttons on the left (it covered the fit button) */
+  body:has(#write.on) #toast { left: calc(50% + 214px); max-width: min(90vw, calc(100vw - 480px)); }
   #write .actions { grid-template-columns: 1fr 1fr; }
   #write .actions .primary { grid-column: 1 / 3; }
   .topbar { padding-inline: max(16px, calc((100% - 1280px) / 2)); }
@@ -325,3 +330,6 @@ textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3
 .chip.sub { border-style: dashed; }
 #setup .row { margin-top: 8px; }
 #setup li > b + span:not(:empty)::before { content: '– '; }
+/* dialogs keep a gap to the screen edge; on a low screen (landscape iPad) the writing pad shrinks so the buttons under it stay in view */
+.overlay { padding-block: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-bottom)); }
+.swap-paper { width: min(100%, 340px, max(200px, calc((100dvh - 400px) * 0.7))); }

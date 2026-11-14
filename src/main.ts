@@ -523,7 +523,7 @@ $('fit').onclick = () => {
   // The GoodNotes file has its own page and, on lined or squared paper, the line spacing of that paper: it has to fit there too.
   const both = fitSize(s.xh, (xh) => Math.max(pagesIn(xh, false), pagesIn(xh, true)));
   const xh = both ?? fitSize(s.xh, (v) => pagesIn(v, false));
-  if (xh === null) return toast('Passt auch klein nicht auf eine Seite. Der Zeilenabstand bleibt, wie er ist.');
+  if (xh === null) return toast('Passt auch mit kleinster Schrift nicht auf eine Seite – zu viele Zeilen für dieses Papier.');
   const gnPages = pagesIn(xh, true), gnNote = `in GoodNotes sind es wegen der Papierlinien ${gnPages} Seiten`;
   if (xh === s.xh) return toast(gnPages <= 1 ? 'Passt schon auf eine Seite.' : `Als Bild und PDF passt es schon auf eine Seite, ${gnNote}.`);
   fitted = { from: s.xh, to: xh };

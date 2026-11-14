@@ -142,12 +142,13 @@ describe('goodnotes export', () => {
   it('writes the chosen paper as a PDF of the page size, lines on the baselines', async () => {
     const lined = await backgroundPdf('lined', 7.1, 12), blank = await backgroundPdf('blank', 7.1, 12), grid = await backgroundPdf('grid', 10, 12);
     for (const pdf of [lined, blank, grid]) {
+      expect(Buffer.from(pdf).toString('latin1')).not.toMatch(/\/ObjStm|\/Type\s*\/XRef/); // plain xref table, as in GoodNotes' own paper PDFs
       const size = (await PDFDocument.load(pdf)).getPage(0).getSize();
       expect(size.width).toBeCloseTo(455.04, 2);
       expect(size.height).toBeCloseTo(588.45, 2);
     }
     // ruled lines: from margin + lineH down, one per lineH, while y <= pageH - margin (as draw.ts paints them), full width
-    const content = (pdf: Uint8Array) => { const p = Buffer.from(pdf), at = p.indexOf('stream\n') + 7; return inflateSync(p.subarray(at, p.indexOf('\nendstream'))).toString(); };
+    const content = (pdf: Uint8Array) => { const p = Buffer.from(pdf), at = p.indexOf('stream\n') + 7; return at < 7 ? '' /* blank paper: no drawing at all */ : inflateSync(p.subarray(at, p.indexOf('\nendstream'))).toString(); };
     const lineYs = (pdf: Uint8Array) => [...content(pdf).matchAll(/^0 ([\d.]+) m\n455\.04 /gm)].map((m) => ((588.45 - Number(m[1])) * 25.4) / 72);
     const ys = lineYs(lined);
     expect(ys).toHaveLength(25);
@@ -186,8 +187,23 @@ describe('goodnotes export', () => {
     const ids = (f: Map<string, Uint8Array>) => new Set([...f.keys()].flatMap((k) => (k.endsWith('.pb') ? text(f, k).match(UUID) ?? [] : [])));
     expect(nameOf(a, 'attachments/')).not.toBe(nameOf(b, 'attachments/'));
     expect(nameOf(a, 'notes/')).not.toBe(nameOf(b, 'notes/'));
-    expect([...ids(a)].filter((u) => ids(b).has(u))).toEqual([]); // nothing shared between two files
+    // nothing shared between two files, except the two ids every file GoodNotes writes has
+    expect([...ids(a)].filter((u) => ids(b).has(u)).sort()).toEqual(['5A53E89E-F4C2-4548-8DD3-E9DF9FB4592E', 'E1940363-20DF-415F-9D75-9F6BC464911B']);
     for (const f of [a, b]) {
+      // the page (event f54) and its ink (notes/…) are one pair: notes id = page id + 1, or GoodNotes shows the page empty
+      const notes = nameOf(f, 'notes/').slice(6), pageId = notes.slice(0, -1) + '0';
+      expect(notes.endsWith('1')).toBe(true);
+      const kinds = new Map<string, number[]>(); // event id -> kinds of its events
+      const evs = f.get('index.events.pb')!;
+      for (let at = 0; at < evs.length;) {
+        const [l, s] = varint(evs, at), [head, body] = fields(evs.subarray(s, s + l));
+        const key = new TextDecoder().decode(head[2] as Uint8Array);
+        kinds.set(key, [...(kinds.get(key) ?? []), body[0]]);
+        at = s + l;
+      }
+      expect(kinds.get(pageId)).toEqual([54]); // "page added"
+      expect(kinds.get(notes)).toContain(102); // its ink layer
+      expect(new TextDecoder('latin1').decode(evs)).toContain(`PagingViewServiceUpdater:E1940363-20DF-415F-9D75-9F6BC464911B`);
       const att = nameOf(f, 'attachments/').slice(12), page = nameOf(f, 'notes/').slice(6);
       expect(nameOf(f, 'search/')).toMatch(/^search\//);
       expect(text(f, 'index.attachments.pb')).toContain(att);

@@ -18,6 +18,7 @@ import { measureLines, summarize, type LineMeasure, type TextStyle } from './seg
 import { buildTemplatePdf } from './template/pdf';
 import { AI_PROMPT } from './prompt';
 import { TEXT_MAX, takeText } from './handover';
+import { iosSafariHint } from './install';
 import { CELL, CURSIVE_KEYS, CURSIVE_PAGES, GUIDES, MM, PAIRS, SINGLES, SYMBOL_KEYS, SYMBOL_PAGE, TEMPLATE_PAGES, WORDS } from './template/layout';
 
 const FORMATS: Record<string, { w: number; h: number }> = { a4: { w: 210, h: 297 }, a4q: { w: 297, h: 210 }, a5: { w: 148, h: 210 } };
@@ -988,11 +989,10 @@ lightQuery.addEventListener('change', applyTheme);
 applyTheme();
 
 // ---------- install hint: the home-screen app keeps its own storage, so it matters which one people use ----------
-const standalone = matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone;
+const standalone = matchMedia('(display-mode: standalone)').matches || !!(navigator as { standalone?: boolean }).standalone;
 if (!standalone && !localStorage.getItem('installHidden')) {
-  const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  if (iOS) {
-    $('installText').textContent = 'Tipp: Über Teilen → „Zum Home-Bildschirm“ wird die App wie eine echte App installiert. Danach immer dort öffnen.';
+  if (iosSafariHint(navigator.userAgent, navigator.platform, navigator.maxTouchPoints, standalone)) {
+    $('installText').textContent = 'Tipp: Teilen-Knopf → „Zum Home-Bildschirm“ – dann startet die App im Vollbild und funktioniert offline. Wichtig: Die Home-Bildschirm-App hat einen eigenen Speicher. Sichere deine Handschrift vorher unter „Handschriften“ mit „Alle Handschriften sichern“ und hole sie in der App dort mit „Backup laden“.';
     $('install').hidden = false;
   }
   addEventListener('beforeinstallprompt', (e) => {

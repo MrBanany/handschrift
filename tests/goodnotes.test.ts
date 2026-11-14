@@ -1,8 +1,8 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { crc32, deflateSync, inflateSync } from 'node:zlib';
+import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
-import { GN_A4, GN_PAGE, appleLz4, backgroundPdf, centerlines, gnPaper, goodnotesFile, paperPdf, tpl, withAttachmentSize, type GnPaper, type PaperTrial } from '../src/export/goodnotes';
+import { GN_A4, appleLz4, centerlines, gnPaper, goodnotesFile, paperPdf, tpl, withAttachmentSize, type GnPaper } from '../src/export/goodnotes';
 import { TEMPLATE } from '../src/export/goodnotes-template';
 import type { Variant } from '../src/glyphstore/types';
 
@@ -87,32 +87,10 @@ describe('goodnotes export', () => {
     expect(t.length).toBe(new DataView(new Uint8Array(t).buffer).getUint32(4, true));
   });
 
-  it('writes the chosen paper as a PDF of the page size, lines on the baselines', async () => {
-    const lined = await backgroundPdf('lined', 7.1, 12), blank = await backgroundPdf('blank', 7.1, 12), grid = await backgroundPdf('grid', 10, 12);
-    for (const pdf of [lined, blank, grid]) {
-      expect(Buffer.from(pdf).toString('latin1')).not.toMatch(/\/ObjStm|\/Type\s*\/XRef/); // plain xref table, as in GoodNotes' own paper PDFs
-      const size = (await PDFDocument.load(pdf)).getPage(0).getSize();
-      expect(size.width).toBeCloseTo(455.04, 2);
-      expect(size.height).toBeCloseTo(588.45, 2);
-    }
-    // ruled lines: from margin + lineH down, one per lineH, while y <= pageH - margin (as draw.ts paints them), full width
-    const content = (pdf: Uint8Array) => { const p = Buffer.from(pdf), at = p.indexOf('stream\n') + 7; return at < 7 ? '' /* blank paper: no drawing at all */ : inflateSync(p.subarray(at, p.indexOf('\nendstream'))).toString(); };
-    const lineYs = (pdf: Uint8Array) => [...content(pdf).matchAll(/^0 ([\d.]+) m\n455\.04 /gm)].map((m) => ((588.45 - Number(m[1])) * 25.4) / 72);
-    const ys = lineYs(lined);
-    expect(ys).toHaveLength(25);
-    expect(ys[0]).toBeCloseTo(12 + 7.1, 2);
-    expect(ys[24] - ys[0]).toBeCloseTo(24 * 7.1, 2);
-    expect(content(blank)).not.toContain(' l\n');
-    // grid: boxes of lineH / 2, a baseline (margin + k * lineH) is always a grid line
-    const gy = lineYs(grid);
-    expect(gy.some((y) => Math.abs(y - (12 + 10 * 3)) < 0.01)).toBe(true);
-    expect(gy[1] - gy[0]).toBeCloseTo(5, 3);
-  });
-
   it('writes the size of the background into the event log, and leaves everything else alone', async () => {
     const events = Uint8Array.from(atob(TEMPLATE.events), (c) => c.charCodeAt(0));
     expect(withAttachmentSize(events, 41951)).toEqual(events); // the template's own size: byte for byte the same
-    const bg = await backgroundPdf('lined', 7.1, 12);
+    const bg = await paperPdf('narrow');
     const patched = withAttachmentSize(events, bg.length);
     expect(patched.length).not.toBe(events.length); // fewer bytes for a smaller number
     const seen: number[] = [];
@@ -122,8 +100,6 @@ describe('goodnotes export', () => {
       at = a + l;
     }
     expect(seen).toEqual([bg.length]);
-    const files = unzip(await goodnotesFile({ glyphs: [], connectors: [], missing: [], lines: [], marks: [] }, () => null as never, '#000000', undefined, '#000000', 0, bg));
-    expect(files.get(nameOf(files, 'attachments/'))).toEqual(bg);
   });
 
   it('gives every export fresh ids, kept consistent between the index files, the event log and the entry names', async () => {
@@ -161,9 +137,8 @@ describe('goodnotes export', () => {
       const ev = text(f, 'index.events.pb');
       expect(ev).toContain(att); // the page's paper is the attachment
       expect(ev).toContain(page);
-      expect(ev).toContain('CC365888-75C9-5DBF-B1D4-A7E8E0AD3B7F_standard_1_2 - White'); // the paper's name stays as GoodNotes wrote it
-      const raw = Uint8Array.from(atob(TEMPLATE.events), (c) => c.charCodeAt(0));
-      expect(f.get('index.events.pb')!.length).toBe(raw.length); // same length: no field was resized
+      expect(ev).toContain('B03314A5-9B9F-556B-B373-4678E13D0DAC_a4_1_2 - White'); // the paper's name (blank) keeps its id
+      expect(f.get('index.events.pb')!.length).toBe(a.get('index.events.pb')!.length); // same length: new ids resize nothing
     }
   });
 
@@ -182,8 +157,8 @@ describe('goodnotes export', () => {
       ] as never,
       missing: [], lines: [], marks: [],
     };
-    const bg = await backgroundPdf('grid', 7.1, 12), thumb = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
-    const gn = readGoodnotes(await goodnotesFile(page, () => v, '#203040', thumb, '#c02010', 0, bg));
+    const thumb = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+    const gn = readGoodnotes(await goodnotesFile(page, () => v, '#203040', thumb, '#c02010', 0, 'squared')), bg = gn.files.get(gn.attachments[0].path)!;
 
     // every index entry names a file that is in the archive
     for (const e of [...gn.notes, ...gn.attachments, ...gn.search]) expect(gn.files.has(e.path)).toBe(true);
@@ -219,22 +194,20 @@ describe('goodnotes export', () => {
     expect(gn.text(pageEv, 3)).toContain(paper.id); // page -> paper
     expect(gn.text(paper, 4)).toBe(gn.attachments[0].id); // paper -> attachment
     expect(gn.num(paper, 5)).toBe(1); // page 1 of that PDF
-    expect(gn.text(paper, 9)).toBe('CC365888-75C9-5DBF-B1D4-A7E8E0AD3B7F_standard_1_2 - White');
+    expect(gn.text(paper, 9)).toBe('9FE8F365-4BEE-5057-8573-1A56C77CAC19_a4_1_2 - White');
     expect(gn.num(added, 5)).toBe(bg.length);
-    expect(gn.files.get(gn.attachments[0].path)).toEqual(bg);
     for (const e of [pageEv, paper, added]) expect(gn.text(e, e === added ? 6 : 1)).toBe(doc.id); // all belong to the document
     // ids every real file shares stay as they are
     expect(gn.text(doc, 3)).toContain('5A53E89E-F4C2-4548-8DD3-E9DF9FB4592E');
     expect(gn.text(doc, 7)).toContain('5A53E89E-F4C2-4548-8DD3-E9DF9FB4592E');
     expect(gn.text(kind(10)[0], 3)).toBe('PagingViewServiceUpdater:E1940363-20DF-415F-9D75-9F6BC464911B');
-    // the paper has the page's size: 455.04 x 588.45 pt = 834.24 x 1078.82 GoodNotes units
+    // the paper has the page's size: A4, 595.28 x 841.89 pt = 1091.35 x 1543.46 GoodNotes units
     const size = fields(paper.body.find((f) => f[0] === 8)![2] as Uint8Array).map((f) => new DataView((f[2] as Uint8Array).slice().buffer).getFloat32(0, true));
-    near(size, [834.24, 1078.825]);
+    near(size, [1091.3467, 1543.465]);
     const pdfPage = (await PDFDocument.load(bg)).getPage(0).getSize();
     near([pdfPage.width * (132 / 72), pdfPage.height * (132 / 72)], size);
   });
-  // Trial variants for "GoodNotes shows dots instead of our paper" (docs/gn-papier.md).
-  const K2 = 132 / 25.4, LINE_H = 7.1, MARGIN = 12;
+  const LINE_H = 7.1, MARGIN = 12;
   /** A row of waves standing on each of the first lines, so one sees at once whether the paper's lines sit under the writing. */
   const wavePage = (lineH = LINE_H, margin = MARGIN) => ({
     glyphs: [], missing: [], lines: [], marks: [],
@@ -243,61 +216,22 @@ describe('goodnotes export', () => {
       return { p: [[x, y], [x + 2, y - 5], [x + 4, y - 5], [x + 6, y]] as [number, number][], w0: 0.35, w1: 0.35 };
     })).flat() as never,
   });
-  /** The squared paper as an opaque PNG (white, grid lines 2 px), 2 px per GoodNotes unit; same grid as backgroundPdf('grid'). */
-  function gridPng(): Uint8Array {
-    const s = 2 * K2, W = Math.round(GN_PAGE.w * s), H = Math.round(GN_PAGE.h * s), cell = LINE_H / 2, px = new Uint8Array((W * 3 + 1) * H).fill(255);
-    const first = (phase: number) => phase + Math.ceil(-phase / cell) * cell, ink = [0xd6, 0xe2, 0xed];
-    const dot = (x: number, y: number) => { if (x >= 0 && y >= 0 && x < W && y < H) px.set(ink, y * (W * 3 + 1) + 1 + x * 3); };
-    for (let x = first(MARGIN); x < GN_PAGE.w; x += cell) for (let y = 0; y < H; y++) { dot(Math.round(x * s), y); dot(Math.round(x * s) - 1, y); }
-    for (let y = first(MARGIN + LINE_H); y < GN_PAGE.h; y += cell) for (let x = 0; x < W; x++) { dot(x, Math.round(y * s)); dot(x, Math.round(y * s) - 1); }
-    for (let y = 0; y < H; y++) px[y * (W * 3 + 1)] = 0; // filter byte of each row
-    const chunk = (type: string, data: Uint8Array) => {
-      const body = Buffer.concat([Buffer.from(type), data]), out = Buffer.alloc(body.length + 8);
-      out.writeUInt32BE(data.length, 0); body.copy(out, 4); out.writeUInt32BE(crc32(body), body.length + 4);
-      return out;
-    };
-    const head = Buffer.alloc(13); head.writeUInt32BE(W, 0); head.writeUInt32BE(H, 4); head.set([8, 2, 0, 0, 0], 8); // 8 bit RGB
-    return new Uint8Array(Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', head), chunk('IDAT', deflateSync(px)), chunk('IEND', new Uint8Array())]));
-  }
-  const trials = (png: Uint8Array): [string, PaperTrial][] => [['1-ohne-papiername', { drop: [9, 18] }], ['2-ohne-raster-angabe', { drop: [18] }], ['3-papier-als-bild', { image: png }]];
-
-  it('paper trials: fields dropped from the paper event, or the paper as a picture under the writing', async () => {
-    const bg = await backgroundPdf('grid', LINE_H, MARGIN), png = gridPng(), [noName, noRuling, picture] = trials(png);
-    const paperEvent = (gn: ReturnType<typeof readGoodnotes>) => gn.events.find((e) => e.kind === 2)!.body.map((f) => f[0]);
-    const plain = readGoodnotes(await goodnotesFile(wavePage(), () => null as never, '#203040', undefined, '#203040', 0, bg));
-    expect(paperEvent(plain)).toEqual(expect.arrayContaining([4, 9, 18]));
-    const a = readGoodnotes(await goodnotesFile(wavePage(), () => null as never, '#203040', undefined, '#203040', 0, bg, noName[1]));
-    expect(paperEvent(a)).toEqual(paperEvent(plain).filter((f) => f !== 9 && f !== 18));
-    const b = readGoodnotes(await goodnotesFile(wavePage(), () => null as never, '#203040', undefined, '#203040', 0, bg, noRuling[1]));
-    expect(paperEvent(b)).toEqual(paperEvent(plain).filter((f) => f !== 18));
-    expect(a.strokes(a.notes[0].path)).toHaveLength(48);
-
-    const c = readGoodnotes(await goodnotesFile(wavePage(), () => null as never, '#203040', undefined, '#203040', 0, bg, picture[1]));
-    expect(c.strokes(c.notes[0].path)).toHaveLength(48);
-    const [img] = c.images(c.notes[0].path), entry = c.attachments.find((x) => x.id === img.attachment)!;
-    expect(c.attachments).toHaveLength(2);
-    expect(c.files.get(entry.path)).toEqual(png);
-    img.frame.forEach((v, i) => expect(v).toBeCloseTo([0, 0, 834.24, 1078.825][i], 1));
-    const added = c.events.filter((e) => e.kind === 6).find((e) => c.text(e, 1) === img.attachment)!;
-    expect(c.num(added, 5)).toBe(png.length);
-    expect(c.text(added, 6)).toBe(c.events[0].id); // the document
-    expect(paperEvent(c)).toEqual(paperEvent(plain)); // the paper itself untouched
-  });
-
   // The numbers GoodNotes 7 wrote into empty A4 pages (samples of 14 November, docs/gn-papier.md): name id, pitch, text area top and height, line gap.
   const REAL: Record<GnPaper, [string, number, number, number, number]> = {
     wide: ['AA273C17-F440-5125-B34E-F9C3C62F89E2', 45.833335876464844, 45.833335876464844, 1451.79833984375, 44.91666793823242],
     narrow: ['238EE861-EE9A-51BD-B010-832CD3C50D2C', 32.083335876464844, 60.5, 1422.465087890625, 31.166667938232422],
     squared: ['9FE8F365-4BEE-5057-8573-1A56C77CAC19', 29.33333396911621, 58.66666793823242, 1426.1317138671875, 28.416667938232422],
+    blank: ['B03314A5-9B9F-556B-B373-4678E13D0DAC', 29.33333396911621, 62.333335876464844, 1418.79833984375, 29.33333396911621],
   };
-  const fit = { wide: gnPaper('lined', 8.7)!, narrow: gnPaper('lined', 6.4)!, squared: gnPaper('grid', 10)! };
+  const PAPER_NAMES = Object.keys(REAL) as GnPaper[];
+  const fit = { wide: gnPaper('lined', 8.7, 20), narrow: gnPaper('lined', 6.4, 20), squared: gnPaper('grid', 10, 20), blank: gnPaper('blank', 7.1, 20) };
 
   it("writes GoodNotes' own papers the way GoodNotes exported them", async () => {
     const f64 = (v: unknown) => new DataView((v as Uint8Array).slice().buffer).getFloat64(0, true), f32 = (v: unknown) => new DataView((v as Uint8Array).slice().buffer).getFloat32(0, true);
     const sub = (fs: ReturnType<typeof fields>, f: number) => fields(fs.find((x) => x[0] === f)![2] as Uint8Array);
-    for (const paper of ['wide', 'narrow', 'squared'] as GnPaper[]) {
+    for (const paper of PAPER_NAMES) {
       const [id, pitch, top, height, gap] = REAL[paper];
-      const gn = readGoodnotes(await goodnotesFile(wavePage(), () => null as never, '#203040', undefined, '#203040', 0, undefined, { paper }));
+      const gn = readGoodnotes(await goodnotesFile(wavePage(), () => null as never, '#203040', undefined, '#203040', 0, paper));
       const ev = gn.events.find((e) => e.kind === 2)!, b = ev.body;
       expect(b.map((f) => f[0])).toEqual([1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 19, 21]); // field order of the real files
       expect(gn.text(ev, 9)).toBe(`${id}_a4_1_2 - White`);
@@ -306,10 +240,11 @@ describe('goodnotes export', () => {
       expect(sub(b, 12).map((f) => f[0])).toEqual([1, 2]);
       expect(sub(b, 8).map((f) => f32(f[2]))).toEqual([1091.3466796875, 1543.4649658203125]);
       const area = sub(b, 18), rect = sub(area, 1).flatMap((pt) => fields(pt[2] as Uint8Array).map((c) => f32(c[2])));
-      [44, top, 1003.3467407226562, height].forEach((v, i) => expect(rect[i]).toBeCloseTo(v, 3));
-      expect(f32(area[1][2])).toBeCloseTo(gap, 4);
-      expect(f32(area[2][2])).toBeCloseTo(0.9166666865348816, 6);
-      expect(area.map((f) => [f[0], f[1]])).toEqual([[1, 2], [2, 5], [3, 5], [5, 0]]);
+      expect(rect).toEqual([44, top, 1003.3467407226562, height]);
+      expect(f32(area[1][2])).toBe(gap);
+      // lined and squared paper also say how thick a line is (0.5 pt); blank paper has no such field
+      expect(area.map((f) => [f[0], f[1]])).toEqual(paper === 'blank' ? [[1, 2], [2, 5], [5, 0]] : [[1, 2], [2, 5], [3, 5], [5, 0]]);
+      if (paper !== 'blank') expect(f32(area[2][2])).toBe(0.9166666865348816);
       // the attached PDF: A4, its size in the "attachment added" event
       const pdf = gn.files.get(gn.attachments[0].path)!;
       expect(gn.num(gn.events.find((e) => e.kind === 6)!, 5)).toBe(pdf.length);
@@ -319,13 +254,16 @@ describe('goodnotes export', () => {
   });
 
   it('fits the line spacing and margin to the paper: every baseline on a line', async () => {
-    expect([gnPaper('lined', 6.4)!.paper, gnPaper('lined', 7.1)!.paper, gnPaper('lined', 8.7)!.paper, gnPaper('grid', 8)!.paper]).toEqual(['narrow', 'narrow', 'wide', 'squared']);
-    expect(gnPaper('blank', 7.1)).toBeNull();
-    expect(gnPaper('grid', 10)!.lineH).toBeCloseTo(2 * 16 * 25.4 / 72, 6); // two squares per line
-    expect(gnPaper('grid', 6)!.lineH).toBeCloseTo(16 * 25.4 / 72, 6);
+    expect([gnPaper('lined', 6.4, 20).paper, gnPaper('lined', 7.1, 20).paper, gnPaper('lined', 8.7, 20).paper, gnPaper('grid', 8, 20).paper]).toEqual(['narrow', 'narrow', 'wide', 'squared']);
+    expect(gnPaper('grid', 10, 20).lineH).toBeCloseTo(2 * 16 * 25.4 / 72, 6); // two squares per line
+    expect(gnPaper('grid', 6, 20).lineH).toBeCloseTo(16 * 25.4 / 72, 6);
+    // blank paper has no lines to hit: spacing as set, the margin at most 12 mm; its PDF is the white page alone
+    expect([fit.blank, gnPaper('blank', 7.1, 8)]).toEqual([{ paper: 'blank', lineH: 7.1, margin: 12 }, { paper: 'blank', lineH: 7.1, margin: 8 }]);
+    const drawn = async (paper: GnPaper) => { const pdf = Buffer.from(await paperPdf(paper)), at = pdf.indexOf('stream\n') + 7; return inflateSync(pdf.subarray(at, pdf.indexOf('\nendstream'))).toString('latin1').split('\nh\nf\n').length - 1; };
+    expect([await drawn('blank'), await drawn('wide'), await drawn('narrow'), await drawn('squared')]).toEqual([1, 1 + 32, 1 + 45, 1 + 52 + 37]); // rectangles: the page, then the lines GoodNotes' own PDFs have on the page
     // line centres of the real PDFs (pt from the top): wide 49.75 + 25 k, narrow 50.25 + 17.5 k, squared 15.75 + 16 k
     const lines = { wide: [49.75, 25], narrow: [50.25, 17.5], squared: [15.75, 16] };
-    for (const paper of ['wide', 'narrow', 'squared'] as GnPaper[]) {
+    for (const paper of ['wide', 'narrow', 'squared'] as const) {
       const { lineH, margin } = fit[paper], [first, pitch] = lines[paper];
       for (let k = 1; k < 20; k++) { const off = ((margin + k * lineH) * 72 / 25.4 - first) / pitch; expect(Math.abs(off - Math.round(off))).toBeLessThan(1e-6); }
       expect(margin).toBeGreaterThan(8); expect(margin).toBeLessThan(12);
@@ -339,7 +277,7 @@ describe('goodnotes export', () => {
   // GN_TEST=1 npx vitest run --dir tests tests/goodnotes.test.ts  ->  public/gn-test/*.goodnotes for the iPad (not committed)
   it.runIf(process.env.GN_TEST)('writes one test file per paper', async () => {
     mkdirSync('public/gn-test', { recursive: true });
-    const names = { wide: 'liniert-breit', narrow: 'liniert-schmal', squared: 'kariert' };
-    for (const paper of ['wide', 'narrow', 'squared'] as GnPaper[]) writeFileSync(`public/gn-test/${names[paper]}.goodnotes`, await goodnotesFile(wavePage(fit[paper].lineH, fit[paper].margin), () => null as never, '#203040', undefined, '#203040', 0, undefined, { paper }));
+    const names = { wide: 'liniert-breit', narrow: 'liniert-schmal', squared: 'kariert', blank: 'leer' };
+    for (const paper of PAPER_NAMES) writeFileSync(`public/gn-test/${names[paper]}.goodnotes`, await goodnotesFile(wavePage(fit[paper].lineH, fit[paper].margin), () => null as never, '#203040', undefined, '#203040', 0, paper));
   });
 });

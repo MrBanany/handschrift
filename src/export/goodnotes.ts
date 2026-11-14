@@ -8,8 +8,6 @@ import type { Variant } from '../glyphstore/types';
 import { components, zhangSuen } from '../segmentation/analyze';
 import { ATTACHMENT_UUID, PAGE_UUID, TEMPLATE } from './goodnotes-template';
 
-/** The template's page (its background PDF is 455.04 x 588.45 pt), in mm: lay the text out on this size. */
-export const GN_PAGE = { w: (455.04 * 25.4) / 72, h: (588.45 * 25.4) / 72 };
 const GN_PER_MM = 132 / 25.4; // GoodNotes units per PDF point are 132/72
 const BALLPOINT = 24;
 const DEVICE_TAG = 1184897455800006800n, APP_TAG = 5381; // opaque constants from files GoodNotes wrote
@@ -252,27 +250,6 @@ export async function zip(files: [string, Uint8Array][]): Promise<Uint8Array> {
 
 const b64 = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 
-// ---------- background PDF ----------
-
-/**
- * The page's paper as a vector PDF on GN_PAGE: ruled or squared like drawPage (draw.ts) paints it, same colours and spacing,
- * so the lines sit exactly on the baselines of the laid-out text. margin: the one the text was laid out with.
- */
-export async function backgroundPdf(kind: Background, lineH: number, margin: number): Promise<Uint8Array> {
-  const pt = 72 / 25.4, W = GN_PAGE.w, H = GN_PAGE.h, doc = await PDFDocument.create(), page = doc.addPage([455.04, 588.45]);
-  const line = (x0: number, y0: number, x1: number, y1: number, hex: string) => page.drawLine({
-    start: { x: x0 * pt, y: page.getHeight() - y0 * pt }, end: { x: x1 * pt, y: page.getHeight() - y1 * pt }, thickness: 0.15 * pt,
-    color: rgb(...([1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255) as [number, number, number])),
-  });
-  if (kind === 'lined') for (let y = margin + lineH; y <= H - margin + 0.01; y += lineH) line(0, y, W, y, '#b9cde0');
-  if (kind === 'grid') {
-    const cell = lineH / 2, first = (phase: number) => phase + Math.ceil(-phase / cell) * cell; // every baseline falls on a grid line
-    for (let x = first(margin); x < W; x += cell) line(x, 0, x, H, '#d6e2ed');
-    for (let y = first(margin + lineH); y < H; y += cell) line(0, y, W, y, '#d6e2ed');
-  }
-  return doc.save({ useObjectStreams: false }); // a plain cross-reference table, like the paper PDFs in GoodNotes' own files
-}
-
 // ---------- GoodNotes' own papers ----------
 
 /**
@@ -284,32 +261,34 @@ const PAPERS = {
   wide: { id: 'AA273C17-F440-5125-B34E-F9C3C62F89E2', pitch: 25, top: 25, first: 50 },
   narrow: { id: '238EE861-EE9A-51BD-B010-832CD3C50D2C', pitch: 17.5, top: 33, first: 50.5 },
   squared: { id: '9FE8F365-4BEE-5057-8573-1A56C77CAC19', pitch: 16, top: 32, first: 16 },
+  blank: { id: 'B03314A5-9B9F-556B-B373-4678E13D0DAC', pitch: 16, top: 34, first: Infinity }, // no lines; the pitch is for typed text
 };
 export type GnPaper = keyof typeof PAPERS;
 const A4 = { w: 595.28, h: 841.89 }, MM_PER_PT = 25.4 / 72, U = 132 / 72; // U: GoodNotes units per pt
-/** The page of GoodNotes' papers, in mm: lay the text out on this size when gnPaper() finds a paper. */
+/** The page of GoodNotes' papers, in mm: lay the text out on this size. */
 export const GN_A4 = { w: A4.w * MM_PER_PT, h: A4.h * MM_PER_PT };
 
 /**
  * The GoodNotes paper for a background, with the line spacing and margin (mm) that put every baseline on one of its lines:
- * the tightest spacing the paper allows that is not much below the wanted one. null: GoodNotes has no such paper here (blank).
+ * the tightest spacing the paper allows that is not much below the wanted one. Blank paper keeps the wanted spacing and margin (at most 12 mm).
  */
-export function gnPaper(background: Background, lineH: number): { paper: GnPaper; lineH: number; margin: number } | null {
+export function gnPaper(background: Background, lineH: number, margin: number): { paper: GnPaper; lineH: number; margin: number } {
   const want = (0.85 * lineH) / MM_PER_PT;
   if (background === 'lined') {
     const paper: GnPaper = want <= PAPERS.narrow.pitch ? 'narrow' : 'wide', p = PAPERS[paper];
     return { paper, lineH: p.pitch * MM_PER_PT, margin: (p.first - 0.25 - p.pitch) * MM_PER_PT };
   }
-  if (background !== 'grid') return null;
+  if (background !== 'grid') return { paper: 'blank', lineH, margin: Math.min(margin, 12) };
   const p = PAPERS.squared, rows = Math.max(1, Math.ceil(want / p.pitch)); // squares per line of writing
   return { paper: 'squared', lineH: rows * p.pitch * MM_PER_PT, margin: (2 * p.pitch - 0.25) * MM_PER_PT };
 }
 
-/** The paper as a PDF, drawn like GoodNotes' own (white page, grey 0.5 pt lines at the same places). */
+/** The paper as a PDF, drawn like GoodNotes' own (white page, grey 0.5 pt lines at the same places; none on blank paper). */
 export async function paperPdf(paper: GnPaper): Promise<Uint8Array> {
   const p = PAPERS[paper], doc = await PDFDocument.create(), page = doc.addPage([A4.w, A4.h]), grey = rgb(0.8156863, 0.8235294, 0.827451);
   page.drawRectangle({ x: 0, y: 0, width: A4.w, height: A4.h, color: rgb(1, 1, 1) });
-  for (let y = p.first; y - 0.5 < A4.h; y += p.pitch) page.drawRectangle({ x: 0, y: A4.h - y, width: A4.w, height: 0.5, color: grey });
+  const last = paper === 'squared' ? A4.h : A4.h - 15; // ruled paper ends above the edge: wide at 825 pt, narrow at 820.5 (not 838)
+  for (let y = p.first; y - 0.5 < last; y += p.pitch) page.drawRectangle({ x: 0, y: A4.h - y, width: A4.w, height: 0.5, color: grey });
   if (paper === 'squared') for (let x = p.first; x - 0.5 < A4.w; x += p.pitch) page.drawRectangle({ x: x - 0.5, y: 0, width: 0.5, height: A4.h, color: grey });
   return doc.save({ useObjectStreams: false });
 }
@@ -319,7 +298,8 @@ function withPaper(events: Uint8Array, paper: GnPaper): Uint8Array {
   const p = PAPERS[paper], W = A4.w * U, H = A4.h * U, u = (pt: number) => Math.fround(Math.fround(pt) * Math.fround(U)); // float arithmetic: bit for bit the numbers of the real files
   const pitch = u(p.pitch); // stored as a double
   const xy = (x: number, y: number) => new Proto().float(1, x).float(2, y), raw = (pr: Proto) => parseFields(Uint8Array.from(pr.b));
-  const area = new Proto().msg(1, new Proto().msg(1, xy(44, u(p.top))).msg(2, xy(u(A4.w - 48), u(A4.h - 2 * p.top)))).float(2, u(p.pitch - 0.5)).float(3, u(0.5)).varint(5, 1);
+  const area = new Proto().msg(1, new Proto().msg(1, xy(44, u(p.top))).msg(2, xy(u(A4.w - 48), u(A4.h - 2 * p.top))));
+  if (paper === 'blank') area.float(2, pitch).varint(5, 1); else area.float(2, u(p.pitch - 0.5)).float(3, u(0.5)).varint(5, 1); // the gap between two lines and their thickness
   return mapEvent(events, 2, (fs) => fs.flatMap((x) => {
     if (x.f === 8) return [...raw(new Proto().double(7, pitch)), ...raw(new Proto().msg(8, xy(W, H)))];
     if (x.f === 9) return raw(new Proto().string(9, `${p.id}_a4_1_2 - White`));
@@ -369,34 +349,6 @@ function mapEvent(events: Uint8Array, kind: number, fn: (body: Field[]) => Field
 }
 
 /**
- * Trial variants for the open question why GoodNotes shows its dot grid instead of our paper PDF (docs/gn-papier.md).
- * drop: fields taken out of the page's paper event (9 = paper name "…_standard_1_2 - White", 18 = margins and dot spacing).
- * image: a PNG laid over the whole page as an image element, the way pasted pictures are stored in ex1/ex3 of parser-for-goodnotes.
- */
-export interface PaperTrial { drop?: number[]; image?: Uint8Array }
-/** paper: one of GoodNotes' own papers (the page is then GN_A4, laid out with gnPaper's spacing); it replaces `background`. */
-export interface PaperOpts extends PaperTrial { paper?: GnPaper }
-const DOC_UUID = 'E838B1FD-A246-57EE-A23B-666A1F4ED19C', IMAGE_UUID = '00000000-0000-4000-8000-0000000000A1', IMAGE_EVENT_UUID = '00000000-0000-4000-8000-0000000000A2'; // placeholders, renewed by freshIds
-
-/** "Attachment added" for a picture: like the paper's event, but f12 is empty (ex1 events 4–6). */
-function imageEvent(size: number): number[] {
-  const body = new Proto().string(1, IMAGE_UUID).string(2, IMAGE_UUID).varint(5, size).string(6, DOC_UUID).double(10, Date.now())
-    .string(11, IMAGE_EVENT_UUID).bytes(12, []).varint(14, DEVICE_TAG).varint(15, Date.now()).varint(16, BALLPOINT);
-  return new Proto().string(1, IMAGE_UUID).msg(6, body).record();
-}
-
-/** The two notes records of a picture that covers the page: frame (origin, size), then centre and size, in GoodNotes units. */
-function imageRecords(attachment: string): number[] {
-  const W = GN_PAGE.w * GN_PER_MM, H = GN_PAGE.h * GN_PER_MM, uuid = crypto.randomUUID().toUpperCase();
-  const xy = (x: number, y: number) => new Proto().float(1, x).float(2, y);
-  const clock = new Proto().varint(1, 6).varint(2, (Math.random() * 2 ** 32) >>> 0);
-  const meta = new Proto().string(1, uuid).msg(2, clock).string(4, attachment).varint(8, DEVICE_TAG).varint(9, ++counter).varint(14, APP_TAG).varint(16, BALLPOINT);
-  const inner = new Proto().string(1, uuid).msg(2, new Proto().msg(1, xy(0, 0)).msg(2, xy(W, H))).msg(3, new Proto().msg(1, xy(W / 2, H / 2)).msg(2, xy(W, H)))
-    .string(4, attachment).msg(5, new Proto().msg(1, new Proto().varint(2, (Math.random() * 2 ** 32) >>> 0))).msg(15, clock).varint(18, BALLPOINT);
-  return [...meta.record(), ...new Proto().msg(1, inner).record()];
-}
-
-/**
  * Fresh ids for one export. The template's ids (document, page, attachment, events) are the same in every file we write;
  * GoodNotes keeps attachments and page renderings by id, so a second import with other paper could be shown with the first one's.
  * Every file GoodNotes writes itself has ids of its own. The paper's name ("<uuid>_standard_1_2 - White") keeps its uuid.
@@ -413,20 +365,12 @@ function freshIds() {
   return { id, swap };
 }
 
-/**
- * One page as a .goodnotes document. ink, head (headings): '#rrggbb'. With trial.paper the page is GN_A4 on GoodNotes' own paper;
- * else GN_PAGE with background (a PDF of that size, backgroundPdf) or the template's dot grid. GoodNotes shows dots on that page whatever the PDF.
- */
-export async function goodnotesFile(page: Page, get: (src: string) => Variant, ink: string, thumbnail?: Uint8Array, head = ink, weight = 0, background?: Uint8Array, trial: PaperOpts = {}): Promise<Uint8Array> {
-  if (trial.paper) background = await paperPdf(trial.paper);
+/** One page as a .goodnotes document: a GN_A4 page of one of GoodNotes' papers (lay the text out with gnPaper). ink, head (headings): '#rrggbb'. */
+export async function goodnotesFile(page: Page, get: (src: string) => Variant, ink: string, thumbnail?: Uint8Array, head = ink, weight = 0, paper: GnPaper = 'blank'): Promise<Uint8Array> {
   const rgbaOf = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).concat(1);
   const rgba = rgbaOf(ink), rgbaHead = rgbaOf(head);
-  const { id, swap } = freshIds(), pageId = id(PAGE_UUID), attId = id(ATTACHMENT_UUID), cat = (...p: ArrayLike<number>[]) => Uint8Array.from(p.flatMap((x) => Array.from(x)));
-  const notes: number[] = trial.image ? imageRecords(id(IMAGE_UUID)) : []; // first: under the writing
-  let events = background ? withAttachmentSize(b64(TEMPLATE.events), background.length) : b64(TEMPLATE.events);
-  if (trial.paper) events = withPaper(events, trial.paper);
-  if (trial.drop) events = mapEvent(events, 2, (fs) => fs.filter((x) => !trial.drop!.includes(x.f)));
-  if (trial.image) events = cat(events, imageEvent(trial.image.length));
+  const { id, swap } = freshIds(), pageId = id(PAGE_UUID), attId = id(ATTACHMENT_UUID), pdf = await paperPdf(paper);
+  const notes: number[] = [];
   for (const s of inkStrokes(page, get, weight)) if (s.pts.length) notes.push(...strokeRecords(s, s.accent ? rgbaHead : rgba));
   return zip([
     ['document.info.pb', new Uint8Array()],
@@ -435,11 +379,10 @@ export async function goodnotesFile(page: Page, get: (src: string) => Variant, i
     [`search/${pageId}`, new Uint8Array([0x04, 0x10, 0x01, 0x1a, 0x00])],
     [`search/${attId}`, b64(TEMPLATE.attSearch)],
     [`notes/${pageId}`, new Uint8Array(notes)],
-    ['index.events.pb', swap(events)],
+    ['index.events.pb', swap(withPaper(withAttachmentSize(b64(TEMPLATE.events), pdf.length), paper))],
     ...(thumbnail ? [['thumbnail.jpg', thumbnail] as [string, Uint8Array]] : []),
-    ['index.attachments.pb', swap(trial.image ? cat(b64(TEMPLATE.attachments), new Proto().string(1, IMAGE_UUID).string(2, `attachments/${IMAGE_UUID}`).record()) : b64(TEMPLATE.attachments))],
-    [`attachments/${attId}`, background ?? b64(TEMPLATE.background)],
-    ...(trial.image ? [[`attachments/${id(IMAGE_UUID)}`, trial.image] as [string, Uint8Array]] : []),
+    ['index.attachments.pb', swap(b64(TEMPLATE.attachments))],
+    [`attachments/${attId}`, pdf],
     ['schema.pb', b64(TEMPLATE.schema)],
   ]);
 }

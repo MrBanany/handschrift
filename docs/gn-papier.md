@@ -1,37 +1,49 @@
-# GoodNotes zeigt Punkte statt unseres Papiers
+# GoodNotes-Papier: kariert und liniert
 
-Stand 14. November. Fehler: Die importierte Seite zeigt das Punktraster, obwohl unser Anhang-PDF kariert ist (auch mit frischen UUIDs). Nur `thumbnail.jpg` ist kariert.
+Stand 14. November. Fehler war: Die importierte Seite zeigte das Punktraster, obwohl unser Anhang-PDF kariert war.
 
-## Was die echten Dateien belegen
+## Befund
 
-Geprüft: `ex1`, `ex2`, `ex3`, `record` aus parser-for-goodnotes (alle mit Punktraster, eine Seite).
+GoodNotes zeigt das Papier, das zum **Papiernamen** im Papier-Ereignis gehört (Ereignis-Feld 2, f9). Unsere Dateien trugen immer den Namen des Punktrasters. Jedes Papier hat einen eigenen Namen `<UUID>_<Größe>_1_2 - White`.
 
-- **Papiername**: In allen vier Dateien steht im Papier-Ereignis (Ereignis-Feld 2) derselbe Name f9 = `CC365888-75C9-5DBF-B1D4-A7E8E0AD3B7F_standard_1_2 - White`. Namen für kariert oder liniert kommen nirgends vor. Die Websuche (Name, UUID, „GoodNotes file format“) fand nichts dazu. Lösung (a) „echten Namen einsetzen“ ist ohne eine echte karierte Datei nicht möglich.
-- **Rasterangabe f18** im selben Ereignis: Rechteck (44; 58,67)–(746,24; 961,49), dann 28,417 und 0,917, dann f5 = 1. Das passt zu Rand, Punktabstand (28,417 Einheiten = 5,47 mm), Punktgröße und Musterart. Dazu im Seiten-Ereignis (Feld 54) f17 mit zwei Farben: Grau 0,867 und Weiß. Deutung (nicht bewiesen): GoodNotes zeichnet das Muster selbst aus diesen Angaben und benutzt das PDF dafür nicht.
-- **Papier-PDF**: Anhang, im Ereignis „Anhang hinzugefügt“ (Feld 6) mit f12 = {1, 1}. Zwei Fassungen: 41791 Byte (ex1, ex3) und 41951 Byte (ex2, record).
-- **Bilder auf der Seite** (ex1: 3 PNG, ex3: 2 JPEG): Anhang-Datei, Eintrag in `index.attachments.pb`, Ereignis Feld 6 mit leerem f12, und in `notes/<id>` ein Satzpaar wie bei einem Strich. Der zweite Satz hat Feld 1 statt 7: Rahmen (Ursprung, Größe), Mitte und Größe, Anhang-UUID. Kein Eintrag in `index.search.pb`.
-- Keine der Dateien ist ein importiertes PDF. Wie GoodNotes eine solche Seite kennzeichnet, ist nicht belegt.
+Abgelesen aus drei leeren A4-Seiten, die GoodNotes selbst exportiert hat (`samples/`, nicht im Repository), und aus den vier alten Beispieldateien (parser-for-goodnotes, Punktraster, Größe „standard“):
+
+| Papier | UUID im Namen | Größe | Linienabstand | erste Linie (Unterkante) | Textbereich ab |
+|---|---|---|---|---|---|
+| liniert breit | `AA273C17-F440-5125-B34E-F9C3C62F89E2` | a4 | 25 pt = 8,82 mm | 50 pt | 25 pt |
+| liniert schmal | `238EE861-EE9A-51BD-B010-832CD3C50D2C` | a4 | 17,5 pt = 6,17 mm | 50,5 pt | 33 pt |
+| kariert | `9FE8F365-4BEE-5057-8573-1A56C77CAC19` | a4 | 16 pt = 5,64 mm | 16 pt | 32 pt |
+| Punkte | `CC365888-75C9-5DBF-B1D4-A7E8E0AD3B7F` | standard | 16 pt | – | 32 pt |
+
+Weitere Felder im Papier-Ereignis:
+
+- f8: Seitengröße in GoodNotes-Einheiten (132 pro Zoll). A4 = 1091,35 × 1543,46.
+- f7 und f12.f1 (nur in den neuen Dateien): Linienabstand in Einheiten, als Double.
+- f18: Textbereich (Ursprung 24 pt; „ab“ aus der Tabelle, Größe = Seite minus zweimal den Rand), dann Linienabstand minus 0,5 pt, dann 0,5 pt (Linienstärke), dann f5 = 1. f18 beschreibt die Schreibzeilen, nicht die Art des Musters: f5 ist bei allen Papieren 1.
+- Seiten-Ereignis (Feld 54) f17: Grau 0,867 und Weiß, bei allen Papieren gleich.
+- Das Papier-PDF (svg2pdf, weiße Fläche, graue 0,5-pt-Linien, Farbe 0,816 / 0,824 / 0,827) liegt als Anhang bei.
+
+## Was der Export jetzt macht
+
+`gnPaper()` in `src/export/goodnotes.ts` wählt zum eingestellten Papier das GoodNotes-Papier:
+
+- **Liniert**: schmal, wenn der eingestellte Zeilenabstand höchstens 7,26 mm ist, sonst breit.
+- **Kariert**: so viele Kästchen pro Zeile, dass der Zeilenabstand nicht mehr als 15 % unter dem eingestellten liegt (8–12 mm → 2 Kästchen = 11,29 mm).
+- Seite A4, Zeilenabstand und Rand kommen vom Papier, damit jede Grundlinie auf einer Linie steht. Der eingestellte Zeilenabstand und Rand gelten in der GoodNotes-Datei also nicht.
+- Das Papier-Ereignis bekommt Name, Größe, f7, f12.f1 und f18 wie in den echten Dateien (Bit für Bit gleich, geprüft gegen `samples/`). Das PDF zeichnen wir selbst an denselben Stellen (`paperPdf`).
+- **Leer**: kein GoodNotes-Name bekannt. Die Datei geht den alten Weg (Seite „standard“, Name des Punktrasters) und zeigt vermutlich weiter Punkte. Dafür fehlt eine leere Seite ohne Muster aus GoodNotes.
 
 ## Testdateien
 
-Erzeugen: `GN_TEST=1 npx vitest run tests/goodnotes.test.ts` schreibt nach `public/gn-test/` (nicht im Repository). Inhalt: kariertes Papier, sechs Zeilen Wellen, die auf den Grundlinien stehen.
+`GN_TEST=1 npx vitest run --dir tests tests/goodnotes.test.ts` schreibt nach `public/gn-test/` (nicht im Repository): `kariert.goodnotes`, `liniert-schmal.goodnotes`, `liniert-breit.goodnotes`, je sechs Zeilen Wellen auf den Grundlinien.
 
-| Datei | Änderung | Zeigt die Seite Karos, heißt das |
-|---|---|---|
-| `1-ohne-papiername.goodnotes` | Papier-Ereignis ohne f9 und f18 | GoodNotes nimmt unser PDF, sobald Name und Rasterangabe fehlen |
-| `2-ohne-raster-angabe.goodnotes` | nur f18 entfernt, Name bleibt | die Rasterangabe f18 steuert das Muster, nicht der Name |
-| `3-papier-als-bild.goodnotes` | Papier unverändert, dazu die Karos als deckendes PNG unter der Schrift | Bild-Elemente funktionieren; das Bild verdeckt die Punkte |
+Am iPad je Datei prüfen:
 
-Am iPad jede Datei öffnen und notieren:
+1. Öffnet GoodNotes die Datei?
+2. Zeigt die Seite das richtige Papier (keine Punkte)?
+3. Stehen die Wellen mit dem Fuß genau auf den Linien?
+4. Seite hinzufügen: Hat die neue Seite dasselbe Papier?
 
-1. Öffnet GoodNotes die Datei? (Fehlermeldung wörtlich)
-2. Was ist auf der Seite: Karos, Punkte, weiß, oder Karos und Punkte zugleich?
-3. Stehen die Wellen auf den Linien?
-4. Nur Datei 3: Lässt sich das Karo-Bild antippen und verschieben? Wählt das Lasso es mit aus, wenn man eine Welle einkreist? Radiert der Radierer nur die Wellen?
+## Falls es nicht reicht
 
-## Wie es weitergeht
-
-- Datei 1 oder 2 zeigt Karos: den Weg in `goodnotesFile` fest einbauen (`trial.drop`).
-- Nur Datei 3 zeigt Karos: Papier als Bild einbauen. Nachteil: das Bild ist ein Objekt auf der Seite, es lässt sich möglicherweise verschieben oder löschen.
-- Keine zeigt Karos: Linien als helle Stiftstriche schreiben. Sie sind radierbar, und die Punkte bleiben darunter sichtbar.
-- Mit einer echten, leeren karierten und linierten Seite aus GoodNotes (als `.goodnotes` exportiert) lassen sich f9 und f18 direkt ablesen. Das wäre die sauberste Lösung: GoodNotes zeichnet dann sein eigenes Papier, und wir richten den Zeilenabstand danach aus.
+Noch im Code, ungenutzt: Papier-Ereignis ohne Name (`drop`) und Papier als deckendes Bild unter der Schrift (`image`, so speichert GoodNotes eingefügte Bilder: Anhang, Ereignis Feld 6 mit leerem f12, in `notes/<id>` ein Satzpaar mit Feld 1 statt 7). Das Bild wäre der Weg für „Leer“, wenn kein Name zu bekommen ist.

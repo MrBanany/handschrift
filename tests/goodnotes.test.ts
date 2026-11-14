@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { crc32, deflateSync, inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
-import { GN_PAGE, appleLz4, backgroundPdf, centerlines, goodnotesFile, tpl, withAttachmentSize, type PaperTrial } from '../src/export/goodnotes';
+import { GN_A4, GN_PAGE, appleLz4, backgroundPdf, centerlines, gnPaper, goodnotesFile, paperPdf, tpl, withAttachmentSize, type GnPaper, type PaperTrial } from '../src/export/goodnotes';
 import { TEMPLATE } from '../src/export/goodnotes-template';
 import type { Variant } from '../src/glyphstore/types';
 
@@ -236,10 +236,10 @@ describe('goodnotes export', () => {
   // Trial variants for "GoodNotes shows dots instead of our paper" (docs/gn-papier.md).
   const K2 = 132 / 25.4, LINE_H = 7.1, MARGIN = 12;
   /** A row of waves standing on each of the first lines, so one sees at once whether the paper's lines sit under the writing. */
-  const wavePage = () => ({
+  const wavePage = (lineH = LINE_H, margin = MARGIN) => ({
     glyphs: [], missing: [], lines: [], marks: [],
     connectors: Array.from({ length: 6 }, (_, row) => Array.from({ length: 8 }, (_, i) => {
-      const x = MARGIN + 4 + i * 9, y = MARGIN + LINE_H * (row + 1);
+      const x = margin + 4 + i * 9, y = margin + lineH * (row + 1);
       return { p: [[x, y], [x + 2, y - 5], [x + 4, y - 5], [x + 6, y]] as [number, number][], w0: 0.35, w1: 0.35 };
     })).flat() as never,
   });
@@ -284,10 +284,62 @@ describe('goodnotes export', () => {
     expect(paperEvent(c)).toEqual(paperEvent(plain)); // the paper itself untouched
   });
 
-  // GN_TEST=1 npx vitest run tests/goodnotes.test.ts  ->  public/gn-test/*.goodnotes for the iPad (not committed)
-  it.runIf(process.env.GN_TEST)('writes the paper trial files', async () => {
-    const bg = await backgroundPdf('grid', LINE_H, MARGIN);
+  // The numbers GoodNotes 7 wrote into empty A4 pages (samples of 14 November, docs/gn-papier.md): name id, pitch, text area top and height, line gap.
+  const REAL: Record<GnPaper, [string, number, number, number, number]> = {
+    wide: ['AA273C17-F440-5125-B34E-F9C3C62F89E2', 45.833335876464844, 45.833335876464844, 1451.79833984375, 44.91666793823242],
+    narrow: ['238EE861-EE9A-51BD-B010-832CD3C50D2C', 32.083335876464844, 60.5, 1422.465087890625, 31.166667938232422],
+    squared: ['9FE8F365-4BEE-5057-8573-1A56C77CAC19', 29.33333396911621, 58.66666793823242, 1426.1317138671875, 28.416667938232422],
+  };
+  const fit = { wide: gnPaper('lined', 8.7)!, narrow: gnPaper('lined', 6.4)!, squared: gnPaper('grid', 10)! };
+
+  it("writes GoodNotes' own papers the way GoodNotes exported them", async () => {
+    const f64 = (v: unknown) => new DataView((v as Uint8Array).slice().buffer).getFloat64(0, true), f32 = (v: unknown) => new DataView((v as Uint8Array).slice().buffer).getFloat32(0, true);
+    const sub = (fs: ReturnType<typeof fields>, f: number) => fields(fs.find((x) => x[0] === f)![2] as Uint8Array);
+    for (const paper of ['wide', 'narrow', 'squared'] as GnPaper[]) {
+      const [id, pitch, top, height, gap] = REAL[paper];
+      const gn = readGoodnotes(await goodnotesFile(wavePage(), () => null as never, '#203040', undefined, '#203040', 0, undefined, { paper }));
+      const ev = gn.events.find((e) => e.kind === 2)!, b = ev.body;
+      expect(b.map((f) => f[0])).toEqual([1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 19, 21]); // field order of the real files
+      expect(gn.text(ev, 9)).toBe(`${id}_a4_1_2 - White`);
+      expect(f64(b.find((f) => f[0] === 7)![2])).toBe(pitch);
+      expect(f64(sub(b, 12)[0][2])).toBe(pitch);
+      expect(sub(b, 12).map((f) => f[0])).toEqual([1, 2]);
+      expect(sub(b, 8).map((f) => f32(f[2]))).toEqual([1091.3466796875, 1543.4649658203125]);
+      const area = sub(b, 18), rect = sub(area, 1).flatMap((pt) => fields(pt[2] as Uint8Array).map((c) => f32(c[2])));
+      [44, top, 1003.3467407226562, height].forEach((v, i) => expect(rect[i]).toBeCloseTo(v, 3));
+      expect(f32(area[1][2])).toBeCloseTo(gap, 4);
+      expect(f32(area[2][2])).toBeCloseTo(0.9166666865348816, 6);
+      expect(area.map((f) => [f[0], f[1]])).toEqual([[1, 2], [2, 5], [3, 5], [5, 0]]);
+      // the attached PDF: A4, its size in the "attachment added" event
+      const pdf = gn.files.get(gn.attachments[0].path)!;
+      expect(gn.num(gn.events.find((e) => e.kind === 6)!, 5)).toBe(pdf.length);
+      expect((await PDFDocument.load(pdf)).getPage(0).getSize()).toEqual({ width: 595.28, height: 841.89 });
+      expect(gn.strokes(gn.notes[0].path)).toHaveLength(48);
+    }
+  });
+
+  it('fits the line spacing and margin to the paper: every baseline on a line', async () => {
+    expect([gnPaper('lined', 6.4)!.paper, gnPaper('lined', 7.1)!.paper, gnPaper('lined', 8.7)!.paper, gnPaper('grid', 8)!.paper]).toEqual(['narrow', 'narrow', 'wide', 'squared']);
+    expect(gnPaper('blank', 7.1)).toBeNull();
+    expect(gnPaper('grid', 10)!.lineH).toBeCloseTo(2 * 16 * 25.4 / 72, 6); // two squares per line
+    expect(gnPaper('grid', 6)!.lineH).toBeCloseTo(16 * 25.4 / 72, 6);
+    // line centres of the real PDFs (pt from the top): wide 49.75 + 25 k, narrow 50.25 + 17.5 k, squared 15.75 + 16 k
+    const lines = { wide: [49.75, 25], narrow: [50.25, 17.5], squared: [15.75, 16] };
+    for (const paper of ['wide', 'narrow', 'squared'] as GnPaper[]) {
+      const { lineH, margin } = fit[paper], [first, pitch] = lines[paper];
+      for (let k = 1; k < 20; k++) { const off = ((margin + k * lineH) * 72 / 25.4 - first) / pitch; expect(Math.abs(off - Math.round(off))).toBeLessThan(1e-6); }
+      expect(margin).toBeGreaterThan(8); expect(margin).toBeLessThan(12);
+      // and our PDF has a line there: a 0.5 pt rectangle whose lower edge is 0.25 pt below the centre
+      const pdf = Buffer.from(await paperPdf(paper)), at = pdf.indexOf('stream\n') + 7, text = inflateSync(pdf.subarray(at, pdf.indexOf('\nendstream'))).toString('latin1');
+      expect(text).toContain(` ${+(841.89 - first - 0.25).toFixed(2)} `);
+    }
+    expect(GN_A4.w).toBeCloseTo(210, 1);
+  });
+
+  // GN_TEST=1 npx vitest run --dir tests tests/goodnotes.test.ts  ->  public/gn-test/*.goodnotes for the iPad (not committed)
+  it.runIf(process.env.GN_TEST)('writes one test file per paper', async () => {
     mkdirSync('public/gn-test', { recursive: true });
-    for (const [name, trial] of trials(gridPng())) writeFileSync(`public/gn-test/${name}.goodnotes`, await goodnotesFile(wavePage(), () => null as never, '#203040', undefined, '#203040', 0, bg, trial));
+    const names = { wide: 'liniert-breit', narrow: 'liniert-schmal', squared: 'kariert' };
+    for (const paper of ['wide', 'narrow', 'squared'] as GnPaper[]) writeFileSync(`public/gn-test/${names[paper]}.goodnotes`, await goodnotesFile(wavePage(fit[paper].lineH, fit[paper].margin), () => null as never, '#203040', undefined, '#203040', 0, undefined, { paper }));
   });
 });

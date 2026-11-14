@@ -4,6 +4,7 @@ import { MM, XH } from '../template/layout';
 import { flatFrac } from './latex';
 import { ARROW, BOX, CARD, CIRC, CORNELL, EMPH, HEAD, INDENT, MAP, MARK, NOTE, STRUCT } from './markers';
 import { decodeMap, mapAsList, planMindmap, type MapPlan } from './mindmap';
+import { decodePlot, parsePlot, planPlot, type PlotPlan } from './plot';
 import { molecule, type Molecule } from './structure';
 
 /** Gap between words (x-heights, ink to ink) when none was learned. */
@@ -578,9 +579,51 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
     lineDown = Math.max(lineDown, p.rows); // the next line starts below the map
   }
 
+  // Function graph (plot.ts plans it, this draws it): axes, ticks and curves as pen strokes, numbers in the writer's own digits.
+  function placePlot(p: PlotPlan) {
+    const top = () => y - s.lineH + 0.6 * xh; // just below the previous line's descenders
+    if (top() + p.height > s.pageH - s.margin && y > s.margin + 1.5 * s.lineH) { lineDown = 0; y = s.pageH; newLine(); }
+    const X = s.margin + Math.max(0, (s.pageW - 2 * s.margin - p.width) / 2), Y = top();
+    for (const [a, b] of p.axes) {
+      stroke(X + a[0], Y + a[1], X + b[0], Y + b[1]);
+      // arrow head: two barbs leaning back from the tip
+      const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, ux = (b[0] - a[0]) / len, uy = (b[1] - a[1]) / len;
+      for (const k of [-1, 1]) {
+        const ang = 0.45 + gauss() * 0.05, hl = 0.7 * xh * (0.85 + 0.3 * rand()), c = Math.cos(ang), sn = Math.sin(ang);
+        stroke(X + b[0] - hl * (ux * c - k * uy * sn), Y + b[1] - hl * (k * ux * sn + uy * c), X + b[0], Y + b[1]);
+      }
+    }
+    for (const [a, b] of p.ticks) stroke(X + a[0], Y + a[1], X + b[0], Y + b[1]);
+    for (const c of p.curves) {
+      // a hand does not follow the curve exactly: the pen wanders a little around it
+      let wob = 0;
+      const q = c.map(([px, py], i): [number, number] => { wob = 0.7 * wob + gauss() * 0.035 * xh; return [X + px, Y + py + (i && i < c.length - 1 ? wob : 0)]; });
+      // shortcut: one pen stroke per piece between two points (the GoodNotes eraser takes the curve piece by piece); merge them into one InkStroke if that bothers
+      for (let i = 0; i + 1 < q.length; i++) {
+        const p0 = q[Math.max(0, i - 1)], p1 = q[i], p2 = q[i + 1], p3 = q[Math.min(q.length - 1, i + 2)];
+        page!.connectors.push({ p: [p1, [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6], [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6], p2], w0: penW, w1: penW });
+      }
+    }
+    for (const l of p.labels) {
+      const wd = layoutWord(l.text, l.size);
+      const dx = X + l.x - (l.align === 'left' ? wd.inkL : l.align === 'right' ? wd.inkR : (wd.inkL + wd.inkR) / 2), dy = Y + l.y;
+      for (const it of wd.items) { const m: Mat = [...it.m]; m[4] += dx; m[5] += dy; page!.glyphs.push({ g: it.g, m }); }
+      for (const ms of wd.missing) page!.missing.push({ ...ms, x: ms.x + dx, y: ms.y + dy });
+    }
+    page!.lines.push({ text: p.text });
+    lineDown = Math.max(lineDown, p.rows - 1); // the next line starts below the graph
+  }
+
   /** Writes one line of the text from lineX on (newLine() has put the pen there). */
   const writeLine = (line: string) => {
     if (line.startsWith(MAP[0])) { placeMap(mapPlan(line)!); return; }
+    const plotSpec = decodePlot(line);
+    if (plotSpec !== null) {
+      const ps = parsePlot(plotSpec);
+      const p = ps && planPlot(ps, { width: s.pageW - 2 * s.margin, xh, lineH: s.lineH, maxRows: Math.floor((s.pageH - 2 * s.margin) / s.lineH) - 2 });
+      if (p) { placePlot(p); return; }
+      line = `plot: ${plotSpec}`; // not a formula the app can draw: just write it
+    }
     let emph = false, marking = false, ringing = false, boxing = false;
     const indent = line.length - line.replace(new RegExp(`^${INDENT}+`), '').length; // steps of a nested list item
     lineX += indent * 2 * xh;

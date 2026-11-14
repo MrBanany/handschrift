@@ -1,7 +1,8 @@
 import { markBlocks } from './cards';
 import { latex } from './latex';
-import { ARROW, CIRC, EMPH, HEAD, INCOMING_CONTROL, INDENT, MAP, MARK, STRUCT } from './markers';
+import { ARROW, CIRC, EMPH, HEAD, INCOMING_CONTROL, INDENT, MAP, MARK, PLOT, STRUCT } from './markers';
 import { encodeMap, extractMindmaps, type MapTree } from './mindmap';
+import { encodePlot, extractPlots } from './plot';
 
 // the marker codes live in markers.ts; re-exported because much of the code and its tests import them from here
 export { ARROW, CIRC, EMPH, HEAD, INDENT, LABEL, MARK, STRUCT } from './markers';
@@ -65,7 +66,9 @@ export function clean(text: string, has: (ch: string) => boolean): string {
   // a node is plain text: an arrow's label becomes "→ (label)", every other marker goes
   const node = (x: string) => clean(x, has).replace(/\u001b([^\u001c]*)\u001c([→←⇒⇔↔⇌])/g, (_, l: string, a: string) => `${a} (${l})`).replace(/[\u0001-\u0006\u000E\u000F\u0014-\u0018\u001b\u001c\u001f]/g, '').replace(/\u0010/g, ' ').replace(/\s+/g, ' ').trim();
   // incoming control characters are just dropped: only the markers clean() puts in itself may stand in the result
-  const kept = unflatten(extractMindmaps(markBlocks(tidy(text.replace(/\r\n?/g, '\n').replace(INCOMING_CONTROL, ''))), (t) => `${MAP[0]}${maps.push(t) - 1}${MAP[1]}`)).replace(/\[\[([^\]\n]+)\]\]/g, (_, s: string) => `${STRUCT[0]}${mols.push(s.trim()) - 1}${STRUCT[1]}`);
+  // [[plot: x^2, -3..3]] too: drawn as a function graph on a line of its own (see plot.ts)
+  const plots: string[] = [];
+  const kept = extractPlots(unflatten(extractMindmaps(markBlocks(tidy(text.replace(/\r\n?/g, '\n').replace(INCOMING_CONTROL, ''))), (t) => `${MAP[0]}${maps.push(t) - 1}${MAP[1]}`)), (spec) => `${PLOT[0]}${plots.push(spec) - 1}${PLOT[1]}`).replace(/\[\[([^\]\n]+)\]\]/g, (_, s: string) => `${STRUCT[0]}${mols.push(s.trim()) - 1}${STRUCT[1]}`);
   // one indent step is the smallest indent in the text (2 spaces or a tab; Gemini uses 4)
   const step = Math.max(2, Math.min(4, ...[...kept.matchAll(/^([ \t]{2,})(?:[-*+•●▪◦]|\d+[.)])\s/gm)].map((m) => m[1].replace(/\t/g, '  ').length)));
   return latex(kept)
@@ -137,6 +140,7 @@ export function clean(text: string, has: (ch: string) => boolean): string {
       const t = maps[+i], bullet = pick('•', '-');
       return encodeMap({ bullet, topic: node(t.topic), branches: t.branches.map((b) => ({ title: node(b.title), items: b.items.map((x) => `${bullet} ${node(x)}`) })) });
     })
+    .replace(new RegExp(`[ \\t]*${PLOT[0]}(\\d+)${PLOT[1]}[ \\t]*`, 'g'), (_, i: string) => `\n${encodePlot(plots[+i])}\n`) // the graph: one token on a line of its own
     .replace(/^ +| +$/gm, '')
     // room between topics: an empty line before every heading, and after a boxed result
     .replace(/\n+(?=\u0006)/g, '\n\n')

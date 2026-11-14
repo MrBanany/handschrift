@@ -145,6 +145,29 @@ describe('layout', () => {
     expect(a.pages[0].glyphs.map((g) => g.m)).not.toEqual(c.pages[0].glyphs.map((g) => g.m));
   });
 
+  it('draws a function graph as pen strokes and pushes the following line below it', () => {
+    const digits = libOf([...'abcdefghijklmnopqrstuvwxyz0123456789-,'], 3, () => true);
+    const { pages, missing } = layout(clean('a\n[[plot: x^2 - 1, -3..3]]\nc', () => true), digits, S);
+    expect(pages).toHaveLength(1);
+    expect(missing.size).toBe(0);
+    const pg = pages[0], ys = pg.glyphs.map((p) => p.m[3] * p.g.baseline + p.m[5]), first = ys[0], last = ys.at(-1)!; // single letters: no joins, so every connector belongs to the graph
+    expect(pg.connectors.length).toBeGreaterThan(2 + 4 + 8 + 10); // axes, arrow heads, ticks, curve
+    // every stroke lies between the line before and the line after, inside the margins
+    for (const c of pg.connectors) for (const [x, y] of c.p) {
+      expect(y).toBeGreaterThan(first); expect(y).toBeLessThan(last - 1.2 * S.xh);
+      expect(x).toBeGreaterThanOrEqual(S.margin - 0.5); expect(x).toBeLessThanOrEqual(S.pageW - S.margin + 0.5);
+    }
+    expect(pg.lines.map((l) => l.text)).toEqual(['a', 'Graph: x^2-1', 'c']);
+    // the GoodNotes file gets every stroke as pen ink
+    expect(inkStrokes({ ...pg, glyphs: [] }, () => { throw new Error('no glyphs'); })).toHaveLength(pg.connectors.length);
+    // a formula the app cannot read is written as text
+    expect(layout(clean('[[plot: quatsch(x)]]', () => true), digits, S).pages[0].lines[0].text).toBe('plot: quatsch(x)');
+    // near the page end the graph moves to the next page as a whole
+    const two = layout(clean('a\n'.repeat(22) + '[[plot: x^2, -3..3]]', () => true), digits, S).pages;
+    expect(two).toHaveLength(2);
+    expect(two[0].connectors).toHaveLength(0);
+  });
+
   it('draws a mind map and pushes the following line below it', () => {
     const map = clean('Mindmap: zelle\n- kern\n  - dna\n- wand\n- plasma', () => true);
     const { pages } = layout(`${map}\nab`, lib, S);

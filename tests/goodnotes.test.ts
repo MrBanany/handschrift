@@ -1,7 +1,8 @@
-import { inflateSync } from 'node:zlib';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { crc32, deflateSync, inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { PDFDocument } from 'pdf-lib';
-import { appleLz4, backgroundPdf, centerlines, goodnotesFile, tpl, withAttachmentSize } from '../src/export/goodnotes';
+import { GN_PAGE, appleLz4, backgroundPdf, centerlines, goodnotesFile, tpl, withAttachmentSize, type PaperTrial } from '../src/export/goodnotes';
 import { TEMPLATE } from '../src/export/goodnotes-template';
 import type { Variant } from '../src/glyphstore/types';
 
@@ -231,5 +232,62 @@ describe('goodnotes export', () => {
     near(size, [834.24, 1078.825]);
     const pdfPage = (await PDFDocument.load(bg)).getPage(0).getSize();
     near([pdfPage.width * (132 / 72), pdfPage.height * (132 / 72)], size);
+  });
+  // Trial variants for "GoodNotes shows dots instead of our paper" (docs/gn-papier.md).
+  const K2 = 132 / 25.4, LINE_H = 7.1, MARGIN = 12;
+  /** A row of waves standing on each of the first lines, so one sees at once whether the paper's lines sit under the writing. */
+  const wavePage = () => ({
+    glyphs: [], missing: [], lines: [], marks: [],
+    connectors: Array.from({ length: 6 }, (_, row) => Array.from({ length: 8 }, (_, i) => {
+      const x = MARGIN + 4 + i * 9, y = MARGIN + LINE_H * (row + 1);
+      return { p: [[x, y], [x + 2, y - 5], [x + 4, y - 5], [x + 6, y]] as [number, number][], w0: 0.35, w1: 0.35 };
+    })).flat() as never,
+  });
+  /** The squared paper as an opaque PNG (white, grid lines 2 px), 2 px per GoodNotes unit; same grid as backgroundPdf('grid'). */
+  function gridPng(): Uint8Array {
+    const s = 2 * K2, W = Math.round(GN_PAGE.w * s), H = Math.round(GN_PAGE.h * s), cell = LINE_H / 2, px = new Uint8Array((W * 3 + 1) * H).fill(255);
+    const first = (phase: number) => phase + Math.ceil(-phase / cell) * cell, ink = [0xd6, 0xe2, 0xed];
+    const dot = (x: number, y: number) => { if (x >= 0 && y >= 0 && x < W && y < H) px.set(ink, y * (W * 3 + 1) + 1 + x * 3); };
+    for (let x = first(MARGIN); x < GN_PAGE.w; x += cell) for (let y = 0; y < H; y++) { dot(Math.round(x * s), y); dot(Math.round(x * s) - 1, y); }
+    for (let y = first(MARGIN + LINE_H); y < GN_PAGE.h; y += cell) for (let x = 0; x < W; x++) { dot(x, Math.round(y * s)); dot(x, Math.round(y * s) - 1); }
+    for (let y = 0; y < H; y++) px[y * (W * 3 + 1)] = 0; // filter byte of each row
+    const chunk = (type: string, data: Uint8Array) => {
+      const body = Buffer.concat([Buffer.from(type), data]), out = Buffer.alloc(body.length + 8);
+      out.writeUInt32BE(data.length, 0); body.copy(out, 4); out.writeUInt32BE(crc32(body), body.length + 4);
+      return out;
+    };
+    const head = Buffer.alloc(13); head.writeUInt32BE(W, 0); head.writeUInt32BE(H, 4); head.set([8, 2, 0, 0, 0], 8); // 8 bit RGB
+    return new Uint8Array(Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', head), chunk('IDAT', deflateSync(px)), chunk('IEND', new Uint8Array())]));
+  }
+  const trials = (png: Uint8Array): [string, PaperTrial][] => [['1-ohne-papiername', { drop: [9, 18] }], ['2-ohne-raster-angabe', { drop: [18] }], ['3-papier-als-bild', { image: png }]];
+
+  it('paper trials: fields dropped from the paper event, or the paper as a picture under the writing', async () => {
+    const bg = await backgroundPdf('grid', LINE_H, MARGIN), png = gridPng(), [noName, noRuling, picture] = trials(png);
+    const paperEvent = (gn: ReturnType<typeof readGoodnotes>) => gn.events.find((e) => e.kind === 2)!.body.map((f) => f[0]);
+    const plain = readGoodnotes(await goodnotesFile(wavePage(), () => null as never, '#203040', undefined, '#203040', 0, bg));
+    expect(paperEvent(plain)).toEqual(expect.arrayContaining([4, 9, 18]));
+    const a = readGoodnotes(await goodnotesFile(wavePage(), () => null as never, '#203040', undefined, '#203040', 0, bg, noName[1]));
+    expect(paperEvent(a)).toEqual(paperEvent(plain).filter((f) => f !== 9 && f !== 18));
+    const b = readGoodnotes(await goodnotesFile(wavePage(), () => null as never, '#203040', undefined, '#203040', 0, bg, noRuling[1]));
+    expect(paperEvent(b)).toEqual(paperEvent(plain).filter((f) => f !== 18));
+    expect(a.strokes(a.notes[0].path)).toHaveLength(48);
+
+    const c = readGoodnotes(await goodnotesFile(wavePage(), () => null as never, '#203040', undefined, '#203040', 0, bg, picture[1]));
+    expect(c.strokes(c.notes[0].path)).toHaveLength(48);
+    const [img] = c.images(c.notes[0].path), entry = c.attachments.find((x) => x.id === img.attachment)!;
+    expect(c.attachments).toHaveLength(2);
+    expect(c.files.get(entry.path)).toEqual(png);
+    img.frame.forEach((v, i) => expect(v).toBeCloseTo([0, 0, 834.24, 1078.825][i], 1));
+    const added = c.events.filter((e) => e.kind === 6).find((e) => c.text(e, 1) === img.attachment)!;
+    expect(c.num(added, 5)).toBe(png.length);
+    expect(c.text(added, 6)).toBe(c.events[0].id); // the document
+    expect(paperEvent(c)).toEqual(paperEvent(plain)); // the paper itself untouched
+  });
+
+  // GN_TEST=1 npx vitest run tests/goodnotes.test.ts  ->  public/gn-test/*.goodnotes for the iPad (not committed)
+  it.runIf(process.env.GN_TEST)('writes the paper trial files', async () => {
+    const bg = await backgroundPdf('grid', LINE_H, MARGIN);
+    mkdirSync('public/gn-test', { recursive: true });
+    for (const [name, trial] of trials(gridPng())) writeFileSync(`public/gn-test/${name}.goodnotes`, await goodnotesFile(wavePage(), () => null as never, '#203040', undefined, '#203040', 0, bg, trial));
   });
 });

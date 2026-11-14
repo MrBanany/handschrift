@@ -148,6 +148,7 @@ class Proto {
   string(f: number, s: string) { return this.bytes(f, new TextEncoder().encode(s)); }
   msg(f: number, p: Proto) { return this.bytes(f, p.b); }
   float(f: number, v: number) { this.key(f, 5); this.b.push(...new Uint8Array(new Float32Array([v]).buffer)); return this; }
+  double(f: number, v: number) { this.key(f, 1); this.b.push(...new Uint8Array(new Float64Array([v]).buffer)); return this; }
   /** As a length-prefixed record of a stream. */
   record() { return [...Proto.varint(this.b.length), ...this.b]; }
 }
@@ -294,17 +295,47 @@ const encodeFields = (fs: Field[]) => fs.flatMap(({ f, w, v }) => [...Proto.vari
  * Write the size of our PDF there; the log is a stream of length-prefixed events.
  */
 export function withAttachmentSize(events: Uint8Array, size: number): Uint8Array {
+  return mapEvent(events, 6, (fs) => fs.map((x) => (x.f === 5 && x.w === 0 ? { ...x, v: Uint8Array.from(Proto.varint(size)) } : x)));
+}
+
+/** Rewrite the body of every event of one kind (the event's field number: 6 attachment added, 2 the page's paper). */
+function mapEvent(events: Uint8Array, kind: number, fn: (body: Field[]) => Field[]): Uint8Array {
   const out: number[] = [];
   for (let at = 0; at < events.length;) {
     let l = 0, m = 1;
     for (;;) { const c = events[at++]; l += (c & 127) * m; m *= 128; if (c < 128) break; }
-    let ev = parseFields(events.subarray(at, at + l));
+    const ev = parseFields(events.subarray(at, at + l)).map((e) => (e.f === kind && e.w === 2 ? { ...e, v: Uint8Array.from(encodeFields(fn(parseFields(e.v)))) } : e));
     at += l;
-    ev = ev.map((e) => (e.f === 6 && e.w === 2 ? { ...e, v: Uint8Array.from(encodeFields(parseFields(e.v).map((x) => (x.f === 5 && x.w === 0 ? { ...x, v: Uint8Array.from(Proto.varint(size)) } : x)))) } : e));
     const body = encodeFields(ev);
     out.push(...Proto.varint(body.length), ...body);
   }
   return new Uint8Array(out);
+}
+
+/**
+ * Trial variants for the open question why GoodNotes shows its dot grid instead of our paper PDF (docs/gn-papier.md).
+ * drop: fields taken out of the page's paper event (9 = paper name "…_standard_1_2 - White", 18 = margins and dot spacing).
+ * image: a PNG laid over the whole page as an image element, the way pasted pictures are stored in ex1/ex3 of parser-for-goodnotes.
+ */
+export interface PaperTrial { drop?: number[]; image?: Uint8Array }
+const DOC_UUID = 'E838B1FD-A246-57EE-A23B-666A1F4ED19C', IMAGE_UUID = '00000000-0000-4000-8000-0000000000A1', IMAGE_EVENT_UUID = '00000000-0000-4000-8000-0000000000A2'; // placeholders, renewed by freshIds
+
+/** "Attachment added" for a picture: like the paper's event, but f12 is empty (ex1 events 4–6). */
+function imageEvent(size: number): number[] {
+  const body = new Proto().string(1, IMAGE_UUID).string(2, IMAGE_UUID).varint(5, size).string(6, DOC_UUID).double(10, Date.now())
+    .string(11, IMAGE_EVENT_UUID).bytes(12, []).varint(14, DEVICE_TAG).varint(15, Date.now()).varint(16, BALLPOINT);
+  return new Proto().string(1, IMAGE_UUID).msg(6, body).record();
+}
+
+/** The two notes records of a picture that covers the page: frame (origin, size), then centre and size, in GoodNotes units. */
+function imageRecords(attachment: string): number[] {
+  const W = GN_PAGE.w * GN_PER_MM, H = GN_PAGE.h * GN_PER_MM, uuid = crypto.randomUUID().toUpperCase();
+  const xy = (x: number, y: number) => new Proto().float(1, x).float(2, y);
+  const clock = new Proto().varint(1, 6).varint(2, (Math.random() * 2 ** 32) >>> 0);
+  const meta = new Proto().string(1, uuid).msg(2, clock).string(4, attachment).varint(8, DEVICE_TAG).varint(9, ++counter).varint(14, APP_TAG).varint(16, BALLPOINT);
+  const inner = new Proto().string(1, uuid).msg(2, new Proto().msg(1, xy(0, 0)).msg(2, xy(W, H))).msg(3, new Proto().msg(1, xy(W / 2, H / 2)).msg(2, xy(W, H)))
+    .string(4, attachment).msg(5, new Proto().msg(1, new Proto().varint(2, (Math.random() * 2 ** 32) >>> 0))).msg(15, clock).varint(18, BALLPOINT);
+  return [...meta.record(), ...new Proto().msg(1, inner).record()];
 }
 
 /**
@@ -325,12 +356,15 @@ function freshIds() {
 }
 
 /** One page as a .goodnotes document (page laid out on GN_PAGE). ink, head (headings): '#rrggbb'. background: PDF of GN_PAGE size (backgroundPdf), else the template's dot grid. */
-export function goodnotesFile(page: Page, get: (src: string) => Variant, ink: string, thumbnail?: Uint8Array, head = ink, weight = 0, background?: Uint8Array): Promise<Uint8Array> {
+export function goodnotesFile(page: Page, get: (src: string) => Variant, ink: string, thumbnail?: Uint8Array, head = ink, weight = 0, background?: Uint8Array, trial: PaperTrial = {}): Promise<Uint8Array> {
   const rgbaOf = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).concat(1);
   const rgba = rgbaOf(ink), rgbaHead = rgbaOf(head);
-  const notes: number[] = [];
+  const { id, swap } = freshIds(), pageId = id(PAGE_UUID), attId = id(ATTACHMENT_UUID), cat = (...p: ArrayLike<number>[]) => Uint8Array.from(p.flatMap((x) => Array.from(x)));
+  const notes: number[] = trial.image ? imageRecords(id(IMAGE_UUID)) : []; // first: under the writing
+  let events = background ? withAttachmentSize(b64(TEMPLATE.events), background.length) : b64(TEMPLATE.events);
+  if (trial.drop) events = mapEvent(events, 2, (fs) => fs.filter((x) => !trial.drop!.includes(x.f)));
+  if (trial.image) events = cat(events, imageEvent(trial.image.length));
   for (const s of inkStrokes(page, get, weight)) if (s.pts.length) notes.push(...strokeRecords(s, s.accent ? rgbaHead : rgba));
-  const { id, swap } = freshIds(), pageId = id(PAGE_UUID), attId = id(ATTACHMENT_UUID);
   return zip([
     ['document.info.pb', new Uint8Array()],
     ['index.search.pb', swap(b64(TEMPLATE.search))],
@@ -338,10 +372,11 @@ export function goodnotesFile(page: Page, get: (src: string) => Variant, ink: st
     [`search/${pageId}`, new Uint8Array([0x04, 0x10, 0x01, 0x1a, 0x00])],
     [`search/${attId}`, b64(TEMPLATE.attSearch)],
     [`notes/${pageId}`, new Uint8Array(notes)],
-    ['index.events.pb', swap(background ? withAttachmentSize(b64(TEMPLATE.events), background.length) : b64(TEMPLATE.events))],
+    ['index.events.pb', swap(events)],
     ...(thumbnail ? [['thumbnail.jpg', thumbnail] as [string, Uint8Array]] : []),
-    ['index.attachments.pb', swap(b64(TEMPLATE.attachments))],
+    ['index.attachments.pb', swap(trial.image ? cat(b64(TEMPLATE.attachments), new Proto().string(1, IMAGE_UUID).string(2, `attachments/${IMAGE_UUID}`).record()) : b64(TEMPLATE.attachments))],
     [`attachments/${attId}`, background ?? b64(TEMPLATE.background)],
+    ...(trial.image ? [[`attachments/${id(IMAGE_UUID)}`, trial.image] as [string, Uint8Array]] : []),
     ['schema.pb', b64(TEMPLATE.schema)],
   ]);
 }

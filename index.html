@@ -264,6 +264,28 @@
     </div>
   </div>
 
+  <!-- first start: a short, friendly intro; "Los geht's" leads into the welcome choices below -->
+  <div id="intro" class="overlay" hidden>
+    <div class="sheet welcome intro">
+      <svg class="logo big" viewBox="0 0 512 512" aria-hidden="true"><use href="#mark" /></svg>
+      <h2>Hi! Schön, dass du da bist.</h2>
+      <p>Du gibst Text oder eine KI-Antwort rein – raus kommt er in <b>deiner eigenen Handschrift</b>, direkt in GoodNotes.</p>
+      <figure class="intro-page">
+        <img src="./intro-seite.png" width="480" height="250" alt="Beispiel: eine Seite Bio-Notizen in Handschrift" />
+        <figcaption>So sieht's aus – hier mit der Muster-Handschrift.</figcaption>
+      </figure>
+      <ol class="intro-steps">
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l4-1L19 8l-3-3L5 16l-1 4z" /><path d="M14 7l3 3" /></svg>
+          <b>Handschrift einmal schreiben</b><span>ein paar Kästchen mit Stift oder Finger</span></li>
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4" width="12" height="17" rx="2" /><path d="M9 3h6v3H9z" /><path d="M9 11h6M9 15h4" /></svg>
+          <b>Text einfügen</b><span>getippt oder von der KI</span></li>
+        <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11" /><path d="M8 7l4-4 4 4" /><path d="M6 11v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-8" /></svg>
+          <b>In GoodNotes öffnen</b><span>radieren und verschieben wie echte Schrift</span></li>
+      </ol>
+      <button id="introGo" class="primary">Los geht's</button>
+    </div>
+  </div>
+
   <div id="welcome" class="overlay" hidden>
     <div class="sheet welcome">
       <svg class="logo big" viewBox="0 0 512 512" aria-hidden="true"><use href="#mark" /></svg>

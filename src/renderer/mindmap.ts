@@ -27,10 +27,11 @@ export function extractMindmaps(text: string, put: (tree: Omit<MapTree, 'bullet'
   const lines = text.split('\n'), out: string[] = [];
   for (let i = 0; i < lines.length; i++) {
     const head = HEADER.exec(lines[i]);
-    if (!head || !head[1].trim() || !ITEM.test(lines[i + 1] ?? '')) { out.push(lines[i]); continue; }
+    const first = (lines[i + 1] ?? '').trim() ? i + 1 : i + 2; // Gemini leaves an empty line between the title and the list
+    if (!head || !head[1].trim() || !ITEM.test(lines[first] ?? '')) { out.push(lines[i]); continue; }
     const tree = { topic: head[1].trim(), branches: [] as MapTree['branches'] };
     let base = -1;
-    for (i++; i < lines.length; i++) {
+    for (i = first; i < lines.length; i++) {
       const it = ITEM.exec(lines[i]);
       if (!it) break;
       const indent = it[1].replace(/\t/g, '  ').length, node = it[2].replace(/\*\*|__/g, '').trim();

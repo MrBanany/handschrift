@@ -44,6 +44,25 @@ export function unflatten(text: string): string {
   return lines.map((l, i) => (i < lines.length - 1 && l.length <= 45 && !/[.!?:;,$\]]\s*$|\$|\[\[|^\s*[-•#]/.test(l) && l.split(/\s+/).length <= 5 ? '## ' + l : l)).join('\n');
 }
 
+const INTRO = /^(?:Hier (?:ist|sind)|(?:Sehr )?[Gg]erne|Klar|Natürlich|Sicher|Okay|Gut)\b[^\n]{0,120}(?:[:!.]|\p{Extended_Pictographic}️?)$/u;
+const OUTRO = /^(?:Ich hoffe|Hoffentlich|Soll ich|Möchtest du|Willst du|Sag (?:einfach )?Bescheid|Lass (?:es )?mich wissen|Wenn du (?:noch )?(?:Fragen|Hilfe|weitere)|Viel Erfolg|Kann ich dir)/;
+/**
+ * What chatbots put around the real answer: the "Hier ist …:" first line and the "Ich hoffe …" / "Soll ich …?" last paragraph,
+ * citation markers glued to a word ("um.[1]", "[cite: 4]"), and odd spaces and hyphens (no-break, thin, zero-width) the handwriting has no sample for.
+ * shortcut: "[2, 3]" after a space stays (it could be an interval).
+ */
+export function tidy(text: string): string {
+  const t = text
+    .replace(/[     ]/g, ' ').replace(/[‐‑]/g, '-').replace(/[​⁠﻿]/g, '')
+    .replace(/(?<=[\p{L}\p{N}.,;:!?)])(?<!\\[a-zA-Z]+)\[\d{1,2}(?:\s*[,–-]\s*\d{1,2})*\]|[ \t]?\[cite(?:_start|_end)?[^\]\n]*\](?=[ \t\n.,;:!?)]|$)|\[cite(?:_start|_end)?[^\]\n]*\]/gu, ''); // \sqrt[3]{8} is no citation
+  const paras = t.trim().split(/\n[ \t]*\n/);
+  const first = paras[0].trim();
+  if (paras.length > 1 && !first.includes('\n') && INTRO.test(first)) paras.shift();
+  const last = paras.at(-1)!.trim();
+  if (paras.length > 1 && last.split('\n').length <= 2 && OUTRO.test(last)) paras.pop();
+  return paras.join('\n\n');
+}
+
 /**
  * Turns pasted AI answers (Markdown, arrows, emoji, typographic symbols) into plain text a handwriting set can write.
  * has(ch): whether the active handwriting has that character; replacements fall back to what exists.
@@ -55,7 +74,7 @@ export function clean(text: string, has: (ch: string) => boolean): string {
   // a "Mindmap: topic" line with its list is kept away too and drawn as a mind map (see mindmap.ts)
   const maps: Omit<MapTree, 'bullet'>[] = [];
   const node = (x: string) => clean(x, has).replace(/[\u0001-\u0006\u000E\u000F\u0014-\u0018\u001b\u001c\u001f]/g, '').replace(/\s+/g, ' ').trim();
-  const kept = unflatten(extractMindmaps(markBlocks(text.replace(/\r\n?/g, '\n')), (t) => `${MAP[0]}${maps.push(t) - 1}${MAP[1]}`)).replace(/\[\[([^\]\n]+)\]\]/g, (_, s: string) => `${STRUCT[0]}${mols.push(s.trim()) - 1}${STRUCT[1]}`);
+  const kept = unflatten(extractMindmaps(markBlocks(tidy(text.replace(/\r\n?/g, '\n'))), (t) => `${MAP[0]}${maps.push(t) - 1}${MAP[1]}`)).replace(/\[\[([^\]\n]+)\]\]/g, (_, s: string) => `${STRUCT[0]}${mols.push(s.trim()) - 1}${STRUCT[1]}`);
   // one indent step is the smallest indent in the text (2 spaces or a tab; Gemini uses 4)
   const step = Math.max(2, Math.min(4, ...[...kept.matchAll(/^([ \t]{2,})(?:[-*+•●▪◦]|\d+[.)])\s/gm)].map((m) => m[1].replace(/\t/g, '  ').length)));
   return latex(kept)

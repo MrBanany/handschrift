@@ -7,7 +7,7 @@ const SYMBOL: Record<string, string> = {
   to: '→', rightarrow: '→', longrightarrow: '⟶', Longrightarrow: '⟹', leftarrow: '←', Rightarrow: '⇒', implies: '⇒', Leftrightarrow: '⇔', iff: '⇔',
   cap: '∩', cup: '∪', subset: '⊂', in: '∈', forall: '∀', exists: '∃', equiv: '≡', perp: '⊥', emptyset: '∅', varnothing: '∅', epsilon: 'ε', varepsilon: 'ε', tau: 'τ', eta: 'η', nu: 'ν', kappa: 'κ',
   displaystyle: '', textstyle: '', limits: '', nolimits: '', big: '', Big: '', bigl: '', bigr: '', Bigl: '', Bigr: '',
-  therefore: '∴', because: '∵', angle: '∠', partial: '∂', nabla: '∇', psi: 'ψ', chi: 'χ', xi: 'ξ', zeta: 'ζ', triangle: 'Δ', parallel: '||',
+  checkmark: '✓', mapsto: '→', lbrace: '{', rbrace: '}', hline: '', therefore: '∴', because: '∵', angle: '∠', partial: '∂', nabla: '∇', psi: 'ψ', chi: 'χ', xi: 'ξ', zeta: 'ζ', triangle: 'Δ', parallel: '||',
   prime: "'", quad: ' ', qquad: ' ', mid: '|', ll: '<<', gg: '>>', propto: '~', land: '∧', lor: '∨', neg: '¬', cdotp: '·', ast: '*', colon: ':',
   leftrightarrow: '↔', rightleftharpoons: '⇌', uparrow: '↑', downarrow: '↓', cdots: '...', ldots: '...', dots: '...',
 };
@@ -57,7 +57,8 @@ export function latex(text: string): string {
     .replace(/\$\$|\\\[|\\\]/g, ' ')
     .replace(/\\\(\s*|\s*\\\)/g, '') // ChatGPT's inline math: no gap before the comma after it
     .replace(/\{,\}/g, ',') // German decimal comma: 9{,}81
-    .replace(/\\%/g, '%')
+    .replace(/\\([%&#_$])/g, '$1') // Gemini escapes these: 20\%, \$5, R\&D
+    .replace(/\\\{/g, '\u001d').replace(/\\\}/g, '\u001e') // \{1, 2\}: literal braces, turned back at the end
     // matrices in one line: (1 2; 3 4); aligned equations one per line, cases separated by ";"
     .replace(/\\begin\{([pbvBV]?matrix)\}([\s\S]*?)\\end\{\1\}/g, (_, _k: string, b: string) => '(' + b.split(/\\\\/).map((r) => r.split('&').map((c) => c.trim()).join(' ')).filter(Boolean).join('; ') + ')')
     .replace(/\\begin\{(cases|aligned|align\*?|gathered|gather\*?|array)\}(?:\{[^{}]*\})?([\s\S]*?)\\end\{\1\}/g, (_, k: string, b: string) => b.split(/\\\\/).map((r) => r.split('&').map((c) => c.trim()).filter(Boolean).join(k === 'cases' ? ', ' : ' ')).filter(Boolean).join(k === 'cases' ? '; ' : '\n'))

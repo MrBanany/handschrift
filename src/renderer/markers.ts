@@ -46,6 +46,8 @@ export const TEX_BRACE = ['\uF710', '\uF711'] as const;
 export const PLOT = ['\uF730', '\uF731'] as const;
 /** \{1, 2\}: literal braces while latex() works, so the group rules leave them alone; turned back at the end. */
 export const LIT_BRACE = ['\uF712', '\uF713'] as const;
+/** A fenced code block, kept away from the Markdown rules until the end (clean.ts): CODE[0] index CODE[1]. */
+export const CODE = ['\uF714', '\uF715'] as const;
 
 const ALL: Record<string, string> = {
   'EMPH[0]': EMPH[0], 'EMPH[1]': EMPH[1], 'MARK[0]': MARK[0], 'MARK[1]': MARK[1], HEAD,
@@ -56,6 +58,7 @@ const ALL: Record<string, string> = {
   'CARD[0]': CARD[0], 'CARD[1]': CARD[1], NOTE,
   'CORNELL[0]': CORNELL[0], 'CORNELL[1]': CORNELL[1], 'CORNELL[2]': CORNELL[2],
   'TEX_BRACE[0]': TEX_BRACE[0], 'TEX_BRACE[1]': TEX_BRACE[1], 'LIT_BRACE[0]': LIT_BRACE[0], 'LIT_BRACE[1]': LIT_BRACE[1], 'PLOT[0]': PLOT[0], 'PLOT[1]': PLOT[1],
+  'CODE[0]': CODE[0], 'CODE[1]': CODE[1],
 };
 
 /** Throws when a marker is used twice or sits outside the two ranges above (runs once, when this file loads). */

@@ -20,6 +20,7 @@ export interface Settings {
   letterGap?: number | null; // learned gap between letters (x-heights), see glyphstore/optimize
   wordGap?: number | null; // learned gap between words (x-heights), see segmentation/style
   cursive?: boolean; // joined-up writing: letters inside a word are always joined
+  bridges?: boolean; // false: the letters bring their own joins (a joined-up font), draw no extra bridge strokes
 }
 
 /** Canvas-order affine: x' = a x + c y + e, y' = b x + d y + f. Glyph px -> page mm. */
@@ -222,7 +223,10 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
       // Joined-up writing: join where the ink meets the baseline zone; detected stroke ends often sit inside the letter.
       const exitA = prev && (s.cursive ? inkAnchor(prev.g, 'r') ?? prev.g.exit : prev.g.exit);
       const entryA = s.cursive ? inkAnchor(g, 'l') ?? g.entry : g.entry;
-      const join = !!(letters && exitA && entryA && (s.cursive || rand() < Math.min(1, pConnect(prev!.last, first) * (1 + 0.25 * h))));
+      // A stroke end found down in a descender (f, g, j) or up at an ascender would give a long slanted bridge, not a join.
+      const near = (an: Anchor, gl: GlyphMeta) => an.y - gl.baseline < 0.35 * XH * MM && gl.baseline - an.y < 1.3 * XH * MM;
+      const join = !!(letters && exitA && entryA && near(exitA, prev!.g) && near(entryA, g)
+        && (s.cursive || rand() < Math.min(1, pConnect(prev!.last, first) * (1 + 0.25 * h))));
       let tx: number;
       if (join) {
         const ex = tf(prev!.m, exitA!.x, exitA!.y);
@@ -566,7 +570,7 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
         for (const it of wd.items) {
           const m: Mat = [...it.m];
           m[4] += ox; m[5] += yb;
-          if (it.join && prevM && it.from && it.to) page!.connectors.push(makeConnector(tf(prevM, it.from.x, it.from.y), dir(prevM, it.from), tf(m, it.to.x, it.to.y), dir(m, it.to), it.from.w * scaleOf(prevM), it.to.w * scaleOf(m), xh));
+          if (it.join && prevM && it.from && it.to && s.bridges !== false) page!.connectors.push(makeConnector(tf(prevM, it.from.x, it.from.y), dir(prevM, it.from), tf(m, it.to.x, it.to.y), dir(m, it.to), it.from.w * scaleOf(prevM), it.to.w * scaleOf(m), xh));
           page!.glyphs.push({ g: it.g, m });
           prevM = m;
         }
@@ -685,7 +689,7 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
         const m: Mat = [...it.m];
         m[4] += ox;
         m[5] += y + drift(m[4]) + lift;
-        if (it.join && prevM && prevG && it.from && it.to) {
+        if (it.join && prevM && prevG && it.from && it.to && s.bridges !== false) {
           page!.connectors.push(makeConnector(
             tf(prevM, it.from.x, it.from.y), dir(prevM, it.from),
             tf(m, it.to.x, it.to.y), dir(m, it.to),

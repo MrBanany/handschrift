@@ -214,13 +214,14 @@ function settings() {
     letterGap: style?.letterGap ?? tuned.letterGap,
     wordGap: style?.wordGap ?? null,
     cursive: cursive(),
+    bridges: !sampleOf(active)?.cursive, // the joined-up sample font joins by itself: extra bridges came out as blobs
   };
   const o = {
     ink: $<HTMLInputElement>('ink').value, head: $<HTMLInputElement>('headInk').value || undefined, mark: $<HTMLInputElement>('markInk').value || undefined,
     weight: n('weight'), background: $<HTMLInputElement>('background').value as Background,
   };
   localStorage.setItem('settings', JSON.stringify({
-    ...s, ...o, optimize: n('optimize'), letterGap: undefined, wordGap: undefined, cursive: undefined, v: 2,
+    ...s, ...o, optimize: n('optimize'), letterGap: undefined, wordGap: undefined, cursive: undefined, bridges: undefined, v: 2,
     page: $<HTMLInputElement>('page').value, headInk: $<HTMLInputElement>('headInk').value, markInk: $<HTMLInputElement>('markInk').value, head: undefined, mark: undefined,
   }));
   return { s, o };

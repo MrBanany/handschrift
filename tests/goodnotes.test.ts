@@ -32,6 +32,17 @@ describe('goodnotes export', () => {
     expect(shape(30, 30, [[5, 2, 9, 27], [16, 2, 20, 27], [10, 12, 15, 14], [5, 2, 20, 5]])).toHaveLength(2); // the bar between the legs stays
   });
 
+  it('drops a speck of scan noise but keeps the dot of an i', () => {
+    const w = 20, h = 40, a = new Uint8Array(w * h);
+    const fill = (x0: number, y0: number, x1: number, y1: number) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) a[y * w + x] = 255; };
+    fill(8, 14, 11, 37); // stem, 4 px wide
+    fill(8, 4, 11, 7); // dot, 4 x 4
+    fill(17, 30, 17, 30); // one stray pixel
+    const lines = centerlines(a, w, h);
+    expect(lines).toHaveLength(2);
+    expect(lines.some((l) => l.pts.every(([x]) => x > 15))).toBe(false);
+  });
+
   it('keeps a closed loop (an o) round', () => {
     const w = 44, h = 50, a = new Uint8Array(w * h);
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const r = Math.hypot((x - 22) / 18, (y - 25) / 21); if (r > 0.75 && r < 1) a[y * w + x] = 255; }

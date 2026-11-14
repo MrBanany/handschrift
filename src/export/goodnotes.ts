@@ -49,7 +49,7 @@ export function centerlines(alpha: Uint8Array, w: number, h: number): { pts: Pt[
     for (const [dx, dy] of N8) if (on(x + dx, y + dy)) out.push((y + dy) * w + x + dx);
     return out;
   };
-  const seen = new Uint8Array(w * h), paths: { pts: Pt[]; w: number }[] = [];
+  const seen = new Uint8Array(w * h), paths: { pts: Pt[]; w: number; comp: number; knot?: boolean }[] = [];
   const walk = (start: number) => {
     const path = [start];
     let joined = false;
@@ -75,15 +75,22 @@ export function centerlines(alpha: Uint8Array, w: number, h: number): { pts: Pt[
     // a thinning spur stays inside the blob it sprouts from (shorter than that blob's radius at the junction);
     // a real short stroke reaches out of it (the bar of t and f): measured against its own width, those got dropped
     const end = path[path.length - 1];
-    // only a free end can be a spur: a short piece between two junctions (inside a, e, k) is part of the letter, dropping it left gaps
-    if (joined && nbs(start).length === 1 && path.length < edge(end % w, (end / w) | 0) + 2) return;
-    paths.push({ pts: path.map((i) => [i % w + 0.5, ((i / w) | 0) + 0.5]), w: wid });
+    const short = joined && path.length < edge(end % w, (end / w) | 0) + 2;
+    if (short && nbs(start).length === 1) return;
+    // a short piece between two junctions (inside a, e, k, a join) is part of the letter: dropping it leaves a gap.
+    // It lies in the thick knot, so its own width would draw a blob: it gets the pen's width below.
+    paths.push({ pts: path.map((i) => [i % w + 0.5, ((i / w) | 0) + 0.5]), w: wid, comp: labels[start], knot: short });
   };
   const pix: number[] = [];
   for (let i = 0; i < sk.length; i++) if (sk[i]) pix.push(i);
   for (const i of pix) if (!seen[i] && nbs(i).length === 1) walk(i); // line ends first
   for (const i of pix) if (!seen[i]) walk(i); // closed loops (o, 0) and dots
-  return paths.map((p) => ({ pts: simplify(smooth(p.pts), 0.7), w: p.w }));
+  // Specks (dust, scan noise, a stray pixel of the next box) would come out as solid round dots: drop pieces of ink much
+  // smaller than a pen-wide dot. A real dot (i, ä, full stop) is at least about as big as the stroke is wide.
+  const widths = paths.filter((p) => p.pts.length >= 4).map((p) => p.w).sort((a, b) => a - b);
+  const pen = widths.length ? widths[widths.length >> 1] : 0;
+  const kept = paths.filter((p) => comps[p.comp].size >= 0.5 * pen * pen);
+  return kept.map((p) => ({ pts: simplify(smooth(p.pts), 0.7), w: p.knot && pen ? Math.min(p.w, pen) : p.w }));
 }
 
 /** Smooth the pixel staircase of a skeleton path (1-2-1 average, twice), ends stay where they are. */

@@ -22,7 +22,7 @@ export const isSample = (name: string) => !!sampleOf(name);
 export async function sampleVariants(x: Sample): Promise<Variant[]> {
   if (!x.url || !x.family) return buildSampleSet();
   document.fonts.add(await new FontFace(x.family, `url(${x.url})`).load());
-  return buildSampleSet(`"${x.family}"`);
+  return buildSampleSet(`"${x.family}"`, x.cursive ? 0.3 : 1);
 }
 // Handwriting-style fonts that ship with iPadOS, Android, Windows and macOS; nothing is bundled.
 const FONT = '"Bradley Hand", "Segoe Print", "Ink Free", "Noteworthy", "Comic Sans MS", cursive';
@@ -31,7 +31,8 @@ const FONT = '"Bradley Hand", "Segoe Print", "Ink Free", "Noteworthy", "Comic Sa
  * Builds a demo set on the device: fills the template virtually with a system handwriting font
  * (each box a little different) and cuts it out with the same code as a real import.
  */
-export async function buildSampleSet(font = FONT): Promise<Variant[]> {
+/** wild: how uneven (0 = as the font draws it, 1 = full); joined-up writing needs its lead-in and lead-out strokes in place. */
+export async function buildSampleSet(font = FONT, wild = 1): Promise<Variant[]> {
   const W = PAGE.w * MM, H = PAGE.h * MM, T: Affine = [MM, 0, 0, 0, MM, 0];
   const c = document.createElement('canvas');
   c.width = W; c.height = H;
@@ -39,19 +40,28 @@ export async function buildSampleSet(font = FONT): Promise<Variant[]> {
   ctx.font = `100px ${font}`;
   const size = (100 * XH * MM * 0.95) / (ctx.measureText('x').actualBoundingBoxAscent || 50); // x-height = template x-height
   const out: Variant[] = [];
+  // One scratch canvas per letter: drawn there straight, then copied row by row with a small sideways wave (a hand's tremor)
+  // and a random slant, size and lean, so no two boxes look printed. Fonts alone are too even to pass as handwriting.
+  const g = document.createElement('canvas'), gc = g.getContext('2d')!;
+  let seed = 7;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff * 2 - 1; }; // -1..1, same set every time
   for (const boxes of TEMPLATE_PAGES) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = '#15151c';
-    boxes.forEach((b, i) => {
-      const r = Math.sin(i * 12.9898) * 43758.5453 % 1; // cheap per-box jitter in -1..1
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.translate((b.x + 2 + r * 0.4) * MM, (b.y + GUIDES.base + r * 0.15) * MM);
-      ctx.rotate(r * 0.03);
-      ctx.font = `${size * (1 + r * 0.05)}px ${font}`;
-      ctx.fillText(b.key, 0, 0);
-    });
+    for (const b of boxes) {
+      const k = size * (1 + rnd() * 0.08 * wild);
+      g.width = Math.ceil(b.w * MM); g.height = Math.ceil(b.h * MM);
+      gc.setTransform(1, 0, 0, 1, 0, 0);
+      gc.translate((2 + rnd() * 0.5 * wild) * MM, (GUIDES.base + rnd() * 0.3 * wild) * MM);
+      gc.rotate(rnd() * 0.06 * wild);
+      gc.transform(1 + rnd() * 0.06 * wild, 0, (-0.12 * rnd() - 0.05) * wild, 1 + rnd() * 0.06 * wild, 0, 0); // lean: mostly a little to the right
+      gc.font = `${k}px ${font}`;
+      gc.fillStyle = '#15151c';
+      gc.fillText(b.key, 0, 0);
+      const amp = (0.15 + 0.1 * Math.abs(rnd())) * MM * XH / 3 * wild, f = (1.5 + rnd()) / (XH * MM), ph = rnd() * 3;
+      for (let y = 0; y < g.height; y++) ctx.drawImage(g, 0, y, g.width, 1, b.x * MM + amp * Math.sin(y * f + ph), b.y * MM + y, g.width, 1);
+    }
     const img = ctx.getImageData(0, 0, W, H);
     for (const b of boxes) { const v = extractBox(img, T, b); if (v) out.push(v); }
     await new Promise((ok) => setTimeout(ok)); // keep the UI responsive; requestAnimationFrame never fires in a hidden tab

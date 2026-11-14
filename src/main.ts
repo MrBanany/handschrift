@@ -6,6 +6,7 @@ import { symbolVariants } from './glyphstore/symbols';
 import type { Variant } from './glyphstore/types';
 import { copyPng, download, shareFiles, toPng } from './export/png';
 import { toPdf } from './export/pdf';
+import { forEachPage } from './export/pages';
 import { GN_PAGE, backgroundPdf, goodnotesFile } from './export/goodnotes';
 import { pagesOf } from './import/load';
 import { paint, setupPencil } from './import/pencil';
@@ -239,7 +240,8 @@ function renderAll(pxPerMm: number, mode: 'page' | 'ink' | 'clip') {
     background: mode === 'page' ? o.background : 'transparent',
     crop: mode === 'clip', // PDF pages keep the full page size, otherwise GoodNotes would stretch a cropped image
   };
-  return { ...res, paper, canvases: res.pages.map((p) => drawPage(p, opts, (src) => bySrc.get(src)!)) };
+  // draw(i) is lazy: the export draws, encodes and frees one page at a time (see export/pages.ts)
+  return { ...res, paper, draw: (i: number) => drawPage(res.pages[i], opts, (src) => bySrc.get(src)!) };
 }
 
 let timer = 0, gen = 0, urls: string[] = [];
@@ -262,7 +264,8 @@ function preview() {
   box.hidden = $('previewHint').hidden = !raw.length;
   if (!raw.length) { $('missing').hidden = true; return; }
   const px = Math.max(2, (box.clientWidth * devicePixelRatio) / pageSize().w);
-  const { pages, canvases, paper, missing } = renderAll(Math.min(px, 8), 'ink');
+  const { pages, draw, paper, missing } = renderAll(Math.min(px, 8), 'ink');
+  const canvases = pages.map((_, i) => draw(i));
   shown = pages;
   const my = ++gen;
   urls.forEach((u) => URL.revokeObjectURL(u));
@@ -387,8 +390,8 @@ async function shareAs(kind: string, make: () => Promise<File[]>) {
   }
 }
 $('share').onclick = () => shareAs('pdf', async () => {
-  const { canvases } = renderAll(EXPORT_PX_PER_MM, 'page');
-  const pngs = await Promise.all(canvases.map(toPng));
+  const { pages, draw } = renderAll(EXPORT_PX_PER_MM, 'page');
+  const pngs = await forEachPage(pages.length, draw, toPng);
   const { w, h } = pageSize();
   return [new File([await toPdf(pngs, w, h)], 'handschrift.pdf', { type: 'application/pdf' })];
 });
@@ -400,12 +403,13 @@ $('shareGn').onclick = () => shareAs('gn', async () => {
   applyOverrides(res.pages);
   const get = (src: string) => bySrc.get(src)!;
   const bg = await backgroundPdf(paper, s.lineH, margin);
-  return Promise.all(res.pages.map(async (p, i) => {
-    const thumb = drawPage(p, { ...o, background: paper, crop: false, pxPerMm: 2, pageW: GN_PAGE.w, pageH: GN_PAGE.h, lineH: s.lineH, margin }, get);
+  const thumbOpts: DrawOpts = { ...o, background: paper, crop: false, pxPerMm: 2, pageW: GN_PAGE.w, pageH: GN_PAGE.h, lineH: s.lineH, margin };
+  // one page after the other: thumbnail drawn, encoded, freed before the next page starts
+  return forEachPage(res.pages.length, (i) => drawPage(res.pages[i], thumbOpts, get), async (thumb, i) => {
     const jpg = new Uint8Array(await (await new Promise<Blob>((ok) => thumb.toBlob((b) => ok(b!), 'image/jpeg', 0.8))).arrayBuffer());
     const name = res.pages.length > 1 ? `handschrift-${i + 1}.goodnotes` : 'handschrift.goodnotes';
-    return new File([(await goodnotesFile(p, get, o.ink, jpg, o.head ?? o.ink, o.weight, bg)) as BlobPart], name, { type: 'application/octet-stream' });
-  }));
+    return new File([(await goodnotesFile(res.pages[i], get, o.ink, jpg, o.head ?? o.ink, o.weight, bg)) as BlobPart], name, { type: 'application/octet-stream' });
+  });
 });
 $('copy').onclick = () => {
   if (!raw.length) return toast('Erst eine Handschrift auswählen oder anlegen.');
@@ -413,9 +417,10 @@ $('copy').onclick = () => {
   let more = false;
   // Clipboard call must happen inside the tap; the rendering runs inside the promise it waits for.
   const blob = Promise.resolve().then(() => {
-    const { canvases } = renderAll(EXPORT_PX_PER_MM, 'clip');
-    more = canvases.length > 1;
-    return toPng(canvases[0]);
+    const { pages, draw } = renderAll(EXPORT_PX_PER_MM, 'clip');
+    more = pages.length > 1;
+    const first = draw(0); // only page 1 goes onto the clipboard
+    return toPng(first).finally(() => { first.width = 0; });
   });
   copyPng(blob).then(
     () => toast(more ? 'Seite 1 kopiert – für längere Texte „PDF“ nutzen.' : 'Kopiert – in GoodNotes auf die Seite tippen → Einsetzen.'),

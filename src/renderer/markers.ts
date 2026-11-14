@@ -33,7 +33,11 @@ export const ARROW = ['\u0001', '\u001f'] as const;
 export const LABEL = ['\u001b', '\u001c'] as const;
 
 /** Separators inside an encoded mind map (mindmap.ts): after the bullet, between branches, between a branch's lines. */
-export const MAP_SEP = { field: '\uF700', branch: '\uF701', item: '\uF702' } as const;
+export const MAP_SEP = { field: '\uF720', branch: '\uF721', item: '\uF722' } as const;
+/** Ends a study card's question line / each of its answer lines (cards.ts). */
+export const CARD = ['\uF701', '\uF702'] as const;
+/** Ends each line of a boxed note (cards.ts). */
+export const NOTE = '\uF703';
 /** x^{n+1}: while latex() works, the braces of a super/subscript are these, so the fraction/root rules skip them. */
 export const TEX_BRACE = ['\uF710', '\uF711'] as const;
 
@@ -43,6 +47,7 @@ const ALL: Record<string, string> = {
   'CIRC[0]': CIRC[0], 'CIRC[1]': CIRC[1], 'BOX[0]': BOX[0], 'BOX[1]': BOX[1], INDENT, 'MAP[0]': MAP[0], 'MAP[1]': MAP[1],
   'ARROW[0]': ARROW[0], 'ARROW[1]': ARROW[1], 'LABEL[0]': LABEL[0], 'LABEL[1]': LABEL[1],
   'MAP_SEP.field': MAP_SEP.field, 'MAP_SEP.branch': MAP_SEP.branch, 'MAP_SEP.item': MAP_SEP.item,
+  'CARD[0]': CARD[0], 'CARD[1]': CARD[1], NOTE,
   'TEX_BRACE[0]': TEX_BRACE[0], 'TEX_BRACE[1]': TEX_BRACE[1],
 };
 

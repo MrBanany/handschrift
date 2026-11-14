@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { connectionModel } from '../src/connectors/connect';
 import type { GlyphMeta } from '../src/glyphstore/types';
 import { inkStrokes } from '../src/export/goodnotes';
-import { layout, segment, type Settings } from '../src/renderer/layout';
+import { layout, segment, type Page, type Settings } from '../src/renderer/layout';
 import { EMPH, HEAD, MARK, STRUCT, clean } from '../src/renderer/clean';
 import { extractPage } from '../src/segmentation/extract';
 import { readPageCode, register, type Affine } from '../src/segmentation/register';
@@ -159,6 +159,41 @@ describe('layout', () => {
     // more than 8 branches: an indented list instead
     const list = layout(clean('Mindmap: zelle\n' + [...'abcdefghi'].map((c) => `- ${c}${c}`).join('\n'), () => true), lib, S);
     expect(list.pages[0].lines.length).toBeGreaterThan(9);
+  });
+
+  it('writes a flash card into a frame: question left, answer right of the fold line, text around it kept clear', () => {
+    const long = (c: Page['connectors'][number]) => Math.hypot(c.p[3][0] - c.p[0][0], c.p[3][1] - c.p[0][1]) > 15;
+    const { pages } = layout(clean('vorher\n\nKarteikarte: was\nAntwort: das\n\nnachher', () => true), lib, S);
+    const g = pages[0].glyphs.map((p) => p.m), frame = pages[0].connectors.filter(long), mid = S.pageW / 2;
+    expect(frame).toHaveLength(5); // four sides and the fold line
+    const ys = frame.flatMap((c) => [c.p[0][1], c.p[3][1]]), top = Math.min(...ys), bot = Math.max(...ys);
+    for (const m of g.slice(0, 6)) expect(m[5]).toBeLessThan(top - 0.5 * S.xh); // "vorher" ends above the frame
+    for (const m of g.slice(6, 9)) { expect(m[4]).toBeLessThan(mid); expect(m[5]).toBeGreaterThan(top); expect(m[5]).toBeLessThan(bot); }
+    for (const m of g.slice(9, 12)) { expect(m[4]).toBeGreaterThan(mid); expect(Math.abs(m[5] - g[6][5])).toBeLessThan(1); }
+    for (const m of g.slice(12)) expect(m[5]).toBeGreaterThan(bot + 2 * S.xh); // "nachher" starts below it
+    expect(inkStrokes({ ...pages[0], glyphs: [] }, () => { throw new Error('no glyphs'); })).toHaveLength(pages[0].connectors.length);
+    // a note box: one frame, no fold line (the fifth stroke underlines "Merke:")
+    expect(layout(clean('Merke: ab\ncd', () => true), lib, S).pages[0].connectors.filter(long)).toHaveLength(5);
+  });
+
+  it('never splits a card over two pages', () => {
+    const long = (c: Page['connectors'][number]) => Math.hypot(c.p[3][0] - c.p[0][0], c.p[3][1] - c.p[0][1]) > 15;
+    const { pages } = layout(clean(Array.from({ length: 30 }, () => 'Karteikarte: was\nAntwort: das\naber\nauch').join('\n\n'), () => true), lib, S);
+    expect(pages.length).toBeGreaterThan(1);
+    expect(pages.flatMap((p) => p.connectors.filter(long))).toHaveLength(30 * 5);
+    for (const p of pages) {
+      expect(p.glyphs.length % 14).toBe(0); // whole cards only (14 letters each)
+      for (const c of p.connectors.filter(long)) for (const q of c.p) { expect(q[1]).toBeGreaterThan(S.margin - S.lineH); expect(q[1]).toBeLessThan(S.pageH - S.margin + S.lineH); }
+    }
+  });
+
+  it('writes a card taller than a whole page as plain lines over the pages', () => {
+    const long = (c: Page['connectors'][number]) => Math.hypot(c.p[3][0] - c.p[0][0], c.p[3][1] - c.p[0][1]) > 15;
+    const { pages } = layout(clean('Karteikarte: was\nAntwort: das\n' + Array(40).fill('ab').join('\n'), () => true), lib, S);
+    expect(pages).toHaveLength(2);
+    expect(pages.flatMap((p) => p.connectors.filter(long))).toHaveLength(0);
+    expect(pages.flatMap((p) => p.glyphs)).toHaveLength(6 + 80);
+    for (const p of pages) for (const g of p.glyphs) expect(g.m[5]).toBeLessThan(S.pageH - S.margin + 1);
   });
 
   it('writes a fraction stacked: numerator above, denominator below a bar', () => {

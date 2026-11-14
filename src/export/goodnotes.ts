@@ -269,7 +269,7 @@ export async function backgroundPdf(kind: Background, lineH: number, margin: num
     for (let x = first(margin); x < W; x += cell) line(x, 0, x, H, '#d6e2ed');
     for (let y = first(margin + lineH); y < H; y += cell) line(0, y, W, y, '#d6e2ed');
   }
-  return doc.save();
+  return doc.save({ useObjectStreams: false }); // a plain cross-reference table, like the paper PDFs in GoodNotes' own files
 }
 
 // ---------- event log: the attachment's byte size ----------
@@ -312,9 +312,14 @@ export function withAttachmentSize(events: Uint8Array, size: number): Uint8Array
  * GoodNotes keeps attachments and page renderings by id, so a second import with other paper could be shown with the first one's.
  * Every file GoodNotes writes itself has ids of its own. The paper's name ("<uuid>_standard_1_2 - White") keeps its uuid.
  */
+// Not ours to renew: the same in every reference file (document event f3/f7, and the "PagingViewServiceUpdater:" name).
+const SHARED_IDS = ['5A53E89E-F4C2-4548-8DD3-E9DF9FB4592E', 'E1940363-20DF-415F-9D75-9F6BC464911B'];
 function freshIds() {
-  const ids = new Map<string, string>();
-  const id = (u: string) => ids.get(u) ?? (ids.set(u, crypto.randomUUID().toUpperCase()), ids.get(u)!);
+  // GoodNotes finds a page's ink by id alone: notes id = page id + 1 (so in all five pages of the four reference files,
+  // no event links the two). Two unrelated ids left the page without its writing. The pair gets one new id, ending in 0 and 1.
+  const pair = crypto.randomUUID().toUpperCase().slice(0, -1);
+  const ids = new Map<string, string>([[PAGE_UUID.slice(0, -1) + '0', pair + '0'], [PAGE_UUID, pair + '1']]);
+  const id = (u: string) => (SHARED_IDS.includes(u) ? u : ids.get(u) ?? (ids.set(u, crypto.randomUUID().toUpperCase()), ids.get(u)!));
   const swap = (b: Uint8Array) => Uint8Array.from(String.fromCharCode(...b).replace(/[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}(?!_)/g, id), (c) => c.charCodeAt(0));
   return { id, swap };
 }

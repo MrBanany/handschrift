@@ -37,6 +37,8 @@ describe('markers', () => {
     expect(clean('ein \u0002Wort\u0003 hier', has)).toBe('ein Wort hier');
     expect(clean('a\u0006b\u0019c\u001Ad\uF700e\uF710f', has)).toBe('abcdef');
     expect(clean('a\tb\nc', has)).toBe('a\tb\nc');
+    expect(clean(`Karte ${M.CARD[0]} ${M.NOTE}`, has)).not.toMatch(/[\uF700-\uF7FF]/); // a pasted card marker is no card
+    expect(clean('Frage: Was?\nAntwort: Das.', has)).toContain(M.CARD[0]); // a real card still gets its markers
     expect(clean('ein **Wort** hier', has)).toBe(`ein ${M.EMPH[0]}Wort${M.EMPH[1]} hier`); // our own markers still appear
   });
 });

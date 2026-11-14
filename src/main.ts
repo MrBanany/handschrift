@@ -7,7 +7,7 @@ import type { Variant } from './glyphstore/types';
 import { copyPng, download, shareFiles, toPng } from './export/png';
 import { toPdf } from './export/pdf';
 import { forEachPage } from './export/pages';
-import { GN_PAGE, backgroundPdf, goodnotesFile } from './export/goodnotes';
+import { GN_A4, GN_PAGE, backgroundPdf, gnPaper, goodnotesFile } from './export/goodnotes';
 import { pagesOf } from './import/load';
 import { paint, setupPencil } from './import/pencil';
 import { drawPage, type Background, type DrawOpts } from './renderer/draw';
@@ -454,18 +454,20 @@ $('share').onclick = () => shareAs('pdf', async () => {
 // Real GoodNotes ink: laid out on the template's page size, one file per page.
 $('shareGn').onclick = () => shareAs('gn', async () => {
   const { s, o } = settings();
-  const margin = Math.min(s.margin, 12), paper = o.background === 'transparent' ? 'blank' : o.background; // no transparent paper in a notebook
+  const paper = o.background === 'transparent' ? 'blank' : o.background; // no transparent paper in a notebook
+  // lined, squared: GoodNotes' own A4 paper, the writing on its lines (so its line spacing, not the setting's). Blank: no such paper known.
+  const fit = gnPaper(paper, s.lineH), size = fit ? GN_A4 : GN_PAGE, margin = fit?.margin ?? Math.min(s.margin, 12), lineH = fit?.lineH ?? s.lineH;
   const { text, whole } = exportText();
-  const res = layout(clean(text, (ch) => lib.has(ch)), lib, { ...s, pageW: GN_PAGE.w, pageH: GN_PAGE.h, margin });
+  const res = layout(clean(text, (ch) => lib.has(ch)), lib, { ...s, pageW: size.w, pageH: size.h, margin, lineH });
   if (whole) applyOverrides(res.pages);
   const get = (src: string) => bySrc.get(src)!;
-  const bg = await backgroundPdf(paper, s.lineH, margin);
-  const thumbOpts: DrawOpts = { ...o, background: paper, crop: false, pxPerMm: 2, pageW: GN_PAGE.w, pageH: GN_PAGE.h, lineH: s.lineH, margin };
+  const bg = fit ? undefined : await backgroundPdf(paper, lineH, margin);
+  const thumbOpts: DrawOpts = { ...o, background: paper, crop: false, pxPerMm: 2, pageW: size.w, pageH: size.h, lineH, margin };
   // one page after the other: thumbnail drawn, encoded, freed before the next page starts
   return forEachPage(res.pages.length, (i) => drawPage(res.pages[i], thumbOpts, get), async (thumb, i) => {
     const jpg = new Uint8Array(await (await new Promise<Blob>((ok) => thumb.toBlob((b) => ok(b!), 'image/jpeg', 0.8))).arrayBuffer());
     const name = res.pages.length > 1 ? `handschrift-${i + 1}.goodnotes` : 'handschrift.goodnotes';
-    return new File([(await goodnotesFile(res.pages[i], get, o.ink, jpg, o.head ?? o.ink, o.weight, bg)) as BlobPart], name, { type: 'application/octet-stream' });
+    return new File([(await goodnotesFile(res.pages[i], get, o.ink, jpg, o.head ?? o.ink, o.weight, bg, { paper: fit?.paper })) as BlobPart], name, { type: 'application/octet-stream' });
   });
 });
 $('copy').onclick = () => {

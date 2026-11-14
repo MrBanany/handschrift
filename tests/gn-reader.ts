@@ -108,6 +108,7 @@ export function readGoodnotes(file: Uint8Array) {
     if (recs.length % 2) throw new Error('a stroke is a pair of records');
     for (let i = 0; i < recs.length; i += 2) {
       const meta = fields(recs[i]), wrap = fields(recs[i + 1]);
+      if (wrap.length === 1 && wrap[0][0] === 1) continue; // a picture, see images()
       if (wrap.length !== 1 || wrap[0][0] !== 7) throw new Error('second record of a stroke: one field 7');
       const inner = fields(wrap[0][2] as Uint8Array), id = str(get(meta, 1)!);
       if (str(get(inner, 1)!) !== id) throw new Error('stroke id differs between its two records');
@@ -115,5 +116,10 @@ export function readGoodnotes(file: Uint8Array) {
     }
     return out;
   };
-  return { files, notes, attachments, search, events, strokes, text: (f: ReadEvent, n: number) => str(get(f.body, n)!), num: (f: ReadEvent, n: number) => get(f.body, n) as number };
+  /** Pictures on the page: attachment id and frame [x, y, w, h] in GoodNotes units. */
+  const images = (path: string) => records(files.get(path)!).map((r) => fields(r)).filter((fs) => fs.length === 1 && fs[0][0] === 1).map(([f]) => {
+    const inner = fields(f[2] as Uint8Array), frame = fields(get(inner, 2) as Uint8Array).flatMap((p) => fields(p[2] as Uint8Array).map((c) => f32(c[2])));
+    return { attachment: str(get(inner, 4)!), frame };
+  });
+  return { files, notes, images, attachments, search, events, strokes, text: (f: ReadEvent, n: number) => str(get(f.body, n)!), num: (f: ReadEvent, n: number) => get(f.body, n) as number };
 }

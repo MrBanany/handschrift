@@ -33,7 +33,7 @@
       <div class="textbar">
         <button id="pasteText" class="small-btn" title="Ersetzt den Text durch den kopierten, zum Beispiel eine KI-Antwort (der alte Text bleibt im Verlauf)">Kopierten Text einfügen</button>
         <button id="clearText" class="small-btn" title="Textfeld leeren (der Text bleibt im Verlauf)">Leeren</button>
-        <button id="aiPrompt" class="small-btn" title="Kopiert einen Text, den du einmal in ChatGPT & Co. einfügst. Danach schreibt die KI Brüche, Formeln und Antworten so, dass die App sie in deiner Handschrift schreiben kann.">Anleitung für die KI kopieren</button>
+        <button id="aiPrompt" class="small-btn" title="Einmal in ChatGPT & Co. einfügen: Dann schreibt die KI Brüche, Formeln und Strukturformeln so, dass die App sie per Hand schreiben kann.">KI-Vorgabe kopieren</button>
         <select id="history" class="history" aria-label="Verlauf: frühere Texte" hidden></select>
       </div>
       <textarea id="text" rows="7" placeholder="Text eintippen oder einfügen, zum Beispiel eine KI-Antwort"></textarea>
@@ -76,7 +76,7 @@
         <p class="muted small">Schreib mit Stift oder Finger in die Kästchen. Gleicher Name: Die Zeichen kommen zur vorhandenen Handschrift dazu.</p>
         <h3 class="or">Oder über GoodNotes</h3>
         <ol class="steps">
-          <li><button id="template">Vorlage herunterladen</button> oder <button id="templateSymbols">nur Symbole</button> und in GoodNotes öffnen. Wer verbunden schreibt: <button id="templateCursive">nur Schreibschrift</button> (die letzten Seiten der Vorlage, mit verbundenen Silben wie „ver“, „ung“, „lich“).</li>
+          <li><button id="template">Vorlage herunterladen</button> oder <button id="templateSymbols">nur Pfeile &amp; Symbole</button> und in GoodNotes öffnen. Wer verbunden schreibt: <button id="templateCursive">nur Schreibschrift</button> (die letzten Seiten der Vorlage, mehr verbundene Wortteile).</li>
           <li>Jedes Kästchen mit schwarzem oder dunkelblauem Stift auf der durchgezogenen Linie ausfüllen. Der graue Buchstabe im ersten Kästchen zeigt die Größe – einfach in deiner Art darüberschreiben. Leere Kästchen sind erlaubt.</li>
           <li>In GoodNotes: Teilen → Exportieren → PDF.</li>
           <li><label class="button">PDF oder Bilder importieren<input id="file" type="file" accept="application/pdf,image/png,image/jpeg" multiple hidden /></label></li>
@@ -85,14 +85,14 @@
       </div>
 
       <div class="card">
-        <h2>Abstände aus meinen Notizen übernehmen</h2>
-        <p class="muted">Lade normal geschriebene Seiten hoch (PDF aus GoodNotes, Fotos oder Screenshots). Die App misst daran Schriftgröße, Zeilenabstand und Abstände zwischen Wörtern und übernimmt sie für die aktive Handschrift.</p>
+        <h2>Schreibstil aus Notizen lernen</h2>
+        <p class="muted">Lade normal geschriebene Seiten hoch (PDF aus GoodNotes, Fotos oder Screenshots). Die App übernimmt daraus Schriftgröße und Abstände für die aktive Handschrift.</p>
         <p class="muted small">Mehrere Seiten auf einmal sind möglich. Je mehr Text, desto natürlicher.</p>
         <p id="styleResult" class="note info" hidden></p>
         <div id="styleCompare" class="style-compare" hidden></div>
         <div class="row">
           <label class="button primary">Notizen auswählen<input id="notes" type="file" accept="application/pdf,image/png,image/jpeg" multiple hidden /></label>
-          <button id="styleReset" hidden>Übernommene Abstände entfernen</button>
+          <button id="styleReset" hidden>Gelernten Stil entfernen</button>
         </div>
       </div>
 
@@ -106,7 +106,7 @@
 
     <section id="glyphs" class="tab">
       <h1 id="glyphsTitle"></h1>
-      <p class="muted small"><span id="coverage"></span> Ein Zeichen antippen, um es neu zu schreiben oder einzelne Versionen zu löschen. <i class="dot in"></i> Strichanfang <i class="dot out"></i> Strichende</p>
+      <p class="muted small"><span id="coverage"></span> Ein Zeichen antippen, um es neu zu schreiben oder Varianten zu löschen. <i class="dot in"></i> Strichanfang <i class="dot out"></i> Strichende</p>
       <div id="grid"></div>
       <div class="dock"><button id="reviewOpen" class="primary"></button><button id="acceptAll" hidden>Alle übernehmen</button></div>
     </section>
@@ -184,9 +184,8 @@
             </span>
             <input id="markInk" type="hidden" value="" />
           </div>
-          <label class="field"><span>Sauber oder hastig</span><input id="hasty" type="range" min="0" max="1" step="0.05" value="0.3" /><output data-for="hasty"></output></label>
-          <label class="field"><span>Gleichmäßiger schreiben</span><input id="optimize" type="range" min="0.2" max="1" step="0.1" value="0.4" /><output data-for="optimize"></output></label>
-          <p class="muted small">Buchstaben sitzen auf einer Linie und sind gleich groß. Stärker wirkt ordentlicher, schwächer natürlicher.</p>
+          <label class="field"><span>Stil</span><input id="hasty" type="range" min="0" max="1" step="0.05" value="0.3" /><output data-for="hasty"></output></label>
+          <label class="field"><span>Optimieren</span><input id="optimize" type="range" min="0.2" max="1" step="0.1" value="0.4" /><output data-for="optimize"></output></label>
           <div class="field">
             <span>Seite</span>
             <span class="seg small" id="format">
@@ -216,12 +215,12 @@
     <div class="sheet">
       <header class="sheet-head">
         <button id="reviewClose" aria-label="Schließen">Fertig</button>
-        <strong>Änderungen ansehen</strong>
+        <strong>Optimierung prüfen</strong>
         <span id="reviewProgress" class="muted small"></span>
       </header>
       <div class="compare">
-        <div><h3>So geschrieben</h3><div id="reviewBefore" class="pane"></div></div>
-        <div><h3>Gleichmäßiger</h3><div id="reviewAfter" class="pane"></div></div>
+        <div><h3>Original</h3><div id="reviewBefore" class="pane"></div></div>
+        <div><h3>Optimiert</h3><div id="reviewAfter" class="pane"></div></div>
       </div>
       <p id="reviewKey" class="review-key"></p>
       <footer class="sheet-foot">
@@ -287,7 +286,7 @@
       <ol class="steps">
         <li><b>App installieren:</b> am iPad in Safari auf Teilen tippen, dann „Zum Home-Bildschirm“. Die App danach immer dort öffnen – Safari und die App auf dem Home-Bildschirm haben getrennten Speicher.</li>
         <li><b>Handschrift anlegen:</b> unter „Handschriften“ auf „Hier in der App ausfüllen“ tippen und die Kästchen in deiner Schrift ausfüllen. Das machst du nur einmal.</li>
-        <li><b>Text schreiben lassen:</b> unter „Schreiben“ Text eintippen oder eine Antwort aus ChatGPT & Co. einfügen. „Anleitung für die KI kopieren“ (über dem Textfeld) einmal in den Chat einfügen: Dann schreibt die KI Brüche und Formeln so, dass die App sie schreiben kann.</li>
+        <li><b>Text schreiben lassen:</b> unter „Schreiben“ Text eintippen oder eine Antwort aus ChatGPT & Co. einfügen. „KI-Vorgabe kopieren“ sorgt dafür, dass Brüche und Formeln gut ankommen.</li>
         <li><b>In GoodNotes öffnen:</b> auf „In GoodNotes öffnen“ tippen und im Teilen-Menü GoodNotes wählen.</li>
         <li><b>Schneller mit KI:</b> GoodNotes und diese App nebeneinander öffnen. Die Antwort in der KI-App kopieren, hier auf „Kopierten Text einfügen“ tippen, dann „In GoodNotes öffnen“.</li>
         <li><b>Handschrift sichern:</b> unter „Handschriften“ bei deiner Handschrift „Backup speichern“ und im Teilen-Menü „In Dateien sichern“ wählen. Dieselbe Datei kann ein Freund unter „Backup laden“ öffnen.</li>
@@ -306,7 +305,7 @@
       </span>
       <span class="pencil-nav">
         <button id="pencilUndo">Rückgängig</button>
-        <button id="pencilZoom">Kästchen groß</button>
+        <button id="pencilZoom">Kästchen-Ansicht</button>
         <button id="pencilNextBox" hidden>Weiter ›</button>
         <button id="pencilDone" class="primary">Übernehmen</button>
       </span>

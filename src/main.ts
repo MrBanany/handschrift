@@ -101,8 +101,8 @@ function renderSets() {
       check.onchange = () => { localStorage.setItem(`cursive:${name}`, check.checked ? '1' : '0'); rebuild(); };
       const lab = document.createElement('label');
       lab.className = 'check';
-      lab.append(check, 'Verbunden schreiben');
-      lab.title = 'Schreibschrift: Buchstaben in einem Wort werden immer verbunden';
+      lab.append(check, 'Schreibschrift');
+      lab.title = 'Buchstaben in einem Wort immer verbinden';
       li.append(tag, lab);
     }
     else li.append(button('Verwenden', () => useSet(name).then(() => show('write'))));
@@ -259,7 +259,7 @@ function preview() {
 
   $('empty').hidden = raw.length > 0;
   $('styleNote').hidden = !style;
-  $('styleNote').textContent = style ? `Abstände aus deinen Notizen übernommen (${style.lines} Zeilen).` : '';
+  $('styleNote').textContent = style ? `Abstände aus deinen Notizen gelernt (${style.lines} Zeilen).` : '';
   const box = $('preview');
   box.hidden = $('previewHint').hidden = !raw.length;
   if (!raw.length) { $('missing').hidden = true; return; }
@@ -318,7 +318,7 @@ $('clearText').onclick = () => {
   area.focus();
 };
 $('aiPrompt').onclick =() => navigator.clipboard.writeText(AI_PROMPT).then(
-  () => toast('Anleitung kopiert. Füge sie einmal am Anfang des Chats mit der KI ein, dann schreibt sie passend (bei ChatGPT auch unter „Personalisierung“).'),
+  () => toast('Kopiert. Füge es einmal am Anfang des Chats ein (bei ChatGPT auch unter „Personalisierung“).'),
   () => toast('Kopieren ging nicht.'),
 );
 
@@ -505,7 +505,7 @@ function renderStyle() {
   r.hidden = !style;
   $('styleReset').hidden = !style;
   if (style) {
-    r.textContent = `Übernommen für „${active}“ aus ${style.lines} Zeilen${style.pages ? ` auf ${style.pages} Seite${style.pages > 1 ? "n" : ""}` : ""}: Schriftgröße ${style.xh.toFixed(1)} mm, Zeilenabstand ${style.lineH.toFixed(1)} mm`
+    r.textContent = `Gelernt für „${active}“ aus ${style.lines} Zeilen${style.pages ? ` auf ${style.pages} Seite${style.pages > 1 ? "n" : ""}` : ""}: Schriftgröße ${style.xh.toFixed(1)} mm, Zeilenabstand ${style.lineH.toFixed(1)} mm`
       + (style.wordGap && style.letterGap ? `, Wortabstand ${style.wordGap.toFixed(2)} × und Buchstabenabstand ${style.letterGap.toFixed(2)} × x-Höhe.` : '.');
     const i = ruleOf(style.lineH), names = ['Eng', 'Mittel', 'Weit'];
     r.textContent += i >= 0
@@ -550,7 +550,7 @@ $<HTMLInputElement>('notes').onchange = async (ev) => {
   applyStyle(found);
   renderStyle();
   schedule();
-  toast(found.wordGap ? 'Abstände übernommen.' : 'Größe und Zeilenabstand übernommen – die Abstände waren nicht messbar.');
+  toast(found.wordGap ? 'Schreibstil übernommen.' : 'Größe und Zeilenabstand übernommen – die Abstände waren nicht messbar.');
 };
 
 /** Side by side: a few lines of the uploaded page and the same amount of text written by the app with the learned style. */
@@ -644,14 +644,14 @@ $('preview').addEventListener('click', (e) => {
 function openSwap() {
   const { pi, gi, n, key } = swapAt!, inText = n >= 0, cur = inText ? shown[pi].glyphs[gi].g.src : '';
   $('swapTitle').textContent = inText ? `„${key}“ austauschen` : `„${key}“`;
-  $('swapHint').textContent = !active ? 'Tippe eine andere Version an.'
-    : inText ? 'Tippe eine andere Version an – oder schreib den Buchstaben unten neu.'
-    : 'Schreib unten eine neue Version. Eine vorhandene antippen löscht sie.';
+  $('swapHint').textContent = !active ? 'Tippe eine andere Variante an.'
+    : inText ? 'Tippe eine andere Variante an – oder schreib den Buchstaben unten neu.'
+    : 'Schreib unten eine neue Variante. Eine vorhandene antippen löscht sie.';
   $('swapVariants').replaceChildren(...(inText ? lib.get(key) ?? [] : raw.filter((v) => v.key === key)).map((v) => {
     const box = frame(raw.find((r) => r.src === v.src) ?? v, bySrc.get(v.src) ?? v);
     box.classList.toggle('on', v.src === cur);
     box.onclick = inText ? () => { overrides.set(n, { key, src: v.src }); schedule(); closeSwap(); } : async () => {
-      if (!confirm(`Diese Version von „${key}“ löschen?`)) return;
+      if (!confirm(`Diese Variante von „${key}“ löschen?`)) return;
       await remove(active, v.src);
       raw = await loadSet(active);
       rebuild();
@@ -736,7 +736,7 @@ function frame(v: Variant, t?: Variant) {
 
 function thumb(v: Variant) {
   const box = frame(v, bySrc.get(v.src));
-  if (tuned.excluded.has(v.src)) { box.classList.add('out'); box.title = 'wird nicht verwendet: weicht zu stark von den anderen ab'; }
+  if (tuned.excluded.has(v.src)) { box.classList.add('out'); box.title = 'beim Optimieren weggelassen'; }
   else box.title = v.connected === undefined ? '' : v.connected ? 'verbunden' : 'getrennt';
   return box;
 }
@@ -748,13 +748,13 @@ function openReview() {
   const d = decisions();
   rKeys = reviewKeys(raw, strong);
   rAt = Math.max(0, rKeys.findIndex((k) => !d[k]));
-  if (!rKeys.length) return toast('Hier gibt es nichts anzusehen.');
+  if (!rKeys.length) return toast('Hier gibt es nichts zu prüfen.');
   $('review').hidden = false;
   renderReview();
 }
 
 function renderReview() {
-  if (rAt >= rKeys.length) { closeReview(); toast('Alles angesehen.'); return; }
+  if (rAt >= rKeys.length) { closeReview(); toast('Alles geprüft.'); return; }
   const key = rKeys[rAt], d = decisions()[key];
   const vs = raw.filter((v) => v.key === key);
   const strongBy = new Map(strong.variants.map((v) => [v.src, v]));
@@ -810,16 +810,16 @@ const GROUPS: [string, string[]][] = [
   ['Großbuchstaben', SINGLES.filter((k) => /\p{Lu}/u.test(k))],
   ['Ziffern', SINGLES.filter((k) => /\p{N}/u.test(k))],
   ['Satzzeichen', SINGLES.filter((k) => !/\p{L}|\p{N}/u.test(k))],
-  ['Buchstabengruppen', PAIRS],
+  ['Paare & Dreier', PAIRS],
   ['Wörter', WORDS],
-  ['Symbole', SYMBOL_KEYS],
+  ['Pfeile & Symbole', SYMBOL_KEYS],
 ];
 const KNOWN = new Set([...GROUPS.flatMap(([, keys]) => keys), ...CURSIVE_KEYS]);
 // Most frequent letters in German text: with few variants the same shapes repeat visibly.
 const FREQUENT = [...'enisratdhulgmocbfkwz'];
 
 /** Single characters worth having, most important first (arrows, maths signs, digits, umlauts, punctuation, letters). */
-const rank = (k: string) => /[↑↓]/.test(k) ? 0 : /[+=≠≈<>≤≥±×÷]/.test(k) ? 1 : /\p{N}/u.test(k) ? 2 : /[äöüÄÖÜß]/.test(k) ? 3 : /\p{L}/u.test(k) ? 5 : 4;
+const rank = (k: string) => /[→←↑↓⇒⇔↔]/.test(k) ? 0 : /[+=≠≈<>≤≥±×÷]/.test(k) ? 1 : /\p{N}/u.test(k) ? 2 : /[äöüÄÖÜß]/.test(k) ? 3 : /\p{L}/u.test(k) ? 5 : 4;
 // The layout always draws these as pen strokes (renderer/layout ARROWS), a handwritten one is never used: never ask for them.
 const DRAWN = /^[→←⇒⇔↔⇌]$/;
 const missingKeys = () => {
@@ -846,7 +846,7 @@ function missingCard() {
   card.append(Object.assign(document.createElement('h2'), { textContent: 'Diese Zeichen fehlen noch' }),
     note('Antippen und schreiben. Rechenzeichen und Ziffern zuerst – sie kommen in Texten oft vor.'),
     ...(gone.length ? [part(gone, 'gone')] : []),
-    ...(stand.length ? [note('Diese Zeichen zeichnet die App gerade mit einfachen Strichen. In deiner Handschrift sehen sie besser aus:'), part(stand, 'sub')] : []));
+    ...(stand.length ? [note('Ersatz – wird gerade aus einfachen Strichen gezeichnet, besser selbst schreiben:'), part(stand, 'sub')] : []));
   return card;
 }
 
@@ -856,8 +856,8 @@ function renderGrid() {
   const own = [...byKey.keys()].filter((k) => !KNOWN.has(k));
   const groups: [string, string[]][] = [
     ...GROUPS,
-    ...(cursive() || CURSIVE_KEYS.some((k) => byKey.has(k)) ? [['Verbundene Silben', CURSIVE_KEYS] as [string, string[]]] : []),
-    ['Eigene Silben & Wörter', own],
+    ...(cursive() || CURSIVE_KEYS.some((k) => byKey.has(k)) ? [['Schreibschrift', CURSIVE_KEYS] as [string, string[]]] : []),
+    ['Eigene Wortteile', own],
   ];
   const all = groups.flatMap(([, keys]) => keys);
   $('glyphsTitle').textContent = active ? `Zeichen von „${active}“` : 'Keine Handschrift ausgewählt';
@@ -865,7 +865,7 @@ function renderGrid() {
   $('coverage').textContent = active ? `${wanted.filter((k) => byKey.has(k)).length} von ${wanted.length} vorhanden.` : '';
   const d = decisions(), toReview = active ? reviewKeys(raw, strong) : [], open = toReview.filter((k) => !d[k]).length;
   $('reviewOpen').hidden = !toReview.length;
-  $('reviewOpen').textContent = open ? `Änderungen ansehen (${open} offen)` : 'Änderungen erneut ansehen';
+  $('reviewOpen').textContent = open ? `Optimierung prüfen (${open} offen)` : 'Optimierung erneut prüfen';
   $('acceptAll').hidden = !open;
 
   const gone = missingCard();
@@ -873,7 +873,7 @@ function renderGrid() {
   const few = FREQUENT.filter((k) => (byKey.get(k)?.length ?? 0) < 3);
   const need = document.createElement('p');
   need.className = 'note info need';
-  need.append('Diese häufigen Buchstaben hast du erst wenige Male geschrieben – antippen und noch einen dazuschreiben, dann wiederholt sich die Schrift weniger: ',
+  need.append('Häufige Buchstaben mit wenigen Varianten – antippen und eine dazuschreiben, dann wiederholt sich die Schrift weniger: ',
     ...few.map((k) => button(k, () => openLetter(k), 'chip')));
 
   const add = document.createElement('form');
@@ -910,8 +910,8 @@ function renderGrid() {
       el.append(head, row);
       return el;
     }));
-    if (title !== 'Eigene Silben & Wörter') return [h, group];
-    const hint = Object.assign(document.createElement('p'), { className: 'muted small', textContent: 'Silben und Wörter so, wie du sie schreibst. Sie ersetzen im Text die einzelnen Buchstaben (bis 5 Buchstaben, längere nur als ganzes Wort).' });
+    if (title !== 'Eigene Wortteile') return [h, group];
+    const hint = Object.assign(document.createElement('p'), { className: 'muted small', textContent: 'So, wie du sie schreibst. Sie ersetzen im Text die einzelnen Buchstaben (bis 5 Buchstaben, längere nur als ganzes Wort).' });
     return [h, hint, add, group];
   })]));
 }

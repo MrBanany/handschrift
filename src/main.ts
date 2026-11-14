@@ -690,7 +690,7 @@ $('swapSave').onclick = async () => {
   const v = extractBox(img, [MM, 0, 0, 0, MM, 0], { ...b, x: 0, y: 0 });
   if (!v) return toast('Da ist noch nichts geschrieben.');
   const src = `pen:${key}:${Date.now()}`;
-  await saveMany(active, [{ ...v, src }]);
+  try { await saveMany(active, [{ ...v, src }]); } catch (e) { return toast((e as Error).message); }
   raw = await loadSet(active);
   if (n >= 0) overrides.set(n, { key, src });
   rebuild();

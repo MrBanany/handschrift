@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { deleteSet, exportAll, exportBackup, freeName, importBackup, listSets, loadSet, renameSet, saveMany, staleSets, markSaved } from '../src/glyphstore/db';
+import { deleteSet, exportAll, exportBackup, freeName, importBackup, listSets, loadSet, renameSet, saveMany, staleSets, markSaved, storageError } from '../src/glyphstore/db';
 import type { Variant } from '../src/glyphstore/types';
 
 const store = new Map<string, string>();
@@ -16,7 +16,7 @@ const glyph = (src: string, key: string, fill: number): Variant => ({
   alpha: Uint8Array.from({ length: 12 }, (_, i) => (i * fill) % 256),
 });
 const fileOf = (b: Blob, name = 'x.json') => new File([b], name);
-const prefs = { style: '{"xh":3.4,"lineH":9}', cursive: '1', review: '{"a":"keep"}' };
+const prefs = { style: '{"xh":3.4,"lineH":9,"lines":12}', cursive: '1', review: '{"a":"accept","b":"reject"}' };
 const fill = (set: string) => { for (const [k, v] of Object.entries(prefs)) store.set(`${k}:${set}`, v); };
 
 describe('Backup: Export → Löschen → Import', () => {
@@ -76,5 +76,52 @@ describe('Umbenennen, Löschen, Erinnerung', () => {
     expect(staleSets(3)).toEqual(['Anna']);
     markSaved(['Anna']);
     expect(staleSets(3)).toEqual([]);
+  });
+});
+
+describe('Speicher voll / abgebrochene Transaktion (P1)', () => {
+  it('lehnt ab statt zu hängen, mit verständlicher Meldung bei vollem Speicher', async () => {
+    const orig = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (this: IDBObjectStore, ...a: Parameters<IDBObjectStore['put']>) { const r = orig.apply(this, a); this.transaction.abort(); return r; };
+    try { await expect(saveMany('Voll', [glyph('v-1', 'a', 3)])).rejects.toThrow('abgebrochen'); }
+    finally { IDBObjectStore.prototype.put = orig; }
+    expect(await listSets()).not.toContain('Voll');
+    expect(storageError(new DOMException('x', 'QuotaExceededError')).message).toBe('Speicher voll – Backup sichern, alte Handschrift löschen.');
+  });
+});
+
+describe('Geteilte Dateien prüfen (P5)', () => {
+  const pack = (v: Record<string, unknown>) => ({ ...v, alpha: btoa(String.fromCharCode(...glyph('x', 'a', 3).alpha)) });
+  const ok = () => pack({ ...glyph('t-1', 'a', 3) });
+  const file = (...vs: object[]) => new File([JSON.stringify({ format: 'handschrift', set: 'Fremd', variants: vs })], 'f.json');
+  const refused = async (v: object, msg = 'beschädigt') => {
+    await expect(importBackup(file(v))).rejects.toThrow(msg);
+    expect(await listSets()).not.toContain('Fremd');
+  };
+
+  it('NaN-Baseline, Baseline absurd, riesiges w, schiefer Anker, falscher scale', async () => {
+    await refused({ ...ok(), baseline: null }); // JSON macht aus NaN null
+    await refused({ ...ok(), baseline: 9999 });
+    await refused({ ...ok(), w: 1e9 });
+    await refused({ ...ok(), entry: { x: 500, y: 1, dx: 1, dy: 0, w: 1 } });
+    await refused({ ...ok(), scale: 50 });
+    await refused({ ...ok(), strokeW: -1 });
+    await refused({ ...ok(), alpha: '!!!' });
+  });
+
+  it('Zusatzfelder und prof werden verworfen, Gültiges bleibt', async () => {
+    const { sets } = await importBackup(file({ ...ok(), evil: 'x', prof: { l: [1], r: [1] }, set: 'anderer' }));
+    expect(sets).toEqual(['Fremd']);
+    const [v] = await loadSet('Fremd');
+    expect(Object.keys(v).sort()).toEqual(['alpha', 'baseline', 'connected', 'entry', 'exit', 'h', 'key', 'scale', 'set', 'src', 'strokeW', 'w']);
+    expect(v.set).toBe('Fremd');
+  });
+
+  it('Einstellungen aus der Datei werden geprüft', async () => {
+    const f = new File([JSON.stringify({ format: 'handschrift', set: 'Pref', variants: [ok()], prefs: { style: '{"xh":"x","lineH":9,"lines":3}', cursive: '7', review: '{"a":"accept","b":"evil"}' } })], 'p.json');
+    await importBackup(f);
+    expect(store.has('style:Pref')).toBe(false);
+    expect(store.has('cursive:Pref')).toBe(false);
+    expect(store.get('review:Pref')).toBe('{"a":"accept"}');
   });
 });

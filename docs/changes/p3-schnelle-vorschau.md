@@ -18,3 +18,5 @@ Vorschau-Speicher bei 11 Seiten: vorher 40 Mpx lebende Canvas-Fläche, jetzt nur
 
 **Geprüft:** Seiten 3–5 werden beim Auslösen des Observers gezeichnet, Antippen auf Seite 3 öffnet „ei austauschen“, Austausch einer Variante zeichnet neu, Papier sichtbar (Screenshot).
 **Nicht geprüft:** Der Observer feuert im ausgeblendeten Vorschau-Pane nicht, er wurde deshalb mit einem Ersatz ausgelöst; im echten Scrollen auf PC/iPad nicht gesehen.
+
+Nachmessung auf `origin/main` (e836d29, mit Lernzettel-Änderungen): 8 Tastendrücke, 46–56 ms, kein Ausreißer.

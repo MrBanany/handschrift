@@ -18,7 +18,7 @@ describe('realistic AI answers', () => {
   for (const [name, answer] of Object.entries(ANSWERS)) {
     it(`${name}: no LaTeX left over, nothing runs off the page`, () => {
       const out = clean(answer, has);
-      expect(out).not.toMatch(/\[A-Za-z]|\\|\{|\}|\u001[bc]/); // backslashes, braces, our own placeholders
+      expect(out.replace(/\u001b[^\u001c\n]*\u001c→/g, '→')).not.toMatch(/\[A-Za-z]|\\|\{|\}|\u001[bc]/); // backslashes, braces, our own placeholders (an arrow's label is allowed)
       expect(out).not.toMatch(/\$(?!\s*\d|\s*\/)/); // a "$" only as a currency sign
       expect(out).not.toMatch(/(?:frac|sqrt|text|boxed|begin|end|binom|displaystyle|quad)\b/);
       const chars = new Set([...out].filter((c) => !/[\s\u0001-\u001f]/.test(c)));

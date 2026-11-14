@@ -1,5 +1,5 @@
 // Formulas in AI answers (LaTeX, mhchem) -> plain characters a handwriting can write.
-import { BOX, FRAC, LABEL, SP, TEX_BRACE } from './markers';
+import { BOX, FRAC, LABEL, LIT_BRACE, SP, TEX_BRACE } from './markers';
 
 export { BOX, FRAC } from './markers'; // the codes live in markers.ts
 
@@ -10,7 +10,7 @@ const SYMBOL: Record<string, string> = {
   to: '→', rightarrow: '→', longrightarrow: '⟶', Longrightarrow: '⟹', leftarrow: '←', Rightarrow: '⇒', implies: '⇒', Leftrightarrow: '⇔', iff: '⇔',
   cap: '∩', cup: '∪', subset: '⊂', in: '∈', forall: '∀', exists: '∃', equiv: '≡', perp: '⊥', emptyset: '∅', varnothing: '∅', epsilon: 'ε', varepsilon: 'ε', tau: 'τ', eta: 'η', nu: 'ν', kappa: 'κ',
   displaystyle: '', textstyle: '', limits: '', nolimits: '', big: '', Big: '', bigl: '', bigr: '', Bigl: '', Bigr: '',
-  therefore: '∴', because: '∵', angle: '∠', partial: '∂', nabla: '∇', psi: 'ψ', chi: 'χ', xi: 'ξ', zeta: 'ζ', triangle: 'Δ', parallel: '||',
+  checkmark: '✓', mapsto: '→', lbrace: '{', rbrace: '}', hline: '', therefore: '∴', because: '∵', angle: '∠', partial: '∂', nabla: '∇', psi: 'ψ', chi: 'χ', xi: 'ξ', zeta: 'ζ', triangle: 'Δ', parallel: '||',
   prime: "'", quad: ' ', qquad: ' ', mid: '|', ll: '<<', gg: '>>', propto: '~', land: '∧', lor: '∨', neg: '¬', cdotp: '·', ast: '*', colon: ':',
   leftrightarrow: '↔', rightleftharpoons: '⇌', uparrow: '↑', downarrow: '↓', cdots: '...', ldots: '...', dots: '...',
 };
@@ -56,7 +56,8 @@ export function latex(text: string): string {
     .replace(/\$\$|\\\[|\\\]/g, ' ')
     .replace(/\\\(\s*|\s*\\\)/g, '') // ChatGPT's inline math: no gap before the comma after it
     .replace(/\{,\}/g, ',') // German decimal comma: 9{,}81
-    .replace(/\\%/g, '%')
+    .replace(/\\([%&#_$])/g, '$1') // Gemini escapes these: 20\%, \$5, R\&D
+    .replace(/\\\{/g, LIT_BRACE[0]).replace(/\\\}/g, LIT_BRACE[1]) // \{1, 2\}: literal braces, turned back at the end
     // matrices in one line: (1 2; 3 4); aligned equations one per line, cases separated by ";"
     .replace(/\\begin\{([pbvBV]?matrix)\}([\s\S]*?)\\end\{\1\}/g, (_, _k: string, b: string) => '(' + b.split(/\\\\/).map((r) => r.split('&').map((c) => c.trim()).join(' ')).filter(Boolean).join('; ') + ')')
     .replace(/\\begin\{(cases|aligned|align\*?|gathered|gather\*?|array)\}(?:\{[^{}]*\})?([\s\S]*?)\\end\{\1\}/g, (_, k: string, b: string) => b.split(/\\\\/).map((r) => r.split('&').map((c) => c.trim()).filter(Boolean).join(k === 'cases' ? ', ' : ' ')).filter(Boolean).join(k === 'cases' ? '; ' : '\n'))
@@ -88,7 +89,7 @@ export function latex(text: string): string {
       .replace(/\\boxed\{([^{}]*)\}/g, (_, a: string) => ` ${BOX[0]}${a.trim()}${BOX[1]} `);
   }
   return t
-    .replaceAll(TEX_BRACE[0], '{').replaceAll(TEX_BRACE[1], '}')
+    .replaceAll(TEX_BRACE[0], '{').replaceAll(TEX_BRACE[1], '}').replaceAll(LIT_BRACE[0], '{').replaceAll(LIT_BRACE[1], '}')
     .replace(/\\binom\{([^{}]*)\}\{([^{}]*)\}/g, '($1 über $2)')
     .replace(/\\([A-Za-z]+)/g, (m, name: string) => SYMBOL[name] ?? name) // \sin -> sin
     // x^{n-1}: only plain digits/letters and charges can be raised; anything else keeps its brackets as x^(n-1)

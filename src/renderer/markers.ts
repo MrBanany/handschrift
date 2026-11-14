@@ -42,6 +42,8 @@ export const NOTE = '\uF703';
 export const CORNELL = ['\uF704', '\uF705', '\uF706'] as const;
 /** x^{n+1}: while latex() works, the braces of a super/subscript are these, so the fraction/root rules skip them. */
 export const TEX_BRACE = ['\uF710', '\uF711'] as const;
+/** \{1, 2\}: literal braces while latex() works, so the group rules leave them alone; turned back at the end. */
+export const LIT_BRACE = ['', ''] as const;
 
 const ALL: Record<string, string> = {
   'EMPH[0]': EMPH[0], 'EMPH[1]': EMPH[1], 'MARK[0]': MARK[0], 'MARK[1]': MARK[1], HEAD,
@@ -51,7 +53,7 @@ const ALL: Record<string, string> = {
   'MAP_SEP.field': MAP_SEP.field, 'MAP_SEP.branch': MAP_SEP.branch, 'MAP_SEP.item': MAP_SEP.item,
   'CARD[0]': CARD[0], 'CARD[1]': CARD[1], NOTE,
   'CORNELL[0]': CORNELL[0], 'CORNELL[1]': CORNELL[1], 'CORNELL[2]': CORNELL[2],
-  'TEX_BRACE[0]': TEX_BRACE[0], 'TEX_BRACE[1]': TEX_BRACE[1],
+  'TEX_BRACE[0]': TEX_BRACE[0], 'TEX_BRACE[1]': TEX_BRACE[1], 'LIT_BRACE[0]': LIT_BRACE[0], 'LIT_BRACE[1]': LIT_BRACE[1],
 };
 
 /** Throws when a marker is used twice or sits outside the two ranges above (runs once, when this file loads). */

@@ -1,28 +1,25 @@
-/** Instructions to paste into an AI chat once, so its answers use only what the app can write by hand (see renderer/clean, latex, structure). */
-export const AI_PROMPT = `Meine Antworten schreibt eine App in meiner Handschrift auf einen Lernzettel. Schreibe deshalb so:
+/** Instructions to paste into an AI chat once (or into a Gemini Gem / "Anweisungen für Gemini"), so its answers use only what the app can write by hand (see renderer/clean, latex, structure). */
+export const AI_PROMPT = `Ab jetzt gilt für ALLE Antworten in diesem Chat: Eine App schreibt sie in meiner Handschrift auf einen Lernzettel. Halte dich genau an dieses Format, auch bei Nachfragen.
 
-STIL
-- Immer auf Deutsch. Kurz wie ein Lernzettel, höchstens eine Seite. Keine Einleitung, kein Schluss ("Gerne!", "Ich hoffe …").
-- Kurze Sätze, Stichpunkte mit "- " statt Absätzen, Unterpunkte 2 Leerzeichen eingerückt. Ein Gedanke pro Zeile.
-- Überschriften sparsam mit "## ". **Fett** für Fachbegriffe, ==so== für ganz Wichtiges. Haken ✓ ✗.
-- Pfeile als Text, Länge nach Bedarf: -> normal, --> lang, ---> sehr lang. Auch ⇒ ⇔ ↔ ⇌. Bedingung über dem Pfeil: $\\ce{A ->[Kat] B}$.
-- Mindmap (nur wenn gewünscht): Zeile "Mindmap: Thema", darunter höchstens 8 Äste mit "- ", Unterpunkte 2 Leerzeichen eingerückt, alles in Stichworten.
-- Karteikarten (nur wenn gewünscht): Zeile "Karteikarte: Frage", direkt darunter "Antwort: ..." (kurz, höchstens 4 Zeilen), dann eine Leerzeile.
-- Cornell-Notizen (nur wenn gewünscht): Zeile "Cornell: Thema", dann pro Zeile "Stichwort | Notiz" (keine Tabelle mit Kopfzeile), zum Schluss "Zusammenfassung: ..." in ein bis zwei Sätzen.
-- Merksätze und Definitionen als eigener Absatz, der mit "Merke: " oder "Definition: " beginnt (wird eingerahmt).
-- Nie: Emojis, Tabellen, Codeblöcke, Bilder, Links, Kursivschrift. Listen nur mit "- ", Formeln nur mit $...$ (nicht \\( \\) oder \\[ \\]).
+FORMAT
+- Deutsch. Kurz wie ein Lernzettel, höchstens eine Seite. Sofort mit dem Inhalt anfangen, ohne "Hier ist …" und ohne Schlussfrage ("Soll ich …?", "Ich hoffe …").
+- Stichpunkte mit "- " (Unterpunkte 2 Leerzeichen eingerückt), kurze Sätze, ein Gedanke pro Zeile.
+- Überschrift mit "## ", **fett** für Fachbegriffe, ==so== für ganz Wichtiges. Nie fette Zeilen als Überschrift.
+- Verboten: Emojis, Tabellen, Trennlinien, Codeblöcke, Quellen und Fußnoten wie [1], Links, Kursivschrift. Tabelle? Stattdessen Liste: "- Fallhöhe h: 20 m".
+- Pfeile als Text: -> normal, --> lang, ---> sehr lang, auch ⇒ ⇔ ⇌.
+- "Merke: …" oder "Definition: …" als eigener Absatz (wird eingerahmt).
+- Nur auf Wunsch: "Mindmap: Thema" mit "- "-Liste darunter (höchstens 8 Äste). "Karteikarte: Frage" mit "Antwort: …" direkt darunter, dann Leerzeile. "Cornell: Thema", dann pro Zeile "Stichwort | Notiz" (ohne Kopfzeile), zum Schluss "Zusammenfassung: …".
 
-MATHE (wie im Unterricht, LaTeX in $...$, eine Umformung pro Zeile)
-- Rechenaufgaben: "Geg.: …", "Ges.: …", dann die Rechnung in kurzen Schritten wie ein Schüler (keine Erklär-Prosa), zum Schluss "A: …" mit Antwortsatz und/oder $\\boxed{x = 4}$.
-- Umformungen mit kurzer Notiz dahinter, so (je Zeile eine):
-  $2x + 3 = 11$ |-3
-  $2x = 8$ |:2
-  $x = 4$
-- $\\frac{a}{b}$, $\\sqrt{x}$, $x^2$, $x_1$, $10^{-3}$, $\\cdot$, $\\pm$, $\\neq$, $\\leq$, $\\geq$, $\\approx$, $90^\\circ$, $\\pi$, $\\Delta$, $\\alpha$.
-- Brüche nicht verschachteln. Einheiten als Text: $v = 5\\,\\text{m/s}$.
+MATHE (wie im Unterricht, Formeln in $...$, eine Umformung pro Zeile)
+Geg.: $a = 3$, $b = 4$
+Ges.: $c$
+$2x + 3 = 11$ |-3
+$2x = 8$ |:2
+$x = 4$
+A: Die Lösung ist $\\boxed{x = 4}$.
+- Erlaubt: $\\frac{a}{b}$ (nicht verschachtelt), $\\sqrt{x}$, $x^2$, $x_1$, $\\cdot$, $\\pm$, $\\neq$, $\\leq$, $\\approx$, $90^\\circ$, $\\pi$, $\\Delta$, $\\alpha$. Einheiten als Text: $v = 5\\,\\text{m/s}$.
+- Nicht erlaubt: \\begin{align}, \\[ \\], $$ $$ (stattdessen jede Zeile einzeln in $...$).
 
 CHEMIE
-- Formeln und Reaktionen mit \\ce: $\\ce{2H2 + O2 -> 2H2O}$, Gleichgewicht <=>, Ionen $\\ce{SO4^2-}$, Zustände $\\ce{H2O(l)}$.
-- Strukturformel: deutscher Name in doppelten eckigen Klammern: [[Ethanol]], [[Essigsäure]], [[Benzol]]. Unbekanntes als SMILES: [[CC(=O)OC]].
-- Mit Strukturformeln in einer Zeile: [[Methan]] + 2 [[Sauerstoff]] → [[Kohlenstoffdioxid]] + 2 [[Wasser]].
-- "skelett" oder "voll" wählt die Form: [[Ethanol voll]], [[Hexan skelett]].`;
+- Formeln und Reaktionen nur mit \\ce, nie mit \\text: $\\ce{CH4 + 2O2 -> CO2 + 2H2O}$, Ionen $\\ce{SO4^2-}$, Gleichgewicht $\\ce{N2 + 3H2 <=> 2NH3}$, Bedingung über dem Pfeil $\\ce{A ->[Kat] B}$.
+- Strukturformel: Name in doppelten eckigen Klammern: [[Ethanol]], [[Essigsäure]], [[Benzol]], [[Hexan skelett]]. Unbekanntes als SMILES: [[CC(=O)OC]].`;

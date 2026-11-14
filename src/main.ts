@@ -231,20 +231,36 @@ function settings() {
 
 // Layout only changes with the text, the settings, the handwriting or a swapped letter – not with the window size.
 let laid: { key: string; lib: typeof lib; res: ReturnType<typeof layout> } | null = null;
-function laidOut(s: Settings) {
-  const key = JSON.stringify([$<HTMLTextAreaElement>('text').value, s, [...overrides]]);
+function laidOut(s: Settings, text = $<HTMLTextAreaElement>('text').value, swaps = true) {
+  const key = JSON.stringify([text, s, swaps ? [...overrides] : null]);
   if (laid?.key !== key || laid.lib !== lib) {
-    const res = layout(clean($<HTMLTextAreaElement>('text').value, (ch) => lib.has(ch)), lib, s);
-    applyOverrides(res.pages);
+    const res = layout(clean(text, (ch) => lib.has(ch)), lib, s);
+    if (swaps) applyOverrides(res.pages);
     laid = { key, lib, res };
   }
   return laid.res;
 }
 
+// Marked text in the field: only that is exported (the preview keeps showing everything).
+// shortcut: letter swaps are counted from the start of the whole text, so a marked part gets none, until swaps are stored per word.
+function exportText() {
+  const a = $<HTMLTextAreaElement>('text'), part = a.value.slice(a.selectionStart, a.selectionEnd);
+  return part.trim() ? { text: part, whole: false } : { text: a.value, whole: true };
+}
+let lastSel = '';
+function selectionNote() {
+  const { text, whole } = exportText();
+  if (text !== lastSel) { lastSel = text; ready = null; } // a finished export belongs to the text it was made from
+  $('selNote').hidden = whole;
+  $('selNote').textContent = whole ? '' : `Nur der markierte Text wird exportiert (${text.trim().length} Zeichen). Markierung aufheben, dann kommt wieder alles.`;
+}
+for (const ev of ['select', 'keyup', 'pointerup', 'input']) $('text').addEventListener(ev, selectionNote);
+
 /** page: paper + ink for export · ink: transparent full page (preview) · clip: transparent, cut to the text (copy) */
 function renderAll(pxPerMm: number, mode: 'page' | 'ink' | 'clip') {
   const { s, o } = settings();
-  const res = laidOut(s);
+  const part = mode === 'ink' ? null : exportText(); // the preview shows everything
+  const res = part?.whole === false ? laidOut(s, part.text, false) : laidOut(s);
   const paper: DrawOpts = { ...o, crop: false, pxPerMm, pageW: s.pageW, pageH: s.pageH, lineH: s.lineH, margin: s.margin };
   const opts: DrawOpts = {
     ...paper,
@@ -439,8 +455,9 @@ $('share').onclick = () => shareAs('pdf', async () => {
 $('shareGn').onclick = () => shareAs('gn', async () => {
   const { s, o } = settings();
   const margin = Math.min(s.margin, 12), paper = o.background === 'transparent' ? 'blank' : o.background; // no transparent paper in a notebook
-  const res = layout(clean($<HTMLTextAreaElement>('text').value, (ch) => lib.has(ch)), lib, { ...s, pageW: GN_PAGE.w, pageH: GN_PAGE.h, margin });
-  applyOverrides(res.pages);
+  const { text, whole } = exportText();
+  const res = layout(clean(text, (ch) => lib.has(ch)), lib, { ...s, pageW: GN_PAGE.w, pageH: GN_PAGE.h, margin });
+  if (whole) applyOverrides(res.pages);
   const get = (src: string) => bySrc.get(src)!;
   const bg = await backgroundPdf(paper, s.lineH, margin);
   const thumbOpts: DrawOpts = { ...o, background: paper, crop: false, pxPerMm: 2, pageW: GN_PAGE.w, pageH: GN_PAGE.h, lineH: s.lineH, margin };

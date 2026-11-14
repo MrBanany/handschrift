@@ -35,7 +35,7 @@ function toast(msg: string) {
   t.textContent = msg;
   t.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = window.setTimeout(() => t.classList.remove('show'), 3500);
+  toastTimer = window.setTimeout(() => t.classList.remove('show'), Math.max(3500, msg.length * 70)); // long tips stay long enough to read
 }
 
 // ---------- handwriting sets ----------
@@ -168,7 +168,11 @@ function button(text: string, onclick: () => unknown, cls = '') {
 }
 
 $<HTMLSelectElement>('set').onchange = (e) => useSet((e.target as HTMLSelectElement).value);
-$('trySample').onclick = () => useSet(SAMPLE_SET);
+/** Switch to the sample and tell a newcomer what to do next. */
+const trySample = () => useSet(SAMPLE_SET).then(() => {
+  if (active === SAMPLE_SET) toast('Das Muster ist bereit. Tipp einen Text ein, dann auf „In GoodNotes öffnen“. Andere Muster findest du oben im Auswahlfeld.');
+});
+$('trySample').onclick = trySample;
 $('setName').oninput = () => { delete $('setName').dataset.auto; };
 
 // ---------- settings (persisted locally) ----------
@@ -350,7 +354,7 @@ function preview() {
     return sheet;
   }));
   $('missing').hidden = !missing.size;
-  $('missing').replaceChildren(`${missing.size === 1 ? '1 Zeichen fehlt' : `${missing.size} Zeichen fehlen`} in diesem Text (rot markiert) – jetzt schreiben: `,
+  $('missing').replaceChildren(`${missing.size === 1 ? '1 Zeichen fehlt' : `${missing.size} Zeichen fehlen`} in diesem Text (rot markiert). Tippe eins an und schreib es: `,
     ...[...missing].map((k) => button(k, () => openLetter(k), 'chip gone')));
 }
 
@@ -381,7 +385,7 @@ $('clearText').onclick = () => {
   area.focus();
 };
 $('aiPrompt').onclick =() => navigator.clipboard.writeText(AI_PROMPT).then(
-  () => toast('Kopiert. Füge es einmal am Anfang des Chats ein (bei ChatGPT auch unter „Personalisierung“).'),
+  () => toast('Kopiert. Füge es in Gemini oder ChatGPT ein und schreib deine Frage dahinter. Einmal pro Chat reicht.'),
   () => toast('Kopieren ging nicht.'),
 );
 
@@ -446,7 +450,7 @@ async function shareAs(kind: string, make: () => Promise<File[]>) {
   } catch (e) {
     const err = e as Error;
     // iPad only opens the share sheet right after a tap; rendering can take longer than that.
-    if (err.name === 'NotAllowedError' && ready && !ready.asked) { ready.asked = true; toast('Export ist fertig – bitte noch einmal tippen.'); }
+    if (err.name === 'NotAllowedError' && ready && !ready.asked) { ready.asked = true; toast('Die Datei ist fertig. Tippe bitte noch einmal auf den Knopf.'); }
     // sharing refused again (some desktop browsers never allow it): save the files instead of asking forever
     else if (err.name === 'NotAllowedError' && ready) { ready.files.forEach((f) => download(f, f.name)); ready = null; }
     else if (err.name !== 'AbortError') { ready = null; toast(err.message); }
@@ -565,8 +569,8 @@ async function importInto(sources: [label: string, pages: () => AsyncIterable<{ 
     } catch (e) { log(`${label}: konnte nicht gelesen werden (${(e as Error).message})`); }
   }
   sets = await listSets();
-  if (total) { await useSet(name); log(`Fertig – „${name}“ ist jetzt aktiv.`); toast(`„${name}“ importiert.`); openSetup(); }
-  else log('Keine Zeichen gefunden.');
+  if (total) { await useSet(name); log(`Fertig – „${name}“ ist jetzt aktiv.`); toast(`„${name}“ ist fertig und ausgewählt.`); openSetup(); }
+  else log('Keine Zeichen gefunden. Hast du mit dunklem Stift in die Kästchen geschrieben? Nimm die Vorlage aus dieser App.');
   return total > 0;
 }
 
@@ -1036,7 +1040,7 @@ applyTheme();
 const standalone = matchMedia('(display-mode: standalone)').matches || !!(navigator as { standalone?: boolean }).standalone;
 if (!standalone && !localStorage.getItem('installHidden')) {
   if (iosSafariHint(navigator.userAgent, navigator.platform, navigator.maxTouchPoints, standalone)) {
-    $('installText').textContent = 'Tipp: Teilen-Knopf → „Zum Home-Bildschirm“ – dann startet die App im Vollbild und funktioniert offline. Wichtig: Die Home-Bildschirm-App hat einen eigenen Speicher. Sichere deine Handschrift vorher unter „Handschriften“ mit „Alle Handschriften sichern“ und hole sie in der App dort mit „Backup laden“.';
+    $('installText').textContent = 'Tipp: Tippe in Safari auf Teilen, dann auf „Zum Home-Bildschirm“. Dann startet die App wie eine echte App, auch ohne Internet. Wichtig: Die App auf dem Home-Bildschirm hat einen eigenen Speicher. Hast du schon eine Handschrift? Dann sichere sie vorher unter „Handschriften“ mit „Alle Handschriften sichern“. In der neuen App holst du sie dort mit „Backup laden“.';
     $('install').hidden = false;
   }
   addEventListener('beforeinstallprompt', (e) => {
@@ -1069,7 +1073,7 @@ listSets().then((s) => {
 }).then(backupReminder);
 const welcomed = () => { localStorage.setItem('welcomed', '1'); $('welcome').hidden = true; };
 $('welcomeOwn').onclick = () => { welcomed(); show('manage'); $('pencilOpen').click(); };
-$('welcomeSample').onclick = () => { welcomed(); void useSet(SAMPLE_SET); };
+$('welcomeSample').onclick = () => { welcomed(); void trySample(); };
 $('welcomeLater').onclick = welcomed;
 $('introGo').onclick = () => { $('intro').hidden = true; $('welcome').classList.add('after-intro'); $('welcome').hidden = false; };
 const howto = (on: boolean) => { $('howto').hidden = !on; };

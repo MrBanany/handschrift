@@ -491,8 +491,8 @@ $('shareGn').onclick = () => {
     // one page after the other: thumbnail drawn, encoded, freed before the next page starts
     return forEachPage(res.pages.length, (i) => drawPage(res.pages[i], thumbOpts, get), async (thumb, i) => {
       const jpg = new Uint8Array(await (await new Promise<Blob>((ok) => thumb.toBlob((b) => ok(b!), 'image/jpeg', 0.8))).arrayBuffer());
-      const name = res.pages.length > 1 ? `handschrift-${i + 1}.goodnotes` : 'handschrift.goodnotes';
-      return new File([(await goodnotesFile(res.pages[i], get, o.ink, jpg, o.head ?? o.ink, o.weight, fit.paper)) as BlobPart], name, { type: 'application/octet-stream' });
+      const name = res.pages.length > 1 ? `handschrift-${String(i + 1).padStart(String(res.pages.length).length, '0')}.goodnotes` : 'handschrift.goodnotes';
+      return new File([(await goodnotesFile(res.pages[i], get, o.ink, jpg, o.head ?? o.ink, o.weight, fit.paper, o.mark)) as BlobPart], name, { type: 'application/octet-stream' });
     });
   });
 };

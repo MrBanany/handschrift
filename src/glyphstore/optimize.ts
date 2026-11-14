@@ -102,7 +102,8 @@ export function optimize(vs: Variant[], strength = 1): Tuned {
       scaled.set(x.v.src, k);
     }
     if (group.length < 3) continue;
-    const limit = 1.6 - 0.6 * s; // gentle settings only drop extreme outliers
+    // gentle settings only drop extreme outliers; pairs and words vary more in width by nature, so they never get stricter than 1
+    const limit = [...key].length > 1 ? Math.max(1, 1.6 - 0.6 * s) : 1.6 - 0.6 * s;
     const off = size
       .map((x) => ({ v: x.v, d: Math.max(Math.abs(x.h / mh - 1) / 0.35, Math.abs(x.w / mw - 1) / 0.45) }))
       .filter((x) => x.d > limit && !x.v.src.startsWith('pen:')) // written anew on purpose (letter swap): always keep
@@ -115,7 +116,8 @@ export function optimize(vs: Variant[], strength = 1): Tuned {
   const gaps = [...gapOf.values()];
   // A pair written far apart reads like two words in a sentence; without it the single letters are set with the usual gap.
   if (gaps.length >= 5) {
-    const maxGap = Math.max(0.45 * xhPx, 2.5 * median(gaps)) * (1.6 - 0.6 * s);
+    // only a gap near word size (1.1 x-heights) counts; ordinary letter gaps of printed writing are 0.1–0.7 x-heights
+    const maxGap = Math.max(0.8 * xhPx, 2.5 * median(gaps)) * Math.max(1, 1.6 - 0.6 * s);
     for (const [src, g] of gapOf) if (g > maxGap) excluded.add(src);
   }
   const learned = gaps.length >= 5 ? Math.min(0.6, Math.max(0.05, median(gaps) / xhPx)) : null;

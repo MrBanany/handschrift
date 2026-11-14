@@ -10,6 +10,13 @@ function v(key: string, src: string, rects: number[][], extra: Partial<Variant> 
   return { src, key, w, h, alpha, baseline: 100, entry: null, exit: null, strokeW: 5, ...extra };
 }
 
+/** Unjoined pair 's' + 't' in a 160 px wide box with the given gap (px; x-height is 50 px). */
+function wide(k: number, gap = 10): Variant {
+  const w = 160, h = 140, alpha = new Uint8Array(w * h);
+  for (const [x0, x1] of [[40, 70], [70 + gap, 100 + gap]]) for (let y = 50; y < 100; y++) for (let x = x0; x < x1; x++) alpha[y * w + x] = 255;
+  return { src: `p${k}`, key: 'st', w, h, alpha, baseline: 100, entry: null, exit: null, strokeW: 5, connected: false };
+}
+
 describe('optimize', () => {
   it('pulls floating letters back to the baseline, leaves descenders alone', () => {
     const t = optimize([v('i', 'i1', [[10, 40, 16, 85]]), v('g', 'g1', [[10, 50, 40, 130]])]);
@@ -59,9 +66,15 @@ describe('optimize', () => {
   });
 
   it('leaves out pairs written with a word-sized gap', () => {
-    const pair = (k: number, gap = 10) => v('st', `p${k}`, [[0, 50, 30, 100], [30 + gap, 50, 80, 100]], { connected: false });
-    const t = optimize([0, 1, 2, 3, 4].map((k) => pair(k)).concat(pair(5, 40)));
+    const pair = wide;
+    const t = optimize([0, 1, 2, 3, 4].map((k) => pair(k)).concat(pair(5, 60)));
     expect([...t.excluded]).toEqual(['p5']);
+  });
+
+  it('keeps pairs with an ordinary letter gap, even when optimising strongly', () => {
+    const pair = wide;
+    // gap 0.5 x-heights: wider than usual, but no word gap (the user saw such pairs crossed out)
+    expect(optimize([0, 1, 2, 3, 4].map((k) => pair(k)).concat(pair(5, 25)), 1.5).excluded.size).toBe(0);
   });
 });
 

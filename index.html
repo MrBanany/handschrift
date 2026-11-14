@@ -43,6 +43,17 @@
         <button id="aiPrompt" class="small-btn" title="Einmal in ChatGPT & Co. einfügen: Dann schreibt die KI Brüche, Formeln und Strukturformeln so, dass die App sie per Hand schreiben kann.">KI-Vorgabe kopieren</button>
         <select id="history" class="history" aria-label="Verlauf: frühere Texte" hidden></select>
       </div>
+      <details class="ki-help">
+        <summary>Mit KI: so geht's</summary>
+        <ol>
+          <li>Tippe auf „KI-Vorgabe kopieren“.</li>
+          <li>Öffne Gemini oder ChatGPT. Füge die Vorgabe ein und schreib deine Frage dahinter.</li>
+          <li>Kopiere die Antwort der KI.</li>
+          <li>Komm hierher zurück und tippe auf „Kopierten Text einfügen“.</li>
+          <li>Tippe auf „In GoodNotes öffnen“.</li>
+        </ol>
+        <p class="muted small">Die Vorgabe brauchst du nur einmal pro Chat. Sie sorgt dafür, dass Brüche und Formeln gut aussehen.</p>
+      </details>
       <textarea id="text" rows="7" placeholder="Text eintippen oder einfügen, zum Beispiel eine KI-Antwort"></textarea>
       <p id="missing" class="note warn" hidden></p>
       <div class="actions">
@@ -58,7 +69,7 @@
       <p id="styleNote" class="note info" hidden></p>
       <div id="empty" class="card empty" hidden>
         <h2>Noch keine Handschrift auf diesem Gerät</h2>
-        <p class="muted">Probiere die Muster-Handschrift aus oder lege deine eigene an.</p>
+        <p class="muted">Probier erst ein Muster aus. Oder leg gleich deine eigene Handschrift an.</p>
         <div class="row">
           <button id="trySample" class="primary">Muster ausprobieren</button>
           <button data-goto="manage">Eigene anlegen</button>
@@ -91,13 +102,14 @@
         <div class="row">
           <button id="pencilOpen" class="primary">Hier in der App ausfüllen</button>
         </div>
-        <p class="muted small">Schreib mit Stift oder Finger in die Kästchen. Gleicher Name: Die Zeichen kommen zur vorhandenen Handschrift dazu.</p>
+        <p class="muted small">Gib deiner Handschrift oben einen Namen. Dann tippe auf „Hier in der App ausfüllen“ und schreib mit Stift oder Finger in die Kästchen. Gleicher Name wie vorher? Dann kommen die neuen Zeichen dazu.</p>
         <h3 class="or">Oder über GoodNotes</h3>
+        <p class="muted small">Für alle, die lieber in GoodNotes schreiben. Das Ergebnis ist dasselbe.</p>
         <ol class="steps">
-          <li><button id="template">Vorlage herunterladen</button> oder <button id="templateSymbols">nur Pfeile &amp; Symbole</button> und in GoodNotes öffnen. Wer verbunden schreibt: <button id="templateCursive">nur Schreibschrift</button> (die letzten Seiten der Vorlage, mehr verbundene Wortteile).</li>
-          <li>Jedes Kästchen mit schwarzem oder dunkelblauem Stift auf der durchgezogenen Linie ausfüllen. Der graue Buchstabe im ersten Kästchen zeigt die Größe – einfach in deiner Art darüberschreiben. Leere Kästchen sind erlaubt.</li>
-          <li>In GoodNotes: Teilen → Exportieren → PDF.</li>
-          <li><label class="button">PDF oder Bilder importieren<input id="file" type="file" accept="application/pdf,image/png,image/jpeg" multiple hidden /></label></li>
+          <li>Tippe auf <button id="template">Vorlage herunterladen</button> und öffne die Datei in GoodNotes. Nur Pfeile und Symbole: <button id="templateSymbols">nur Pfeile &amp; Symbole</button>. Wer verbunden schreibt, nimmt dazu <button id="templateCursive">nur Schreibschrift</button>.</li>
+          <li>Schreib in jedes Kästchen, mit schwarzem oder dunkelblauem Stift. Der Buchstabe steht auf der durchgezogenen Linie. Der graue Buchstabe zeigt nur die Größe. Leere Kästchen sind okay.</li>
+          <li>In GoodNotes: Teilen → Exportieren → PDF. Sichere die PDF, zum Beispiel in „Dateien“.</li>
+          <li>Hier auf <label class="button">PDF oder Bilder importieren<input id="file" type="file" accept="application/pdf,image/png,image/jpeg" multiple hidden /></label> tippen und die PDF auswählen. Die App liest dann deine Buchstaben ein.</li>
         </ol>
         <pre id="log"></pre>
       </div>
@@ -281,6 +293,7 @@
         <img src="./intro-seite.png" width="480" height="250" alt="Beispiel: eine Seite Bio-Notizen in Handschrift" />
         <figcaption>So sieht's aus – hier mit der Muster-Handschrift.</figcaption>
       </figure>
+      <p class="intro-try">Erst mal nur schauen? Es gibt drei fertige Muster: Druckschrift, locker und schnell, Schreibschrift.</p>
       <ol class="intro-steps">
         <li><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l4-1L19 8l-3-3L5 16l-1 4z" /><path d="M14 7l3 3" /></svg>
           <b>Handschrift einmal schreiben</b><span>ein paar Kästchen mit Stift oder Finger</span></li>
@@ -297,17 +310,19 @@
     <div class="sheet welcome">
       <svg class="logo big" viewBox="0 0 512 512" aria-hidden="true"><use href="#mark" /></svg>
       <h2>Willkommen!</h2>
-      <p>Diese App schreibt getippten Text in <b>deiner eigenen Handschrift</b> – zum Einfügen in GoodNotes. Alles bleibt auf deinem Gerät.</p>
+      <p>Diese App schreibt getippten Text in <b>deiner eigenen Handschrift</b>. Den fertigen Text öffnest du in GoodNotes. Alles bleibt auf deinem Gerät.</p>
       <ol class="steps">
-        <li><b>Handschrift einmal anlegen:</b> die Kästchen mit Stift oder Finger ausfüllen, direkt hier in der App.</li>
-        <li><b>Text eintippen</b> oder eine KI-Antwort einfügen – Formeln, Pfeile und Überschriften werden mit umgewandelt.</li>
-        <li><b>„In GoodNotes öffnen“</b> – die Schrift lässt sich dort radieren und mit dem Lasso kopieren.</li>
+        <li><b>Einmal deine Handschrift anlegen.</b> Du füllst Kästchen mit Stift oder Finger aus.</li>
+        <li><b>Text eintippen</b> oder eine KI-Antwort einfügen. Formeln, Pfeile und Überschriften klappen auch.</li>
+        <li><b>„In GoodNotes öffnen“ tippen.</b> Dort kannst du die Schrift radieren und mit dem Lasso verschieben.</li>
       </ol>
+      <p class="welcome-ask">Wie willst du anfangen?</p>
       <div class="row">
         <button id="welcomeOwn" class="primary">Meine Handschrift anlegen</button>
         <button id="welcomeSample">Erst mit Muster ausprobieren</button>
         <label class="button">Handschrift von jemand anderem laden<input id="welcomeRestore" type="file" accept=".json,application/json" hidden /></label>
       </div>
+      <p class="muted small welcome-tip">Mit einem Muster kannst du sofort alles ausprobieren. Oben im Auswahlfeld gibt es drei: Druckschrift, locker und schnell, Schreibschrift. Deine eigene Handschrift legst du später an. Hat dir jemand eine Handschrift-Datei geschickt? Dann nimm den dritten Knopf.</p>
       <button id="welcomeHowto" class="link">So geht's – Kurzanleitung</button>
       <button id="welcomeLater" class="link">Später</button>
     </div>
@@ -318,10 +333,13 @@
       <h2>Einrichtung</h2>
       <ol class="steps">
         <li><b>Handschrift anlegen</b> <span id="setup1" class="muted"></span>
+          <p class="muted small">Am einfachsten: „In der App ausfüllen“. Du schreibst mit Stift oder Finger direkt in Kästchen. Die PDF-Vorlage ist für alle, die lieber in GoodNotes schreiben.</p>
           <div class="row"><button id="setupPencil" class="primary">In der App ausfüllen</button><button id="setupPdf">Mit PDF-Vorlage</button></div></li>
         <li><b>Fehlende Zeichen schreiben</b> <span id="setup2" class="muted"></span>
+          <p class="muted small">Hier siehst du, welche Zeichen noch fehlen. Tippe eins an und schreib es.</p>
           <div class="row"><button id="setupMissing">Zeichen ansehen</button></div></li>
         <li><b>Text schreiben und in GoodNotes öffnen</b>
+          <p class="muted small">Text eintippen oder einfügen. Dann auf „In GoodNotes öffnen“ tippen.</p>
           <div class="row"><button id="setupWrite">Zum Schreiben</button></div></li>
       </ol>
       <button id="setupClose" class="link">Später</button>
@@ -332,12 +350,13 @@
     <div class="sheet welcome">
       <h2>So geht's</h2>
       <ol class="steps">
-        <li><b>App installieren:</b> am iPad in Safari auf Teilen tippen, dann „Zum Home-Bildschirm“. Die App danach immer dort öffnen – Safari und die App auf dem Home-Bildschirm haben getrennten Speicher.</li>
-        <li><b>Handschrift anlegen:</b> unter „Handschriften“ auf „Hier in der App ausfüllen“ tippen und die Kästchen in deiner Schrift ausfüllen. Das machst du nur einmal.</li>
-        <li><b>Text schreiben lassen:</b> unter „Schreiben“ Text eintippen oder eine Antwort aus ChatGPT & Co. einfügen. „KI-Vorgabe kopieren“ sorgt dafür, dass Brüche und Formeln gut ankommen.</li>
-        <li><b>In GoodNotes öffnen:</b> auf „In GoodNotes öffnen“ tippen und im Teilen-Menü GoodNotes wählen.</li>
-        <li><b>Schneller mit KI:</b> GoodNotes und diese App nebeneinander öffnen. Die Antwort in der KI-App kopieren, hier auf „Kopierten Text einfügen“ tippen, dann „In GoodNotes öffnen“.</li>
-        <li><b>Handschrift sichern:</b> unter „Handschriften“ bei deiner Handschrift „Backup speichern“ und im Teilen-Menü „In Dateien sichern“ wählen. Dieselbe Datei kann ein Freund unter „Backup laden“ öffnen.</li>
+        <li><b>Erst ausprobieren:</b> Oben im Auswahlfeld gibt es drei Muster: Druckschrift, locker und schnell, Schreibschrift. Damit klappt alles sofort, auch ohne eigene Handschrift.</li>
+        <li><b>Handschrift anlegen:</b> Geh zu „Handschriften“. Tippe auf „Hier in der App ausfüllen“. Schreib in jedes Kästchen den Buchstaben, der darüber steht. Dann tippe auf „Übernehmen“. Das machst du nur einmal.</li>
+        <li><b>Text schreiben:</b> Geh zu „Schreiben“. Tipp deinen Text ein oder füge ihn ein.</li>
+        <li><b>In GoodNotes öffnen:</b> Tippe auf „In GoodNotes öffnen“. Wähle im Menü GoodNotes aus.</li>
+        <li><b>Mit KI:</b> Tippe auf „KI-Vorgabe kopieren“. Füge sie in Gemini oder ChatGPT ein und schreib deine Frage dahinter. Kopiere die Antwort. Tippe hier auf „Kopierten Text einfügen“, dann auf „In GoodNotes öffnen“.</li>
+        <li><b>Als App aufs iPad:</b> In Safari auf Teilen tippen, dann „Zum Home-Bildschirm“. Öffne die App danach immer dort. Safari und die App haben getrennten Speicher.</li>
+        <li><b>Handschrift sichern:</b> Unter „Handschriften“ bei deiner Handschrift auf „Backup speichern“ tippen. Im Menü „In Dateien sichern“ wählen. Diese Datei kann auch ein Freund unter „Backup laden“ öffnen.</li>
       </ol>
       <button id="howtoClose" class="primary">Fertig</button>
     </div>
@@ -358,6 +377,7 @@
         <button id="pencilDone" class="primary">Übernehmen</button>
       </span>
     </header>
+    <p class="pencil-tip">Schreib in jedes Kästchen den Buchstaben, der darüber steht. Leere Kästchen sind okay. Fertig? Tippe auf „Übernehmen“.</p>
     <ul class="guide-legend pencil-legend">
       <li class="g-base"><b>Grundlinie:</b> hier steht der Buchstabe</li>
       <li class="g-x"><b>Mittellinie:</b> so hoch wie a, n, o</li>

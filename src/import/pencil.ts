@@ -79,7 +79,7 @@ export function setupPencil(onImport: (pages: AsyncIterable<{ img: ImageData }>)
     overlay.hidden = false;
     fit();
     void show(page);
-    toast('Mit Stift oder Finger schreiben. Verschieben: mit dem Pencil ein Finger, sonst zwei. „Kästchen-Ansicht“ zeigt die Kästchen groß.');
+    toast('Schreib mit Stift oder Finger. Seite verschieben: mit dem Pencil ein Finger, sonst zwei Finger. „Kästchen-Ansicht“ zeigt die Kästchen groß.');
   };
   $('pencilClose').onclick = () => { overlay.hidden = true; };
   const flip = async (p: number) => { await show(p); if (zoom > 1) goTo(spot = 0); else scroller.scrollTop = 0; };

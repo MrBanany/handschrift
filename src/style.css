@@ -105,7 +105,10 @@ details > * + * { margin-top: 10px; }
 .page-view.clear { background: repeating-conic-gradient(#e6e6e6 0 25%, #fff 0 50%) 0 0 / 16px 16px; }
 .page-view { background-size: 100% 100%; }
 .page-view > * { position: absolute; inset: 0; width: 100%; height: 100%; -webkit-touch-callout: default; }
-.preview-hint { margin: 0 0 12px; }
+.preview-hint { margin: 0; }
+.preview-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 12px; }
+.preview-bar .preview-hint { flex: 1 1 220px; }
+.page-count { font-size: 13px; font-weight: 600; color: var(--muted); }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; margin: 0 auto 14px; max-width: 760px; }
 .card p { margin: 0 0 14px; }
 .empty { margin-bottom: 20px; }

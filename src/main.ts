@@ -7,6 +7,7 @@ import type { Variant } from './glyphstore/types';
 import { copyPng, download, shareFiles, toPng } from './export/png';
 import { toPdf } from './export/pdf';
 import { forEachPage } from './export/pages';
+import { fitSize } from './renderer/fit';
 import { GN_A4, gnPaper, goodnotesFile } from './export/goodnotes';
 import { pagesOf } from './import/load';
 import { paint, setupPencil } from './import/pencil';
@@ -305,12 +306,13 @@ function preview() {
   $('styleNote').hidden = !style;
   $('styleNote').textContent = style ? `Abstände aus deinen Notizen gelernt (${style.lines} Zeilen).` : '';
   const box = $('preview');
-  box.hidden = $('previewHint').hidden = !raw.length;
+  box.hidden = $('previewBar').hidden = !raw.length;
   if (!raw.length) { $('missing').hidden = true; return; }
   lastW = box.clientWidth;
   const px = Math.min(6, Math.max(2, (lastW * devicePixelRatio) / pageSize().w)); // 6 px/mm is sharp enough on screen
   const { pages, draw, paper, missing } = renderAll(px, 'ink');
   shown = pages;
+  $('pageCount').textContent = pages.length === 1 ? '1 Seite' : `${pages.length} Seiten`;
   const my = ++gen;
   urls.forEach((u) => URL.revokeObjectURL(u));
   urls = [];
@@ -447,6 +449,12 @@ async function shareAs(kind: string, make: () => Promise<File[]>) {
     else if (err.name !== 'AbortError') { ready = null; toast(err.message); }
   }
 }
+/** What the GoodNotes file is laid out with: its own A4 paper; lined and squared: the writing on its lines (so its line spacing and margin, not the settings'). */
+function gnSetup(s: Settings, background: Background) {
+  const paper = background === 'transparent' ? 'blank' : background; // no transparent paper in a notebook
+  const fit = gnPaper(paper, s.lineH, s.margin), size = GN_A4;
+  return { paper, fit, size, set: { ...s, pageW: size.w, pageH: size.h, margin: fit.margin, lineH: fit.lineH } };
+}
 $('share').onclick = () => shareAs('pdf', async () => {
   const { pages, draw } = renderAll(EXPORT_PX_PER_MM, 'page');
   const pngs = await forEachPage(pages.length, draw, toPng);
@@ -456,11 +464,9 @@ $('share').onclick = () => shareAs('pdf', async () => {
 // Real GoodNotes ink: laid out on the template's page size, one file per page.
 $('shareGn').onclick = () => shareAs('gn', async () => {
   const { s, o } = settings();
-  const paper = o.background === 'transparent' ? 'blank' : o.background; // no transparent paper in a notebook
-  // GoodNotes' own A4 paper; lined and squared: the writing on its lines (so its line spacing and margin, not the settings')
-  const fit = gnPaper(paper, s.lineH, s.margin), size = GN_A4, { margin, lineH } = fit;
+  const { paper, fit, size, set } = gnSetup(s, o.background), { margin, lineH } = fit;
   const { text, whole } = exportText();
-  const res = layout(clean(text, (ch) => lib.has(ch)), lib, { ...s, pageW: size.w, pageH: size.h, margin, lineH });
+  const res = layout(clean(text, (ch) => lib.has(ch)), lib, set);
   if (whole) applyOverrides(res.pages);
   const get = (src: string) => bySrc.get(src)!;
   const thumbOpts: DrawOpts = { ...o, background: paper, crop: false, pxPerMm: 2, pageW: size.w, pageH: size.h, lineH, margin };
@@ -486,6 +492,23 @@ $('copy').onclick = () => {
     () => toast(more ? 'Seite 1 kopiert – für längere Texte „PDF“ nutzen.' : 'Kopiert – in GoodNotes auf die Seite tippen → Einsetzen.'),
     (e) => toast(`Kopieren nicht möglich: ${e.message}`),
   );
+};
+
+// ---------- fit the text on one page: shrink size and line spacing together ----------
+$('fit').onclick = () => {
+  if (!raw.length) return toast('Erst eine Handschrift auswählen oder anlegen.');
+  const { s, o } = settings(), text = clean($<HTMLTextAreaElement>('text').value, (ch) => lib.has(ch));
+  const pagesIn = (xh: number, lineH: number, gn: boolean) => { const t = { ...s, xh, lineH }; return layout(text, lib, gn ? gnSetup(t, o.background).set : t).pages.length; };
+  // The GoodNotes file has its own page and, on lined or squared paper, the line spacing of that paper: it has to fit there too.
+  const both = fitSize(s.xh, s.lineH, (xh, lineH) => Math.max(pagesIn(xh, lineH, false), pagesIn(xh, lineH, true)));
+  const pdf = both ?? fitSize(s.xh, s.lineH, (xh, lineH) => pagesIn(xh, lineH, false));
+  if (!pdf) return toast('Passt auch klein nicht auf eine Seite.');
+  const gnPages = pagesIn(pdf.xh, pdf.lineH, true), gnNote = `in GoodNotes sind es wegen der Papierlinien ${gnPages} Seiten`;
+  if (pdf.xh === s.xh && pdf.lineH === s.lineH) return toast(gnPages <= 1 ? 'Passt schon auf eine Seite.' : `Als Bild und PDF passt es schon auf eine Seite, ${gnNote}.`);
+  $<HTMLInputElement>('xh').value = String(pdf.xh);
+  $<HTMLInputElement>('lineH').value = String(pdf.lineH);
+  schedule();
+  toast(gnPages <= 1 ? `Auf eine Seite eingepasst (Größe ${pdf.xh}, Zeilenabstand ${pdf.lineH} mm).` : `Eingepasst, aber ${gnNote}.`);
 };
 
 // ---------- tabs ----------

@@ -62,7 +62,11 @@
       </div>
       </div>
       <div class="paper-col">
-      <p id="previewHint" class="muted small preview-hint">Buchstaben antippen zum Austauschen · lange drücken zum Kopieren</p>
+      <div id="previewBar" class="preview-bar">
+        <p id="previewHint" class="muted small preview-hint">Buchstaben antippen zum Austauschen · lange drücken zum Kopieren</p>
+        <span id="pageCount" class="page-count"></span>
+        <button id="fit" class="small-btn" title="Verkleinert Größe und Zeilenabstand gemeinsam, gerade so weit, dass der Text auf eine Seite passt (höchstens auf 60 %). Die Werte stehen danach in den Einstellungen.">Auf eine Seite einpassen</button>
+      </div>
       <div id="preview" class="preview"></div>
       </div>
     </section>
@@ -160,7 +164,7 @@
               <button type="button" data-rule="2">Weit</button>
             </span>
           </div>
-          <label class="field"><span>Größe</span><input id="xh" type="range" min="1.5" max="8" step="0.1" value="2.6" /><output data-for="xh"></output></label>
+          <label class="field"><span>Größe</span><input id="xh" type="range" min="1.1" max="8" step="0.1" value="2.6" /><output data-for="xh"></output></label>
           <div class="field">
             <span>Tinte</span>
             <span class="swatches">
@@ -208,7 +212,7 @@
           </div>
           <details class="more">
             <summary>Weitere Einstellungen</summary>
-            <label class="field"><span>Zeilenabstand</span><input id="lineH" type="range" min="6" max="30" step="0.1" value="8.7" /><output data-for="lineH"></output></label>
+            <label class="field"><span>Zeilenabstand</span><input id="lineH" type="range" min="3.6" max="30" step="0.1" value="8.7" /><output data-for="lineH"></output></label>
             <label class="field"><span>Strichstärke</span><input id="weight" type="range" min="0" max="3" step="0.25" value="0" /><output data-for="weight"></output></label>
             <label class="field"><span>Ränder</span><input id="margin" type="range" min="0" max="40" step="1" value="15" /><output data-for="margin"></output></label>
             <div class="field"><span>Zufall</span><span class="inline"><input id="seed" type="number" step="1" value="1" /><button id="dice" type="button">Neu mischen</button></span></div>

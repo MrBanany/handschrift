@@ -322,8 +322,9 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
     sig = sig0 * (1 + 0.35 * Math.max(0, (y - s.margin) / (s.pageH - 2 * s.margin)));
     lineSize = 0.7 * lineSize + 0.3 + gauss() * 0.012 * sig;
     // Nobody starts every line at the same spot: the left edge wanders a little; the right edge ends where the next word no longer fits, sometimes earlier.
-    marginWalk = 0.6 * marginWalk + gauss() * 0.7 * sig;
-    lineStart = lineX = Math.max(colL - 1, colL + 0.6 + marginWalk);
+    // 0.7 mm was too little to see (a parent noticed every line starting at the same spot): about 1.5 mm, never far left of the margin
+    marginWalk = 0.5 * marginWalk + gauss() * 1.4 * sig;
+    lineStart = lineX = Math.max(colL - 1.2, colL + 1 + marginWalk);
     rightEdge = colR - Math.abs(gauss()) * 2.5 * sig;
     slope = Math.max(-0.003, Math.min(0.003, gauss() * 0.0012 * sig)); // a line may wander, but never visibly lean (0.006 leaned ~1 mm over a line)
     amp = 0.06 * xh * sig * rand();

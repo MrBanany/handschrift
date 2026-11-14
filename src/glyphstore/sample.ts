@@ -3,7 +3,27 @@ import type { Affine } from '../segmentation/register';
 import { GUIDES, MM, PAGE, TEMPLATE_PAGES, XH } from '../template/layout';
 import type { Variant } from './types';
 
+import patrickHand from './fonts/PatrickHand-Regular.ttf?url';
+import caveat from './fonts/Caveat.ttf?url';
+import playwrite from './fonts/PlaywriteDELA.ttf?url'; // Lateinische Ausgangsschrift: its t has a bar (the VA one has none)
+
 export const SAMPLE_SET = 'Muster';
+/** Ready-made handwritings for everyone, built on the device on first use. Fonts are SIL OFL 1.1 (licence next to the files). */
+export interface Sample { name: string; label: string; family?: string; url?: string; cursive?: boolean }
+export const SAMPLES: Sample[] = [
+  { name: SAMPLE_SET, label: 'Muster (Beispiel)' },
+  { name: 'Muster Druckschrift', label: 'Muster: Druckschrift, ordentlich', family: 'Patrick Hand', url: patrickHand },
+  { name: 'Muster Locker', label: 'Muster: locker und schnell', family: 'Caveat', url: caveat },
+  { name: 'Muster Schreibschrift', label: 'Muster: Schreibschrift, verbunden', family: 'Playwrite DE LA', url: playwrite, cursive: true },
+];
+export const sampleOf = (name: string) => SAMPLES.find((x) => x.name === name);
+export const isSample = (name: string) => !!sampleOf(name);
+/** Loads the sample's font (bundled, works offline once cached) and fills the template with it. */
+export async function sampleVariants(x: Sample): Promise<Variant[]> {
+  if (!x.url || !x.family) return buildSampleSet();
+  document.fonts.add(await new FontFace(x.family, `url(${x.url})`).load());
+  return buildSampleSet(`"${x.family}"`);
+}
 // Handwriting-style fonts that ship with iPadOS, Android, Windows and macOS; nothing is bundled.
 const FONT = '"Bradley Hand", "Segoe Print", "Ink Free", "Noteworthy", "Comic Sans MS", cursive';
 

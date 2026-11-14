@@ -72,7 +72,11 @@ export function centerlines(alpha: Uint8Array, w: number, h: number): { pts: Pt[
     }
     // -0.5: the soft edge of the picture (alpha below the threshold) still shows, ink area then matches the PNG within ~5 %
     const wid = Math.max(1, (2 * path.reduce((sum, i) => sum + edge(i % w, (i / w) | 0), 0)) / path.length - 0.5);
-    if (joined && path.length < 1.5 * wid + 1) return; // a thinning spur at a junction, not a stroke
+    // a thinning spur stays inside the blob it sprouts from (shorter than that blob's radius at the junction);
+    // a real short stroke reaches out of it (the bar of t and f): measured against its own width, those got dropped
+    const end = path[path.length - 1];
+    // only a free end can be a spur: a short piece between two junctions (inside a, e, k) is part of the letter, dropping it left gaps
+    if (joined && nbs(start).length === 1 && path.length < edge(end % w, (end / w) | 0) + 2) return;
     paths.push({ pts: path.map((i) => [i % w + 0.5, ((i / w) | 0) + 0.5]), w: wid });
   };
   const pix: number[] = [];

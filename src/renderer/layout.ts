@@ -69,14 +69,19 @@ function inkY(g: GlyphMeta, m: Mat): [number, number] {
   return [m[3] * t + m[5], m[3] * u + m[5]];
 }
 
-/** Split a word into the largest available samples: whole word > word part (up to 5 letters, e.g. "keit") > pair > single letter. */
-export function segment(word: string, lib: Library): string[] {
+/**
+ * Split a word into the largest available samples: whole word > word part (up to 5 letters, e.g. "keit") > pair > single letter.
+ * rand: then a multi-letter sample is sometimes passed over for the single letters (when those all exist), so one written
+ * "st" does not stand in for every s-t of the text. Kept more often the more variants of it there are.
+ */
+export function segment(word: string, lib: Library, rand?: () => number): string[] {
   const out: string[] = [];
+  const use = (key: string) => lib.has(key) && (!rand || ![...key].every((c) => lib.has(c)) || rand() < Math.min(0.8, 0.4 + 0.15 * lib.get(key)!.length));
   for (const run of word.match(/\p{L}+|[^\p{L}]/gu) ?? []) {
     const chars = [...run];
-    if (chars.length > 1 && lib.has(run)) { out.push(run); continue; }
+    if (chars.length > 1 && use(run)) { out.push(run); continue; }
     for (let i = 0; i < chars.length;) {
-      const len = [5, 4, 3, 2].find((n) => i + n <= chars.length && lib.has(chars.slice(i, i + n).join('')));
+      const len = [5, 4, 3, 2].find((n) => i + n <= chars.length && n < chars.length && use(chars.slice(i, i + n).join('')));
       if (len) { out.push(chars.slice(i, i + len).join('')); i += len; }
       else out.push(chars[i++]);
     }
@@ -166,6 +171,7 @@ export function glyphAt(page: Page, x: number, y: number, reach = 3): number {
 
 export function layout(text: string, lib: Library, s: Settings): { pages: Page[]; missing: Set<string> } {
   const rand = mulberry32(s.seed);
+  const splitRand = mulberry32(s.seed ^ 0x2f6b); // own stream: which word parts get used does not shift every other random choice
   const gauss = () => Math.sqrt(-2 * Math.log(rand() + 1e-12)) * Math.cos(2 * Math.PI * rand());
   const h = s.hasty, sig0 = 0.6 + 1.4 * h, xh = s.xh;
   let sig = sig0, lineSize = 1; // both change per line, see newLine
@@ -189,7 +195,7 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
     let cursor = 0, walk = gauss() * 0.04 * xh * sig;
     let prev: { g: GlyphMeta; m: Mat; right: number; inkR: number; last: string } | null = null;
 
-    for (const key of segment(word, lib)) {
+    for (const key of segment(word, lib, splitRand)) {
       if (!lib.has(key)) {
         const w = 0.7 * xh;
         missing.push({ ch: key, x: cursor + (prev ? 0.15 * xh : 0), y: -1.1 * xh, w, h: 1.4 * xh });

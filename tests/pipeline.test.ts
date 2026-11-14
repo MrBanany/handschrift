@@ -118,6 +118,14 @@ describe('unit selection', () => {
     expect(segment('schen,', lib)).toEqual(['sch', 'en', ',']);
     expect(segment('Bach', lib)).toEqual(['B', 'a', 'ch']);
   });
+
+  it('sometimes writes the single letters instead of a pair, but only when they exist', () => {
+    const lib = libOf([...'Fenst', 'st'], 1);
+    expect(segment('Fenster', lib, () => 0)).toEqual(['F', 'e', 'n', 'st', 'e', 'r']);
+    expect(segment('Fenster', lib, () => 0.99)).toEqual([...'Fenster']);
+    const noT = libOf([...'Fens', 'st'], 1);
+    expect(segment('Fenster', noT, () => 0.99)).toEqual(['F', 'e', 'n', 'st', 'e', 'r']); // no t of its own: keep the pair
+  });
 });
 
 describe('connection model', () => {

@@ -1,7 +1,7 @@
 import './style.css';
 import { DEFAULT_SET, deleteSet, exportAll, exportBackup, freeName, importBackup, listSets, loadSet, markDirty, markSaved, remove, renameSet, saveMany, staleSets } from './glyphstore/db';
 import { DEFAULT_LETTER_GAP, merge, optimize, reviewKeys, type Decision, type Tuned } from './glyphstore/optimize';
-import { SAMPLE_SET, buildSampleSet } from './glyphstore/sample';
+import { SAMPLE_SET, SAMPLES, isSample, sampleOf, sampleVariants } from './glyphstore/sample';
 import { symbolVariants } from './glyphstore/symbols';
 import type { Variant } from './glyphstore/types';
 import { copyPng, download, shareFiles, toPng } from './export/png';
@@ -66,11 +66,14 @@ function rebuild() {
 }
 
 async function useSet(name: string) {
-  if (name === SAMPLE_SET && !sets.includes(SAMPLE_SET)) {
-    toast('Muster-Handschrift wird erzeugt …');
+  const sample = sampleOf(name);
+  if (sample && !sets.includes(name)) {
+    toast(`${sample.label} wird erzeugt …`);
     // takes a few seconds: don't keep saying "Keine ausgewählt" / "Noch keine Handschrift" meanwhile
     if (!active) { $<HTMLSelectElement>('set').options[0].text = 'Muster wird erzeugt …'; $('empty').hidden = true; }
-    await saveMany(SAMPLE_SET, await buildSampleSet());
+    try { await saveMany(name, await sampleVariants(sample)); }
+    catch (e) { renderSets(); return toast(`Muster konnte nicht erzeugt werden: ${(e as Error).message}`); }
+    if (sample.cursive) localStorage.setItem(`cursive:${name}`, '1');
     sets = await listSets();
   }
   const before = active;
@@ -87,9 +90,9 @@ async function useSet(name: string) {
 
 function renderSets() {
   const sel = $<HTMLSelectElement>('set');
-  const names = sets.includes(SAMPLE_SET) ? sets : [...sets, SAMPLE_SET];
+  const names = [...sets, ...SAMPLES.map((x) => x.name).filter((x) => !sets.includes(x))];
   sel.replaceChildren(...(active ? [] : [new Option('Keine ausgewählt', '', true, true)]),
-    ...names.map((n) => new Option(n === SAMPLE_SET ? `${n} (Beispiel)` : n, n, false, n === active)));
+    ...names.map((n) => new Option(sampleOf(n)?.label ?? n, n, false, n === active)));
   if (!active) sel.options[0].disabled = true;
 
   $('sets').replaceChildren(...(sets.length ? sets.map((name) => {
@@ -130,7 +133,7 @@ function renderSets() {
 
   const nameField = $<HTMLInputElement>('setName');
   if (!nameField.value || nameField.dataset.auto) {
-    nameField.value = active && active !== SAMPLE_SET ? active : DEFAULT_SET;
+    nameField.value = active && !isSample(active) ? active : DEFAULT_SET;
     nameField.dataset.auto = '1';
   }
 }
@@ -145,7 +148,7 @@ async function backup(names: string[]) {
     $('install').hidden = true;
   } catch (e) { if ((e as Error).name !== 'AbortError') toast(`Sichern fehlgeschlagen: ${(e as Error).message}`); }
 }
-$('backupAll').onclick = () => backup(sets.filter((n) => n !== SAMPLE_SET));
+$('backupAll').onclick = () => backup(sets.filter((n) => !isSample(n)));
 
 /** Joined-up writing for the active handwriting: as ticked, else guessed from the pairs (mostly joined → on). */
 function cursive() {
@@ -166,15 +169,6 @@ function button(text: string, onclick: () => unknown, cls = '') {
 
 $<HTMLSelectElement>('set').onchange = (e) => useSet((e.target as HTMLSelectElement).value);
 $('trySample').onclick = () => useSet(SAMPLE_SET);
-// dev only (left out of the build): a joined-up test set from a German school cursive; run cursiveSample() in the console
-if (import.meta.env.DEV) Object.assign(window, { cursiveSample: async () => {
-  const name = 'Test Schreibschrift';
-  const url = (await import('@fontsource/playwrite-de-va/files/playwrite-de-va-latin-400-normal.woff2?url')).default;
-  document.fonts.add(await new FontFace('Playwrite DE VA', `url(${url})`).load());
-  await saveMany(name, await buildSampleSet('"Playwrite DE VA"'));
-  sets = await listSets();
-  await useSet(name);
-} });
 $('setName').oninput = () => { delete $('setName').dataset.auto; };
 
 // ---------- settings (persisted locally) ----------
@@ -553,7 +547,7 @@ $('templateCursive').onclick = async () => {
 async function importInto(sources: [label: string, pages: () => AsyncIterable<{ img: ImageData }>][]): Promise<boolean> {
   const name = $<HTMLInputElement>('setName').value.trim() || DEFAULT_SET;
   $('log').textContent = '';
-  if (name === SAMPLE_SET) { log('Bitte einen anderen Namen als „Muster“ wählen.'); return false; }
+  if (isSample(name)) { log(`Bitte einen anderen Namen als „${name}“ wählen – so heißt eine Muster-Handschrift.`); return false; }
   let total = 0;
   for (const [label, pages] of sources) {
     let n = 0;
@@ -612,20 +606,25 @@ $<HTMLInputElement>('notes').onchange = async (ev) => {
   if (!active) { toast('Erst eine Handschrift auswählen.'); input.value = ''; return; }
   const lines: LineMeasure[] = [];
   let page = 0, first: { img: ImageData; px: number; base: number } | null = null;
+  const files = [...input.files ?? []], failed: string[] = [];
   toast('Notizen werden analysiert …');
-  try {
-    for (const file of input.files ?? []) {
+  // one unreadable file must not throw away the pages of all the others
+  for (const file of files) {
+    try {
       for await (const { img, pxPerMm } of pagesOf(file)) {
+        toast(`Notizen werden analysiert … Seite ${page + 1}`);
         const found = measureLines(img, pxPerMm, page++);
         if (!first && found.length >= 3) first = { img, px: pxPerMm, base: found[0].baseline }; // kept for the comparison
         lines.push(...found);
       }
-    }
-  } catch (e) { input.value = ''; return toast(`Konnte nicht gelesen werden: ${(e as Error).message}`); }
+    } catch { failed.push(file.name); }
+  }
   input.value = '';
+  const skipped = failed.length ? ` Nicht lesbar und übersprungen: ${failed.join(', ')}.` : '';
+  if (failed.length === files.length) return toast(`Konnte nicht gelesen werden.${skipped}`);
   const found = summarize(lines);
   if (!found) {
-    return toast(lines.length ? `Nur ${lines.length} Textzeilen erkannt – bitte Seiten mit mehr Fließtext wählen.` : 'Keine Schrift erkannt – bitte beschriebene Seiten wählen.');
+    return toast((lines.length ? `Nur ${lines.length} Textzeilen erkannt – bitte Seiten mit mehr Fließtext wählen.` : 'Keine Schrift erkannt – bitte beschriebene Seiten wählen.') + skipped);
   }
   // Measure our own rendering at known settings the same way; the ratios cancel what the measurement adds (stroke width, rounding).
   const ref = probeStyle();
@@ -642,7 +641,7 @@ $<HTMLInputElement>('notes').onchange = async (ev) => {
   applyStyle(found);
   renderStyle();
   schedule();
-  toast(found.wordGap ? 'Schreibstil übernommen.' : 'Größe und Zeilenabstand übernommen – die Abstände waren nicht messbar.');
+  toast((found.wordGap ? 'Schreibstil übernommen.' : 'Größe und Zeilenabstand übernommen – die Abstände waren nicht messbar.') + skipped);
 };
 
 /** Side by side: a few lines of the uploaded page and the same amount of text written by the app with the learned style. */
@@ -910,10 +909,12 @@ const GROUPS: [string, string[]][] = [
   ['Großbuchstaben', SINGLES.filter((k) => /\p{Lu}/u.test(k))],
   ['Ziffern', SINGLES.filter((k) => /\p{N}/u.test(k))],
   ['Satzzeichen', SINGLES.filter((k) => !/\p{L}|\p{N}/u.test(k))],
-  ['Paare & Dreier', PAIRS],
-  ['Wörter', WORDS],
+  ['Paare & Dreier (freiwillig)', PAIRS],
+  ['Wörter (freiwillig)', WORDS],
   ['Pfeile & Symbole', SYMBOL_KEYS],
 ];
+/** Extras: an empty one is fine, the layout then uses the single letters. */
+const OPTIONAL = new Set([...PAIRS, ...WORDS, ...CURSIVE_KEYS]);
 const KNOWN = new Set([...GROUPS.flatMap(([, keys]) => keys), ...CURSIVE_KEYS]);
 // Most frequent letters in German text: with few variants the same shapes repeat visibly.
 const FREQUENT = [...'enisratdhulgmocbfkwz'];
@@ -961,7 +962,7 @@ function renderGrid() {
   ];
   const all = groups.flatMap(([, keys]) => keys);
   $('glyphsTitle').textContent = active ? `Zeichen von „${active}“` : 'Keine Handschrift ausgewählt';
-  const wanted = all.filter((k) => !DRAWN.test(k)); // arrows are always drawn, not counted
+  const wanted = all.filter((k) => !DRAWN.test(k) && !OPTIONAL.has(k)); // arrows are always drawn; pairs and words are extras
   $('coverage').textContent = active ? `${wanted.filter((k) => byKey.has(k)).length} von ${wanted.length} vorhanden.` : '';
   const d = decisions(), toReview = active ? reviewKeys(raw, strong) : [], open = toReview.filter((k) => !d[k]).length;
   $('reviewOpen').hidden = !toReview.length;
@@ -995,14 +996,14 @@ function renderGrid() {
     group.append(...keys.map((key) => {
       const vs = byKey.get(key) ?? [];
       const el = document.createElement('div');
-      el.className = vs.length || DRAWN.test(key) ? 'glyph' : 'glyph missing';
+      el.className = vs.length || DRAWN.test(key) || OPTIONAL.has(key) ? 'glyph' : 'glyph missing';
       el.onclick = () => openLetter(key);
       const head = document.createElement('b');
       head.textContent = key;
       const info = document.createElement('small');
       // Word parts are used whether joined or not; mention joins only when there are some (print writers saw "0/3 verbunden" as "not recognised").
       const joined = [...key].length > 1 ? vs.filter((v) => v.connected).length : 0;
-      info.textContent = !vs.length ? (lib.has(key) ? 'gezeichnet' : 'fehlt') : `${vs.length}×${joined ? ` · ${joined} verbunden` : ''}`;
+      info.textContent = !vs.length ? (lib.has(key) ? 'gezeichnet' : OPTIONAL.has(key) ? 'leer – geht auch' : 'fehlt') : `${vs.length}×${joined ? ` · ${joined} verbunden` : ''}`;
       head.append(info);
       const row = document.createElement('div');
       row.className = 'variants';
@@ -1010,6 +1011,7 @@ function renderGrid() {
       el.append(head, row);
       return el;
     }));
+    if (title.endsWith('(freiwillig)') && title.startsWith('Paare')) return [h, Object.assign(document.createElement('p'), { className: 'muted small', textContent: 'Paare und Wörter sind nur ein Extra. Leer lassen ist in Ordnung: Dann setzt die App die einzelnen Buchstaben zusammen. Wo es sie gibt, wechselt sie zwischen Paar und Einzelbuchstaben ab.' }), group];
     if (title !== 'Eigene Wortteile') return [h, group];
     const hint = Object.assign(document.createElement('p'), { className: 'muted small', textContent: 'So, wie du sie schreibst. Sie ersetzen im Text die einzelnen Buchstaben (bis 5 Buchstaben, längere nur als ganzes Wort).' });
     return [h, hint, add, group];
@@ -1049,7 +1051,7 @@ $('installClose').onclick = () => { localStorage.setItem('installHidden', '1'); 
 navigator.storage?.persist?.();
 // Safari may wipe a site's storage after a week of not using it: nudge towards a backup once something has been unsaved for 3 days.
 function backupReminder() {
-  const stale = staleSets(3).filter((n) => n !== SAMPLE_SET && sets.includes(n));
+  const stale = staleSets(3).filter((n) => !isSample(n) && sets.includes(n));
   if (!stale.length) return;
   $('installText').textContent = `Seit Tagen nicht gesichert: ${stale.join(', ')}. Sichere sie im Teilen-Menü in „Dateien“ oder iCloud – falls der Speicher einmal gelöscht wird.`;
   $('installBtn').textContent = 'Jetzt sichern';
@@ -1074,7 +1076,7 @@ $('howtoOpen').onclick = $('welcomeHowto').onclick = () => howto(true);
 $('howtoClose').onclick = () => howto(false);
 // Setup checklist: shown after an import (what is missing now?) and any time from the Handschriften tab.
 function openSetup() {
-  const own = sets.some((n) => n !== SAMPLE_SET), miss = active && active !== SAMPLE_SET ? missingKeys().length : 0;
+  const own = sets.some((n) => !isSample(n)), miss = active && !isSample(active) ? missingKeys().length : 0;
   $('setup1').textContent = own ? 'erledigt' : 'noch offen';
   $('setup2').textContent = !own ? '' : miss ? `${miss} Zeichen fehlen noch` : 'alles da';
   $('setup').hidden = false;

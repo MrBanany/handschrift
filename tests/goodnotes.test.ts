@@ -22,6 +22,16 @@ describe('goodnotes export', () => {
     expect(lines[0].w).toBeLessThan(4);
   });
 
+  it('keeps the short bar of a t and the bridge between two legs', () => {
+    const shape = (w: number, h: number, rects: number[][]) => {
+      const a = new Uint8Array(w * h);
+      for (const [x0, y0, x1, y1] of rects) for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) a[y * w + x] = 255;
+      return centerlines(a, w, h);
+    };
+    expect(shape(20, 30, [[8, 2, 11, 27], [3, 8, 16, 10]])).toHaveLength(3); // stem + both halves of the bar
+    expect(shape(30, 30, [[5, 2, 9, 27], [16, 2, 20, 27], [10, 12, 15, 14], [5, 2, 20, 5]])).toHaveLength(2); // the bar between the legs stays
+  });
+
   it('keeps a closed loop (an o) round', () => {
     const w = 44, h = 50, a = new Uint8Array(w * h);
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const r = Math.hypot((x - 22) / 18, (y - 25) / 21); if (r > 0.75 && r < 1) a[y * w + x] = 255; }

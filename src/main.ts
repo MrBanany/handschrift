@@ -279,6 +279,9 @@ let ready: { kind: string; files: File[]; asked?: boolean } | null = null; // re
 function schedule() { ready = null; clearTimeout(timer); timer = window.setTimeout(preview, 150); }
 
 const EAGER_PAGES = 2;
+/** The size before the last fit, so the same button can undo it. */
+let fitted: { from: number; to: number } | null = null;
+const mm = (v: number) => String(v).replace(".", ",");
 let io: IntersectionObserver | null = null, lastW = 0;
 let paperCache: { key: string; url: string } | null = null;
 /** The ruled/grid paper is the same on every page: draw it once per format and line type. */
@@ -314,8 +317,10 @@ function preview() {
   const { pages, draw, paper, missing } = renderAll(px, 'ink');
   shown = pages;
   $('pageCount').textContent = pages.length === 1 ? '1 Seite' : `${pages.length} Seiten`;
-  $('fitNote').hidden = pages.length < 2;
-  $('fitText').textContent = `Der Text braucht ${pages.length} Seiten.`;
+  if (fitted && $<HTMLInputElement>('xh').value !== String(fitted.to)) fitted = null; // size changed by hand: nothing to undo
+  $('fitNote').hidden = !fitted && pages.length < 2;
+  $('fitText').textContent = fitted ? `Eingepasst: Schrift ${mm(fitted.from)} → ${mm(fitted.to)} mm.` : `Der Text braucht ${pages.length} Seiten.`;
+  $('fit').textContent = fitted ? 'Rückgängig' : 'Auf eine Seite einpassen';
   const my = ++gen;
   urls.forEach((u) => URL.revokeObjectURL(u));
   urls = [];
@@ -498,7 +503,9 @@ $('copy').onclick = () => {
 };
 
 // ---------- fit the text on one page: smaller letters, the line spacing stays ----------
+const setXh = (v: number) => { const el = $<HTMLInputElement>('xh'); el.value = String(v); el.dispatchEvent(new Event('input')); };
 $('fit').onclick = () => {
+  if (fitted) { const { from } = fitted; fitted = null; setXh(from); return toast('Größe zurückgesetzt.'); }
   if (!raw.length) return toast('Erst eine Handschrift auswählen oder anlegen.');
   const { s, o } = settings(), text = clean($<HTMLTextAreaElement>('text').value, (ch) => lib.has(ch));
   const pagesIn = (xh: number, gn: boolean) => { const t = { ...s, xh }; return layout(text, lib, gn ? gnSetup(t, o.background).set : t).pages.length; };
@@ -508,9 +515,9 @@ $('fit').onclick = () => {
   if (xh === null) return toast('Passt auch klein nicht auf eine Seite. Der Zeilenabstand bleibt, wie er ist.');
   const gnPages = pagesIn(xh, true), gnNote = `in GoodNotes sind es wegen der Papierlinien ${gnPages} Seiten`;
   if (xh === s.xh) return toast(gnPages <= 1 ? 'Passt schon auf eine Seite.' : `Als Bild und PDF passt es schon auf eine Seite, ${gnNote}.`);
-  $<HTMLInputElement>('xh').value = String(xh);
-  schedule();
-  toast(gnPages <= 1 ? `Auf eine Seite eingepasst (Größe ${xh} mm, Zeilenabstand unverändert).` : `Eingepasst, aber ${gnNote}.`);
+  fitted = { from: s.xh, to: xh };
+  setXh(xh);
+  toast(gnPages <= 1 ? `Auf eine Seite eingepasst (Größe ${mm(xh)} mm, Zeilenabstand unverändert).` : `Eingepasst, aber ${gnNote}.`);
 };
 
 // ---------- tabs ----------

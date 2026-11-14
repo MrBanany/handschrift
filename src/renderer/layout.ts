@@ -2,6 +2,7 @@ import { connectionModel, makeConnector, type Connector, type Library } from '..
 import type { Anchor, GlyphMeta } from '../glyphstore/types';
 import { MM, XH } from '../template/layout';
 import { ARROW, CIRC, EMPH, HEAD, INDENT, MARK, STRUCT } from './clean';
+import { CARD, NOTE } from './cards';
 import { BOX, flatFrac } from './latex';
 import { MAP, decodeMap, mapAsList, planMindmap, type MapPlan } from './mindmap';
 import { molecule, type Molecule } from './structure';
@@ -298,21 +299,22 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
     for (const c of page!.connectors.slice(from.c)) c.accent = true;
   };
   let marginWalk = 0, rightEdge = s.pageW - s.margin, hang = 0;
+  let colL = s.margin, colR = s.pageW - s.margin, inBlock = false; // the column being written: the page, or one side of a card (placeBlock)
   const newLine = (first = false) => {
     closeUnderline(); closeMark(); closeRing();
     if (!first) accentLine();
     rec = null;
     if (!first) y += s.lineH * (1 + Math.max(0, lineDown));
     lineDown = 0;
-    if (first || y > s.pageH - s.margin) newPage();
+    if (first || (!inBlock && y > s.pageH - s.margin)) newPage();
     from = { g: page!.glyphs.length, c: page!.connectors.length, m: page!.missing.length, k: page!.marks.length };
     // Writing gets a little looser towards the end of a page, and its size wanders slowly from line to line.
     sig = sig0 * (1 + 0.35 * Math.max(0, (y - s.margin) / (s.pageH - 2 * s.margin)));
     lineSize = 0.7 * lineSize + 0.3 + gauss() * 0.012 * sig;
     // Nobody starts every line at the same spot: the left edge wanders a little; the right edge ends where the next word no longer fits, sometimes earlier.
     marginWalk = 0.6 * marginWalk + gauss() * 0.7 * sig;
-    lineStart = lineX = Math.max(s.margin - 1, s.margin + 0.6 + marginWalk);
-    rightEdge = s.pageW - s.margin - Math.abs(gauss()) * 2.5 * sig;
+    lineStart = lineX = Math.max(colL - 1, colL + 0.6 + marginWalk);
+    rightEdge = colR - Math.abs(gauss()) * 2.5 * sig;
     slope = Math.max(-0.003, Math.min(0.003, gauss() * 0.0012 * sig)); // a line may wander, but never visibly lean (0.006 leaned ~1 mm over a line)
     amp = 0.06 * xh * sig * rand();
     phase = rand() * 2 * Math.PI;
@@ -516,13 +518,13 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
   }
 
   /** A word wider than a whole line (a long compound, a link) is broken with a hyphen, like by hand. */
-  const maxW = 0.85 * (s.pageW - 2 * s.margin); // room to spare: the real pass picks other variants and joins than the measuring one
+  const maxW = () => 0.85 * (colR - colL); // room to spare: the real pass picks other variants and joins than the measuring one
   const strip = (x: string) => x.replace(/[\u0001-\u0006\u0014-\u0018\u001b\u001c\u001f]/g, '');
   const width = (x: string) => { const d = layoutWord(strip(x)); return d.inkR - d.inkL; };
   const fit = (tok: string): string[] => {
-    if (tok.startsWith(STRUCT[0]) || tok.includes('\u001c') || tok.includes('\u0011') || strip(tok).length < 20 ||width(tok) <= maxW) return [tok];
+    if (tok.startsWith(STRUCT[0]) || tok.includes('\u001c') || tok.includes('\u0011') || strip(tok).length < 20 * (colR - colL) / (s.pageW - 2 * s.margin) || width(tok) <= maxW()) return [tok];
     let lo = 1, hi = tok.length - 1;
-    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (width(tok.slice(0, mid) + '-') <= maxW) lo = mid; else hi = mid - 1; }
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (width(tok.slice(0, mid) + '-') <= maxW()) lo = mid; else hi = mid - 1; }
     return [tok.slice(0, lo) + '-', ...fit(tok.slice(lo))];
   };
 
@@ -577,9 +579,8 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
     lineDown = Math.max(lineDown, p.rows); // the next line starts below the map
   }
 
-  newLine(true);
-  expandMaps(text).forEach((line, li) => {
-    if (li > 0) newLine();
+  /** Writes one line of the text from lineX on (newLine() has put the pen there). */
+  const writeLine = (line: string) => {
     if (line.startsWith(MAP[0])) { placeMap(mapPlan(line)!); return; }
     let emph = false, marking = false, ringing = false, boxing = false;
     const indent = line.length - line.replace(new RegExp(`^${INDENT}+`), '').length; // steps of a nested list item
@@ -660,7 +661,73 @@ export function layout(text: string, lib: Library, s: Settings): { pages: Page[]
       // a list item's wrapped lines start under its text, not under the bullet
       if (bullet) hang = lineX - lineStart;
     }
-  });
+  };
+
+  // Flash cards and note boxes (cards.ts marks their lines): the lines are written into columns inside a ruled frame.
+  // A block is never split over two pages: one that does not fit moves to the next page as a whole.
+  // One taller than a whole page is written as plain lines instead.
+  const rule = (x0: number, y0: number, x1: number, y1: number) => {
+    const j = () => gauss() * 0.02 * xh;
+    x0 += j(); y0 += j(); x1 += j(); y1 += j();
+    page!.connectors.push({ p: [[x0, y0], [x0 + (x1 - x0) / 3, y0 + (y1 - y0) / 3], [x0 + (2 * (x1 - x0)) / 3, y0 + (2 * (y1 - y0)) / 3], [x1, y1]], w0: penW, w1: penW });
+  };
+  function placeBlock(cols: string[][], gap: boolean) {
+    const L = s.lineH, l = s.margin, r = s.pageW - s.margin, pad = 1.2 * xh, w = (r - l) / cols.length;
+    const yStart = y;
+    if (gap && y > s.margin + L) y += L; // a free line between the text above and the frame
+    let y0 = y, end = y0 + (cols.length > 1 ? L : 0); // a card is at least two lines tall
+    const P = page!, at = { g: P.glyphs.length, c: P.connectors.length, m: P.missing.length, l: P.lines.length, k: P.marks.length };
+    inBlock = true;
+    cols.forEach((lines, c) => {
+      colL = l + c * w + pad; colR = l + (c + 1) * w - pad; y = y0 - L; lineDown = 0;
+      for (const line of lines) { newLine(); writeLine(line); }
+      closeUnderline(); closeMark(); closeRing(); accentLine();
+      end = Math.max(end, y + lineDown * L);
+    });
+    inBlock = false; colL = l; colR = r; heading = false;
+    if (end - y0 > s.pageH - 2 * s.margin - 2 * L) {
+      P.glyphs.length = at.g; P.connectors.length = at.c; P.missing.length = at.m; P.lines.length = at.l; P.marks.length = at.k;
+      y = yStart - L; lineDown = 0;
+      for (const line of cols.flat()) { newLine(); writeLine(line); }
+      return;
+    }
+    if (end > s.pageH - s.margin && y0 > s.margin + L + 0.01) {
+      const g = P.glyphs.splice(at.g), c = P.connectors.splice(at.c), m = P.missing.splice(at.m), ln = P.lines.splice(at.l), k = P.marks.splice(at.k);
+      newPage();
+      const dy = y - y0;
+      for (const x of g) x.m[5] += dy;
+      for (const x of c) for (const q of x.p) q[1] += dy;
+      for (const x of m) x.y += dy;
+      for (const x of k) { x.y0 += dy; x.y1 += dy; }
+      page!.glyphs.push(...g); page!.connectors.push(...c); page!.missing.push(...m); page!.lines.push(...ln); page!.marks.push(...k);
+      y0 += dy; end += dy;
+    }
+    const top = y0 - Math.max(0.8 * L, 2.1 * xh), bot = end + 0.45 * L;
+    rule(l, top, r, top); rule(r, top, r, bot); rule(r, bot, l, bot); rule(l, bot, l, top);
+    for (let c = 1; c < cols.length; c++) rule(l + c * w, top, l + c * w, bot); // the fold line of a card
+    y = end; lineDown = 1; rec = null; // the next line keeps a line's distance from the frame
+    from = { g: page!.glyphs.length, c: page!.connectors.length, m: page!.missing.length, k: page!.marks.length };
+  }
+
+  const lines = expandMaps(text);
+  newLine(true);
+  for (let i = 0, afterBlock = false; i < lines.length; i++) {
+    const line = lines[i], kind = line.at(-1), body = (x: string) => x.slice(0, -1).trimEnd();
+    if (afterBlock && !line) { afterBlock = false; continue; } // the frame already keeps its distance
+    const gap = i > 0 && !afterBlock && !!lines[i - 1];
+    if (i > 0) newLine();
+    /** The following lines that end with k (an empty line between them does not end the block). */
+    const take = (k: string) => {
+      const out: string[] = [];
+      for (; lines[i]?.endsWith(k) || (out.length && lines[i] === '' && lines[i + 1]?.endsWith(k)); i++) if (lines[i]) out.push(body(lines[i]));
+      i--;
+      return out;
+    };
+    afterBlock = kind === CARD[0] || kind === NOTE;
+    if (kind === CARD[0]) { i++; placeBlock([[body(line)], take(CARD[1])], gap); }
+    else if (kind === NOTE) placeBlock([take(NOTE)], gap);
+    else writeLine(kind === CARD[1] ? body(line) : line); // an answer that lost its question is just text
+  }
   closeUnderline(); closeMark(); closeRing(); accentLine();
   return { pages, missing: missingSet };
 }

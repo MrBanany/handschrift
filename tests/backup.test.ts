@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { deleteSet, exportAll, exportBackup, freeName, importBackup, listSets, loadSet, renameSet, saveMany, staleSets, markSaved, storageError } from '../src/glyphstore/db';
+import { deleteSet, exportAll, exportBackup, freeName, importBackup, listSets, loadSet, renameSet, saveMany, staleSets, markSaved, storageError, isDirty } from '../src/glyphstore/db';
 import type { Variant } from '../src/glyphstore/types';
 
 const store = new Map<string, string>();
@@ -123,5 +123,38 @@ describe('Geteilte Dateien prüfen (P5)', () => {
     expect(store.has('style:Pref')).toBe(false);
     expect(store.has('cursive:Pref')).toBe(false);
     expect(store.get('review:Pref')).toBe('{"a":"accept"}');
+  });
+});
+
+describe('Speicher-Fixes: Löschen-Angebot, gleicher Name, Umbenennen', () => {
+  it('ungesichert = isDirty; nach dem Sichern nicht mehr', async () => {
+    await saveMany('Neu', [glyph('n-1', 'a', 3)]);
+    expect(isDirty('Neu')).toBe(true);
+    markSaved(['Neu']);
+    expect(isDirty('Neu')).toBe(false);
+  });
+
+  it('Umbenennen nimmt den Gesichert-Status mit (und den Zeitpunkt, wenn ungesichert)', async () => {
+    await renameSet('Neu', 'Neu2');
+    expect(isDirty('Neu2')).toBe(false);
+    store.set('dirty:Neu2', '12345');
+    await renameSet('Neu2', 'Neu3');
+    expect(store.get('dirty:Neu3')).toBe('12345');
+    expect(store.has('dirty:Neu2')).toBe(false);
+  });
+
+  it('Backup unter gleichem Namen überschreibt nichts Vorhandenes, ergänzt nur', async () => {
+    await saveMany('Eins', [glyph('b-1', 'a', 3), glyph('b-2', 'b', 3)]);
+    store.set('cursive:Eins', '1');
+    const old = fileOf(await exportBackup('Eins'));
+    await deleteSet('Eins'); // neuerer Stand: b-1 neu gezeichnet, b-3 dazu, b-2 fehlt, andere Einstellung
+    await saveMany('Eins', [glyph('b-1', 'a', 9), glyph('b-3', 'c', 5)]);
+    store.set('cursive:Eins', '0');
+    const { count } = await importBackup(old);
+    const now = await loadSet('Eins');
+    expect(count).toBe(1); // nur b-2 kommt dazu
+    expect(now.map((v) => v.src).sort()).toEqual(['b-1', 'b-2', 'b-3']);
+    expect(now.find((v) => v.src === 'b-1')!.alpha).toEqual(glyph('b-1', 'a', 9).alpha);
+    expect(store.get('cursive:Eins')).toBe('0'); // vorhandene Einstellung bleibt
   });
 });

@@ -1,5 +1,5 @@
 import './style.css';
-import { DEFAULT_SET, deleteSet, exportAll, exportBackup, freeName, importBackup, listSets, loadSet, markDirty, markSaved, remove, renameSet, saveMany, staleSets } from './glyphstore/db';
+import { DEFAULT_SET, deleteSet, exportAll, exportBackup, freeName, importBackup, isDirty, listSets, loadSet, markDirty, markSaved, remove, renameSet, saveMany, staleSets } from './glyphstore/db';
 import { DEFAULT_LETTER_GAP, merge, optimize, reviewKeys, type Decision, type Tuned } from './glyphstore/optimize';
 import { SAMPLE_SET, SAMPLES, isSample, sampleOf, sampleVariants } from './glyphstore/sample';
 import { symbolVariants } from './glyphstore/symbols';
@@ -122,6 +122,12 @@ function renderSets() {
         await useSet(name === active ? to : active);
       }),
       button('Löschen', async () => {
+        // unsaved work: offer the backup first, and only go on if it was actually saved or the user declines it
+        if (!isSample(name) && isDirty(name) && confirm(`„${name}“ ist noch nicht gesichert. Erst Backup speichern?
+(OK = Backup, Abbrechen = ohne Backup weiter)`)) {
+          await backup([name]);
+          if (isDirty(name)) return;
+        }
         if (!confirm(`„${name}“ von diesem Gerät löschen? Vorher sichern, falls du sie noch brauchst.`)) return;
         await deleteSet(name);
         sets = await listSets();
@@ -695,7 +701,7 @@ async function restoreFrom(ev: Event) {
     // a name already in use: ask for another one ("Name (2)" suggested); the same name merges into the existing handwriting
     const { sets: got, count } = await importBackup(f, (name, existing) => existing.includes(name)
       ? prompt(`„${name}“ gibt es auf diesem Gerät schon. Unter welchem Namen laden?
-(Derselbe Name ergänzt die vorhandene Handschrift.)`, freeName(name, existing)) : name);
+(Derselbe Name ergänzt die vorhandene Handschrift, ihre Proben bleiben unverändert.)`, freeName(name, existing)) : name);
     sets = await listSets();
     if (!got.length) return;
     welcomed(); // a handwriting loaded from the first-start window counts as set up

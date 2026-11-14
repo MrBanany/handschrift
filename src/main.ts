@@ -10,6 +10,7 @@ import { forEachPage } from './export/pages';
 import { GN_A4, gnPaper, goodnotesFile } from './export/goodnotes';
 import { pagesOf } from './import/load';
 import { paint, setupPencil } from './import/pencil';
+import { drawGuides } from './import/guides';
 import { drawPage, type Background, type DrawOpts } from './renderer/draw';
 import { DEFAULT_WORD_GAP, glyphAt, layout, profile, swapVariant, type Page, type Settings } from './renderer/layout';
 import { extractBox, extractPage } from './segmentation/extract';
@@ -19,7 +20,7 @@ import { buildTemplatePdf } from './template/pdf';
 import { AI_PROMPT } from './prompt';
 import { TEXT_MAX, takeText } from './handover';
 import { iosSafariHint } from './install';
-import { CELL, CURSIVE_KEYS, CURSIVE_PAGES, GUIDES, MM, PAIRS, SINGLES, SYMBOL_KEYS, SYMBOL_PAGE, TEMPLATE_PAGES, WORDS } from './template/layout';
+import { CELL, CURSIVE_KEYS, CURSIVE_PAGES, MM, PAIRS, SINGLES, SYMBOL_KEYS, SYMBOL_PAGE, TEMPLATE_PAGES, WORDS } from './template/layout';
 
 const FORMATS: Record<string, { w: number; h: number }> = { a4: { w: 210, h: 297 }, a4q: { w: 297, h: 210 }, a5: { w: 148, h: 210 } };
 const pageSize = () => FORMATS[$<HTMLInputElement>('page').value] ?? FORMATS.a4;
@@ -718,7 +719,7 @@ function openSwap() {
     };
     return box;
   }));
-  for (const id of ['swapPad', 'swapSave', 'swapWrite']) $(id).hidden = !active;
+  for (const id of ['swapPaper', 'swapSave', 'swapWrite']) $(id).hidden = !active;
   if (active) clearPad();
   $('swap').hidden = false;
 }
@@ -731,9 +732,17 @@ const boxFor = (key: string) => TEMPLATE_PAGES.flat().find((b) => b.key === key)
 function drawPad() {
   const c = $<HTMLCanvasElement>('swapPad'), ctx = c.getContext('2d')!;
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
-  ctx.strokeStyle = '#c8d3e3'; ctx.lineWidth = 2; // lighter than ink: extraction ignores it
-  for (const yy of [GUIDES.asc, GUIDES.xh, GUIDES.base, GUIDES.desc]) { ctx.beginPath(); ctx.moveTo(0, yy * MM); ctx.lineTo(c.width, yy * MM); ctx.stroke(); }
+  drawGuides(ctx, 0, 0, c.width, MM, swapAt!.key);
   for (const s of pad) paint(ctx, s);
+}
+/** The pad as it gets cut out: white paper and ink only, no guides. */
+function padInk() {
+  const c = document.createElement('canvas'), pc = $<HTMLCanvasElement>('swapPad');
+  c.width = pc.width; c.height = pc.height;
+  const ctx = c.getContext('2d', { willReadFrequently: true })!;
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+  for (const s of pad) paint(ctx, s);
+  return ctx.getImageData(0, 0, c.width, c.height);
 }
 function clearPad() {
   const b = boxFor(swapAt!.key), c = $<HTMLCanvasElement>('swapPad');
@@ -749,8 +758,8 @@ $('swapWrite').onclick = clearPad;
   c.onpointermove = (e) => { if (e.buttons && pad.length) { pad.at(-1)!.push(...at(e)); drawPad(); } };
 }
 $('swapSave').onclick = async () => {
-  const { n, key } = swapAt!, c = $<HTMLCanvasElement>('swapPad');
-  const b = boxFor(key), img = c.getContext('2d')!.getImageData(0, 0, c.width, c.height);
+  const { n, key } = swapAt!;
+  const b = boxFor(key), img = padInk();
   const v = extractBox(img, [MM, 0, 0, 0, MM, 0], { ...b, x: 0, y: 0 });
   if (!v) return toast('Da ist noch nichts geschrieben.');
   const src = `pen:${key}:${Date.now()}`;

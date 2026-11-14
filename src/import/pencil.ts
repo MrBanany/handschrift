@@ -1,6 +1,7 @@
 import { MM, PAGE, TEMPLATE_PAGES } from '../template/layout';
 import { buildTemplatePdf } from '../template/pdf';
 import { pagesOf } from './load';
+import { drawGuides } from './guides';
 
 /** A pen stroke in template pixels (MM px/mm): x, y, width per point. */
 type Stroke = number[];
@@ -53,7 +54,14 @@ export function setupPencil(onImport: (pages: AsyncIterable<{ img: ImageData }>)
   let bg: ImageData | null = null;
 
   const fit = () => { canvas.style.width = `${scroller.clientWidth * zoom}px`; };
-  const redraw = () => { if (!bg) return; ctx.putImageData(bg, 0, 0); for (const s of strokes[page]) paint(ctx, s); };
+  // Screen only: written() builds the import from the plain template, so these guides never reach the glyphs.
+  const redraw = () => {
+    if (!bg) return;
+    ctx.putImageData(bg, 0, 0);
+    const k = canvas.width / PAGE.w;
+    for (const b of TEMPLATE_PAGES[page]) drawGuides(ctx, b.x * k, b.y * k, b.w * k, k);
+    for (const s of strokes[page]) paint(ctx, s);
+  };
   async function show(p: number) {
     page = p;
     $('pencilPage').textContent = `Seite ${p + 1} von ${strokes.length}`;

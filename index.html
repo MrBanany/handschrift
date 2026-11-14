@@ -248,7 +248,14 @@
       <h2 id="swapTitle"></h2>
       <p id="swapHint" class="hint"></p>
       <div id="swapVariants" class="variants"></div>
-      <canvas id="swapPad" class="swap-pad"></canvas>
+      <div id="swapPaper" class="swap-paper">
+        <canvas id="swapPad" class="swap-pad"></canvas>
+        <ul class="guide-legend">
+          <li class="g-base"><b>Grundlinie:</b> hier steht der Buchstabe</li>
+          <li class="g-x"><b>Mittellinie:</b> so hoch wie a, n, o</li>
+          <li class="g-out">Oben bis zur Linie: A, h, k, l · unten: g, p, y</li>
+        </ul>
+      </div>
       <div class="row">
         <button id="swapSave" class="primary">Speichern</button>
         <button id="swapWrite">Leeren</button>
@@ -322,6 +329,11 @@
         <button id="pencilDone" class="primary">Übernehmen</button>
       </span>
     </header>
+    <ul class="guide-legend pencil-legend">
+      <li class="g-base"><b>Grundlinie:</b> hier steht der Buchstabe</li>
+      <li class="g-x"><b>Mittellinie:</b> so hoch wie a, n, o</li>
+      <li class="g-out">Oben bis zur Linie: A, h, k, l · unten: g, p, y</li>
+    </ul>
     <div id="pencilScroll" class="pencil-scroll"><canvas id="pencilCanvas"></canvas></div>
   </div>
 

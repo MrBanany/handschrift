@@ -3,7 +3,7 @@
 import { AI_PROMPT } from './prompt';
 import { HELLO, MAIN, SWAP, type Stroke } from './tour-ink';
 
-const W = 440, H = 680; // stage size; it is scaled to the screen as a whole
+const W = 440, H = 700; // stage size; it is scaled to the screen as a whole
 const $ = (id: string) => document.getElementById(id)!;
 
 type Target = string | (() => [number, number]); // data-t name of an element, or a point on the stage
@@ -79,7 +79,7 @@ function stage() {
   <div class="tv-swap"><div class="tv-swap-sheet">
     <b>„Z“ austauschen</b>
     <span class="muted small">Tippe eine andere Variante an – oder schreib den Buchstaben unten neu.</span>
-    <span class="tv-variants">${SWAP.alts.map((a, i) => `<span class="thumb" data-t="var${i}"><svg viewBox="92.1 29.6 7.6 10.4">${paths(a.map(([w, d]) => [0, w, d]))}</svg></span>`).join('')}</span>
+    <span class="tv-variants">${SWAP.alts.map((a, i) => `<span class="thumb" data-t="var${i}"><svg viewBox="92.1 29.6 7.6 10.4"><g class="ink">${paths(a.map(([w, d]) => [0, w, d]))}</g></svg></span>`).join('')}</span>
     <span class="tv-pad"></span>
     <span class="tv-swap-row"><span class="button primary">Speichern</span><span class="button">Leeren</span><span class="link">Schließen</span></span>
   </div></div>
@@ -279,6 +279,11 @@ function build() {
   SWAP.alts.forEach((a) => { const g = document.createElementNS('http://www.w3.org/2000/svg', 'g'); g.setAttribute('class', 'alt'); g.innerHTML = paths(a.map(([w, d]) => [0, w, d])); main.append(g); });
   ink = { hello: pens(stageEl!.querySelector('.tv-hello')!), main: pens(stageEl!.querySelector('.tv-main .pen')!).filter((s) => !s.p.closest('.alt')), nb: pens(stageEl!.querySelector('.tv-nb .pen')!) };
   ink.main.push(...pens(stageEl!.querySelector('.tv-main .mks')!)); // the marker last
+  // "einpassen" makes the writing smaller but keeps the lines: every stroke shrinks towards its own baseline
+  stageEl!.querySelectorAll<SVGPathElement>('.tv-main path').forEach((p) => {
+    const y = Number(p.getAttribute('d')!.split(/[ L]/)[1]);
+    p.style.transformOrigin = `8px ${18 + 10 * Math.max(0, Math.min(3, Math.round((y - 15) / 10)))}px`;
+  });
   for (const sc of SCENES) for (const [, , sel, cls = 'on'] of sc.on) stageEl!.querySelectorAll(sel).forEach((el) => {
     if (!toggles.some(([e, c]) => e === el && c === cls)) toggles.push([el, cls]);
   });

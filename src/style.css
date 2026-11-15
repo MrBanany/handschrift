@@ -366,7 +366,7 @@ textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3
   .tour-scene { text-align: left; }
 }
 
-.tv { position: absolute; left: 50%; top: 0; width: 440px; height: 680px; transform-origin: top center; overflow: hidden; pointer-events: none; user-select: none; -webkit-user-select: none;
+.tv { position: absolute; left: 50%; top: 0; width: 440px; height: 700px; transform-origin: top center; overflow: hidden; pointer-events: none; user-select: none; -webkit-user-select: none;
   background: var(--bg); border: 1px solid var(--line); border-radius: 22px; font-size: 15px; line-height: 1.5; color: var(--text); }
 .tv .button { transition: background .15s, transform .12s, box-shadow .3s; }
 .tv .tv-down { transform: scale(.95); background: var(--hover); }
@@ -398,8 +398,8 @@ textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3
 .tv svg .rule { stroke: #b9cde0; stroke-width: .2; fill: none; }
 .tv svg .ink path { fill: none; stroke: #1c2340; stroke-linecap: round; stroke-linejoin: round; }
 .tv svg .ink path.mk { stroke: rgba(255, 212, 0, .42); }
-.tv-main { transition: transform .7s cubic-bezier(.3,.7,.2,1); transform-origin: 8px 8px; }
-.tv-main.fit { transform: scale(.875); }
+.tv-main path { transition: transform .7s cubic-bezier(.3,.7,.2,1); }
+.tv-main.fit path { transform: scale(.875); }
 .tv-tabbar { position: absolute; left: 0; right: 0; bottom: 0; height: 62px; display: flex; justify-content: center; gap: 6px; padding: 6px 10px; background: var(--surface); border-top: 1px solid var(--line); }
 .tv-tabbar span { flex: 0 1 130px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-radius: 12px; font-size: 11px; font-weight: 500; color: var(--muted); transition: box-shadow .3s; }
 .tv-tabbar span.on { color: var(--accent); background: var(--accent-soft); }

@@ -17,7 +17,7 @@ self.addEventListener('activate', (e) => e.waitUntil(
   caches.keys().then((names) => Promise.all(names.filter((n) => n !== CACHE).map((n) => caches.delete(n)))).then(() => self.clients.claim()),
 ));
 self.addEventListener('fetch', (e) => {
-  if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
+  if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return; // other origins (e.g. the GoatCounter script gc.zgo.at and its count requests) go straight to the network, never cached
   // The page itself is revalidated every time (GitHub Pages would serve a 10-minute-old copy), so a new version shows on the next start.
   const req = e.request.mode === 'navigate' ? new Request(e.request.url, { cache: 'no-cache' }) : e.request;
   e.respondWith(

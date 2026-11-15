@@ -18,5 +18,16 @@ const swBuildId = {
   },
 };
 
+// Usage counter (GoatCounter): put the site code here, e.g. 'handschrift' for handschrift.goatcounter.com. Empty = the script is not in the page, nothing is sent.
+// The page path is fixed so a handed-over ?text=… never reaches the counter.
+const GC_CODE = '';
+const counter = {
+  name: 'goatcounter',
+  transformIndexHtml: () => GC_CODE ? [
+    { tag: 'script', children: 'window.goatcounter = { path: location.pathname };', injectTo: 'head' as const },
+    { tag: 'script', attrs: { async: true, src: 'https://gc.zgo.at/count.js', 'data-goatcounter': `https://${GC_CODE}.goatcounter.com/count` }, injectTo: 'head' as const },
+  ] : [],
+};
+
 // Relative base: works on GitHub Pages under any repository name.
-export default defineConfig({ base: './', plugins: [swBuildId] });
+export default defineConfig({ base: './', plugins: [swBuildId, counter] });

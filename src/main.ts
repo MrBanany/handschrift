@@ -22,6 +22,7 @@ import { AI_PROMPT } from './prompt';
 import { TEXT_MAX, takeText } from './handover';
 import { iosSafariHint } from './install';
 import { openTour } from './tour';
+import { count, countExport } from './count';
 import { CELL, CURSIVE_KEYS, CURSIVE_PAGES, MM, PAIRS, SINGLES, SYMBOL_KEYS, SYMBOL_PAGE, TEMPLATE_PAGES, WORDS } from './template/layout';
 
 const FORMATS: Record<string, { w: number; h: number }> = { a4: { w: 210, h: 297 }, a4q: { w: 297, h: 210 }, a5: { w: 148, h: 210 } };
@@ -174,11 +175,13 @@ function button(text: string, onclick: () => unknown, cls = '') {
   return b;
 }
 
-$<HTMLSelectElement>('set').onchange = (e) => useSet((e.target as HTMLSelectElement).value);
+/** A sample handwriting picked by the user (the sample names are the app's own, nothing personal). */
+const countSample = (name: string) => { const x = sampleOf(name); if (x) count(`muster-${x.name}`, `Muster gewählt: ${x.label}`); };
+$<HTMLSelectElement>('set').onchange = (e) => { const name = (e.target as HTMLSelectElement).value; countSample(name); return useSet(name); };
 /** Switch to the sample and tell a newcomer what to do next. */
-const trySample = () => useSet(SAMPLE_SET).then(() => {
+const trySample = () => { countSample(SAMPLE_SET); return useSet(SAMPLE_SET).then(() => {
   if (active === SAMPLE_SET) toast('Das Muster ist bereit. Tipp einen Text ein, dann auf „In GoodNotes öffnen“. Andere Muster findest du oben im Auswahlfeld.');
-});
+}); };
 $('trySample').onclick = trySample;
 $('setName').oninput = () => { delete $('setName').dataset.auto; };
 
@@ -447,19 +450,21 @@ function handover(starting: boolean) {
 handover(true);
 addEventListener('hashchange', () => handover(false)); // page already open: a new #text= does not reload it
 
-async function shareAs(kind: string, make: () => Promise<File[]>) {
+let exportPages = 1; // pages of the file being made, for the usage count
+async function shareAs(kind: 'pdf' | 'gn', make: () => Promise<File[]>) {
   if (!raw.length) return toast('Erst eine Handschrift auswählen oder anlegen.');
   remember();
   try {
     if (ready?.kind !== kind) ready = { kind, files: await make() };
     await shareFiles(ready.files);
     ready = null;
+    countExport(kind === 'gn' ? 'goodnotes' : 'pdf', exportPages);
   } catch (e) {
     const err = e as Error;
     // iPad only opens the share sheet right after a tap; rendering can take longer than that.
     if (err.name === 'NotAllowedError' && ready && !ready.asked) { ready.asked = true; toast('Die Datei ist fertig. Tippe bitte noch einmal auf den Knopf.'); }
     // sharing refused again (some desktop browsers never allow it): save the files instead of asking forever
-    else if (err.name === 'NotAllowedError' && ready) { ready.files.forEach((f) => download(f, f.name)); ready = null; }
+    else if (err.name === 'NotAllowedError' && ready) { ready.files.forEach((f) => download(f, f.name)); ready = null; countExport(kind === 'gn' ? 'goodnotes' : 'pdf', exportPages); }
     else if (err.name !== 'AbortError') { ready = null; toast(err.message); }
   }
 }
@@ -471,6 +476,7 @@ function gnSetup(s: Settings, background: Background) {
 }
 $('share').onclick = () => shareAs('pdf', async () => {
   const { pages, draw } = renderAll(EXPORT_PX_PER_MM, 'page');
+  exportPages = pages.length;
   const pngs = await forEachPage(pages.length, draw, toPng);
   const { w, h } = pageSize();
   return [new File([await toPdf(pngs, w, h)], 'handschrift.pdf', { type: 'application/pdf' })];
@@ -485,6 +491,7 @@ $('shareGn').onclick = () => {
     const { text, whole } = exportText();
     const res = layout(clean(text, (ch) => lib.has(ch)), lib, set);
     if (whole) applyOverrides(res.pages);
+    exportPages = res.pages.length;
     gnNote = gnHint(res.missing, $<HTMLInputElement>('page').value);
     if (gnNote) toast(gnNote);
     const get = (src: string) => bySrc.get(src)!;
@@ -509,7 +516,7 @@ $('copy').onclick = () => {
     return toPng(first).finally(() => { first.width = 0; });
   });
   copyPng(blob).then(
-    () => toast(more ? 'Seite 1 kopiert – für längere Texte „PDF“ nutzen.' : 'Kopiert – in GoodNotes auf die Seite tippen → Einsetzen.'),
+    () => { countExport('bild', 1); toast(more ? 'Seite 1 kopiert – für längere Texte „PDF“ nutzen.' : 'Kopiert – in GoodNotes auf die Seite tippen → Einsetzen.'); },
     (e) => toast(`Kopieren nicht möglich: ${e.message}`),
   );
 };
@@ -562,7 +569,7 @@ $('templateCursive').onclick = async () => {
 };
 
 /** Cut out and save every page of the given sources into the set named in the form; false if nothing was found. */
-async function importInto(sources: [label: string, pages: () => AsyncIterable<{ img: ImageData }>][]): Promise<boolean> {
+async function importInto(sources: [label: string, pages: () => AsyncIterable<{ img: ImageData }>][], inApp = false): Promise<boolean> {
   const name = $<HTMLInputElement>('setName').value.trim() || DEFAULT_SET;
   $('log').textContent = '';
   if (isSample(name)) { log(`Bitte einen anderen Namen als „${name}“ wählen – so heißt eine Muster-Handschrift.`); return false; }
@@ -582,7 +589,7 @@ async function importInto(sources: [label: string, pages: () => AsyncIterable<{ 
     } catch (e) { log(`${label}: konnte nicht gelesen werden (${(e as Error).message})`); }
   }
   sets = await listSets();
-  if (total) { await useSet(name); log(`Fertig – „${name}“ ist jetzt aktiv.`); toast(`„${name}“ ist fertig und ausgewählt.`); openSetup(); }
+  if (total) { inApp ? count('vorlage-in-app', 'Vorlage in der App ausgefüllt') : count('vorlage-eingelesen', 'Vorlage eingelesen (Handschrift angelegt/ergänzt)'); await useSet(name); log(`Fertig – „${name}“ ist jetzt aktiv.`); toast(`„${name}“ ist fertig und ausgewählt.`); openSetup(); }
   else log('Keine Zeichen gefunden. Hast du mit dunklem Stift in die Kästchen geschrieben? Nimm die Vorlage aus dieser App.');
   return total > 0;
 }
@@ -592,7 +599,7 @@ $<HTMLInputElement>('file').onchange = async (ev) => {
   await importInto([...input.files ?? []].map((f) => [f.name, () => pagesOf(f)]));
   input.value = '';
 };
-setupPencil((pages) => importInto([['In der App ausgefüllt', () => pages]]), toast);
+setupPencil((pages) => importInto([['In der App ausgefüllt', () => pages]], true), toast);
 
 /** Ruling preset (index into rules()) the learned line spacing matches: within 0.35 mm, the notes were written on it. */
 const ruleOf = (lineH: number) => rules().findIndex((v) => Math.abs(v - lineH) <= 0.35);
@@ -655,6 +662,7 @@ $<HTMLInputElement>('notes').onchange = async (ev) => {
   style = found;
   localStorage.setItem(`style:${active}`, JSON.stringify(found));
   markDirty(active);
+  count('notizen-hochgeladen', 'Notizen für Schreibstil hochgeladen');
   renderCompare(first, found);
   applyStyle(found);
   renderStyle();
@@ -1092,7 +1100,7 @@ $('introGo').onclick = () => { $('intro').hidden = true; $('welcome').classList.
 const howto = (on: boolean) => { $('howto').hidden = !on; };
 $('howtoOpen').onclick = $('welcomeHowto').onclick = () => howto(true);
 $('howtoClose').onclick = () => howto(false);
-$('howtoTour').onclick = $('introTour').onclick = openTour;
+$('howtoTour').onclick = $('introTour').onclick = () => { count('kurz-video', 'Kurz-Video geöffnet'); openTour(); };
 // Setup checklist: shown after an import (what is missing now?) and any time from the Handschriften tab.
 function openSetup() {
   const own = sets.some((n) => !isSample(n)), miss = active && !isSample(active) ? missingKeys().length : 0;

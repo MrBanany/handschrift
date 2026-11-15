@@ -16,7 +16,7 @@ const glyph = (src: string, key: string, fill: number): Variant => ({
   alpha: Uint8Array.from({ length: 12 }, (_, i) => (i * fill) % 256),
 });
 const fileOf = (b: Blob, name = 'x.json') => new File([b], name);
-const prefs = { style: '{"xh":3.4,"lineH":9,"lines":12}', cursive: '1', review: '{"a":"accept","b":"reject"}' };
+const prefs = { style: '{"xh":3.4,"lineH":9,"lines":12,"wordGap":1.2,"letterGap":0.1,"pages":3}', cursive: '1', review: '{"a":"accept","b":"reject"}' };
 const fill = (set: string) => { for (const [k, v] of Object.entries(prefs)) store.set(`${k}:${set}`, v); };
 
 describe('Backup: Export → Löschen → Import', () => {

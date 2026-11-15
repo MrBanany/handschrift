@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { measureLines, splitGaps, summarize } from '../src/segmentation/style';
+import { measureLines, mergeStyles, splitGaps, summarize } from '../src/segmentation/style';
 import { Painter } from './synthetic';
 
 // Synthetic notes page: "letters" are blocks, x-height 3 mm, letter gap 0.6 mm, word gap 3 mm, line pitch 9 mm.
@@ -83,5 +83,26 @@ describe('text style analysis', () => {
   it('gives up instead of guessing on too little text', () => {
     expect(splitGaps([1, 1, 1])).toBeNull();
     expect(summarize([])).toBeNull();
+  });
+});
+
+describe('mergeStyles: neue Notizen lernen dazu', () => {
+  const a = { xh: 3, lineH: 8, wordGap: 1, letterGap: 0.1, lines: 30, pages: 2 };
+  it('mittelt nach Zeilenzahl, zählt Zeilen und Seiten zusammen', () => {
+    const m = mergeStyles(a, { xh: 4, lineH: 10, wordGap: 2, letterGap: 0.3, lines: 10, pages: 1 });
+    expect(m).toMatchObject({ xh: 3.25, lineH: 8.5, wordGap: 1.25, lines: 40, pages: 3 });
+    expect(m.letterGap).toBeCloseTo(0.15);
+  });
+  it('ohne früheres Ergebnis gilt das neue; alte Werte ohne pages und ohne Abstände laden weiter', () => {
+    expect(mergeStyles(null, a)).toBe(a);
+    const old = { xh: 3, lineH: 8, lines: 20 };
+    const m = mergeStyles(old, { xh: 3, lineH: 8, wordGap: 1.5, letterGap: 0.2, lines: 20, pages: 1 });
+    expect(m).toMatchObject({ xh: 3, lines: 40, pages: 1 });
+    expect(m.wordGap).toBe(1.5); // nur ein Upload konnte die Abstände messen
+  });
+  it('dieselben Notizen zweimal ändern die Werte nicht', () => {
+    const m = mergeStyles(a, a);
+    expect(m).toMatchObject({ xh: 3, lineH: 8, wordGap: 1, lines: 60 });
+    expect(m.letterGap).toBeCloseTo(0.1);
   });
 });

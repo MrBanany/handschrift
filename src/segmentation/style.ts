@@ -112,3 +112,21 @@ export function summarize(lines: LineMeasure[]): TextStyle | null {
     ...(split && { wordGap: Math.min(3, Math.max(0.4, split.word)), letterGap: Math.min(0.8, Math.max(0.03, split.letter)) }),
   };
 }
+
+/**
+ * Add what a new upload taught to what was learned before: every value is the mean of both, weighted by the number of
+ * lines behind it, so more notes make it steadier instead of replacing it. Both must already be calibrated the same way
+ * (the caller corrects the new one before merging, so nothing is corrected twice). `old` may come from an older app version.
+ */
+export function mergeStyles(old: TextStyle | null, add: TextStyle): TextStyle {
+  if (!old) return add;
+  const mean = (a: number | undefined, b: number | undefined) => {
+    const wa = a === undefined ? 0 : old.lines, wb = b === undefined ? 0 : add.lines;
+    return wa + wb ? ((a ?? 0) * wa + (b ?? 0) * wb) / (wa + wb) : undefined;
+  };
+  const wordGap = mean(old.wordGap, add.wordGap), letterGap = mean(old.letterGap, add.letterGap);
+  return {
+    xh: mean(old.xh, add.xh)!, lineH: mean(old.lineH, add.lineH)!, lines: old.lines + add.lines, pages: (old.pages ?? 0) + (add.pages ?? 0),
+    ...(wordGap !== undefined && letterGap !== undefined && { wordGap, letterGap }),
+  };
+}

@@ -16,7 +16,7 @@ import { drawPage, type Background, type DrawOpts } from './renderer/draw';
 import { DEFAULT_WORD_GAP, glyphAt, layout, profile, swapVariant, type Page, type Settings } from './renderer/layout';
 import { extractBox, extractPage } from './segmentation/extract';
 import { clean } from './renderer/clean';
-import { measureLines, summarize, type LineMeasure, type TextStyle } from './segmentation/style';
+import { measureLines, mergeStyles, summarize, type LineMeasure, type TextStyle } from './segmentation/style';
 import { buildTemplatePdf } from './template/pdf';
 import { AI_PROMPT } from './prompt';
 import { TEXT_MAX, takeText } from './handover';
@@ -652,14 +652,17 @@ $<HTMLInputElement>('notes').onchange = async (ev) => {
     if (found.letterGap && ref.letterGap) found.letterGap *= DEFAULT_LETTER_GAP / ref.letterGap;
   }
   found.pages = page;
-  style = found;
-  localStorage.setItem(`style:${active}`, JSON.stringify(found));
+  // every upload adds to what was learned before (found is calibrated above, the stored style was calibrated when it was made)
+  const learned = mergeStyles(style, found);
+  const more = !!style;
+  style = learned;
+  localStorage.setItem(`style:${active}`, JSON.stringify(learned));
   markDirty(active);
-  renderCompare(first, found);
-  applyStyle(found);
+  renderCompare(first, learned);
+  applyStyle(learned);
   renderStyle();
   schedule();
-  toast((found.wordGap ? 'Schreibstil übernommen.' : 'Größe und Zeilenabstand übernommen – die Abstände waren nicht messbar.') + skipped);
+  toast((more ? `Schreibstil ergänzt – jetzt aus ${learned.lines} Zeilen.` : found.wordGap ? 'Schreibstil übernommen.' : 'Größe und Zeilenabstand übernommen – die Abstände waren nicht messbar.') + skipped);
 };
 
 /** Side by side: a few lines of the uploaded page and the same amount of text written by the app with the learned style. */

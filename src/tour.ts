@@ -16,7 +16,16 @@ const E = 1e9; // until the scene ends
 const QUESTION = 'Erklär mir kurz die Fotosynthese.';
 const KI_TEXT = '## Fotosynthese\n- Pflanzen brauchen Licht.\n- Aus $\\ce{CO2}$ und Wasser wird Zucker.\n- Dabei entsteht ==Sauerstoff==.';
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
-const paths = (ss: Stroke[]) => ss.map(([k, w, d]) => `<path class="${k ? 'mk' : ''}" stroke-width="${w}" d="${d}"/>`).join('');
+const PEN = 0.7; // one pen width for all ink: the baked widths vary per stroke and looked uneven
+const pts = (d: string) => d.slice(1).split('L').map((q) => q.split(' ').map(Number));
+// A tiny stroke touching another one is a leftover tick from thinning, not a dot: i-dots and full stops stand alone and stay.
+const spur = (ss: Stroke[], i: number) => {
+  const p = pts(ss[i][2]);
+  const len = p.slice(1).reduce((n, [x, y], j) => n + Math.hypot(x - p[j][0], y - p[j][1]), 0);
+  if (ss[i][0] || len >= 0.8) return false;
+  return ss.some((o, j) => j !== i && !o[0] && pts(o[2]).some(([x, y]) => [p[0], p[p.length - 1]].some(([ex, ey]) => Math.hypot(x - ex, y - ey) < 0.4)));
+};
+const paths = (ss: Stroke[]) => ss.map(([k, w, d], i) => `<path class="${k ? 'mk' : spur(ss, i) ? 'spur' : ''}" stroke-width="${k ? w : PEN}" d="${d}"/>`).join('');
 const rules = (h: number) => Array.from({ length: Math.floor((h - 16) / 10) }, (_, i) => `<path class="rule" d="M0 ${18 + 10 * i}H130"/>`).join('');
 const paper = (inner: string, h = 62) => `<svg viewBox="0 0 130 ${h}">${rules(h)}${inner}</svg>`;
 const ICON = {

@@ -398,6 +398,7 @@ textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3
 .tv svg .rule { stroke: #b9cde0; stroke-width: .2; fill: none; }
 .tv svg .ink path { fill: none; stroke: #1c2340; stroke-linecap: round; stroke-linejoin: round; }
 .tv svg .ink path.mk { stroke: rgba(255, 212, 0, .42); }
+.tv svg .ink path.spur { display: none; }
 .tv-main path { transition: transform .7s cubic-bezier(.3,.7,.2,1); }
 .tv-main.fit path { transform: scale(.875); }
 .tv-tabbar { position: absolute; left: 0; right: 0; bottom: 0; height: 62px; display: flex; justify-content: center; gap: 6px; padding: 6px 10px; background: var(--surface); border-top: 1px solid var(--line); }

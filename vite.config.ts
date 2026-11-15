@@ -20,7 +20,7 @@ const swBuildId = {
 
 // Usage counter (GoatCounter): put the site code here, e.g. 'handschrift' for handschrift.goatcounter.com. Empty = the script is not in the page, nothing is sent.
 // The page path is fixed so a handed-over ?text=… never reaches the counter.
-const GC_CODE = '';
+const GC_CODE = 'mrbanany';
 const counter = {
   name: 'goatcounter',
   transformIndexHtml: () => GC_CODE ? [

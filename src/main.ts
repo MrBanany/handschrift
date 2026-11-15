@@ -21,6 +21,7 @@ import { buildTemplatePdf } from './template/pdf';
 import { AI_PROMPT } from './prompt';
 import { TEXT_MAX, takeText } from './handover';
 import { iosSafariHint } from './install';
+import { openTour } from './tour';
 import { CELL, CURSIVE_KEYS, CURSIVE_PAGES, MM, PAIRS, SINGLES, SYMBOL_KEYS, SYMBOL_PAGE, TEMPLATE_PAGES, WORDS } from './template/layout';
 
 const FORMATS: Record<string, { w: number; h: number }> = { a4: { w: 210, h: 297 }, a4q: { w: 297, h: 210 }, a5: { w: 148, h: 210 } };
@@ -1091,6 +1092,7 @@ $('introGo').onclick = () => { $('intro').hidden = true; $('welcome').classList.
 const howto = (on: boolean) => { $('howto').hidden = !on; };
 $('howtoOpen').onclick = $('welcomeHowto').onclick = () => howto(true);
 $('howtoClose').onclick = () => howto(false);
+$('howtoTour').onclick = $('introTour').onclick = openTour;
 // Setup checklist: shown after an import (what is missing now?) and any time from the Handschriften tab.
 function openSetup() {
   const own = sets.some((n) => !isSample(n)), miss = active && !isSample(active) ? missingKeys().length : 0;

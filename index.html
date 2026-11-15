@@ -303,6 +303,7 @@
           <b>In GoodNotes öffnen</b><span>radieren und verschieben wie echte Schrift</span></li>
       </ol>
       <button id="introGo" class="primary">Los geht's</button>
+      <button id="introTour" class="link tour-open"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" /></svg>Kurz-Video ansehen (1 Minute)</button>
     </div>
   </div>
 
@@ -349,6 +350,7 @@
   <div id="howto" class="overlay" hidden>
     <div class="sheet welcome">
       <h2>So geht's</h2>
+      <button id="howtoTour" class="tour-open"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" /></svg>Kurz-Video ansehen</button>
       <ol class="steps">
         <li><b>Erst ausprobieren:</b> Oben im Auswahlfeld gibt es drei Muster: Druckschrift, locker und schnell, Schreibschrift. Damit klappt alles sofort, auch ohne eigene Handschrift.</li>
         <li><b>Handschrift anlegen:</b> Geh zu „Handschriften“. Tippe auf „Hier in der App ausfüllen“. Schreib in jedes Kästchen den Buchstaben, der darüber steht. Dann tippe auf „Übernehmen“. Das machst du nur einmal.</li>
@@ -359,6 +361,24 @@
         <li><b>Handschrift sichern:</b> Unter „Handschriften“ bei deiner Handschrift auf „Backup speichern“ tippen. Im Menü „In Dateien sichern“ wählen. Diese Datei kann auch ein Freund unter „Backup laden“ öffnen.</li>
       </ol>
       <button id="howtoClose" class="primary">Fertig</button>
+    </div>
+  </div>
+
+  <!-- short tour: an animated mock of the app (src/tour.ts), no video file -->
+  <div id="tour" class="overlay" hidden>
+    <div class="sheet tour" role="dialog" aria-modal="true" aria-labelledby="tourTitle">
+      <header class="sheet-head"><strong id="tourTitle">Kurz-Video: So geht's</strong><button id="tourClose">Schließen</button></header>
+      <div id="tourView" class="tour-view"></div>
+      <div class="tour-side">
+        <p id="tourSub" class="tour-sub" aria-live="polite"></p>
+        <div class="tour-ctrl">
+          <button id="tourPlay" class="icon" aria-label="Pause"></button>
+          <button id="tourPrev" class="tour-still">Zurück</button>
+          <div id="tourSeg" class="tour-seg"></div>
+          <button id="tourNext" class="primary tour-still">Weiter</button>
+        </div>
+        <p id="tourScene" class="muted small tour-scene"></p>
+      </div>
     </div>
   </div>
 

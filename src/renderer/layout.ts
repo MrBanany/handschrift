@@ -378,7 +378,10 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
   let from = { g: 0, c: 0, m: 0, k: 0 }; // where this line's ink starts in the page lists
   // How far down the fractions and roots of this line / of the line above reach (page mm): what follows keeps clear of it.
   let deep = -Infinity, prevDeep = -Infinity;
-  const newPage = () => { page = { glyphs: [], connectors: [], missing: [], lines: [], marks: [] }; pages.push(page); y = s.margin + s.lineH; deep = prevDeep = -Infinity; };
+  let deepR = -Infinity, prevDeepR = -Infinity; // and how far right they end (page mm)
+  // The line above, as it was left (same page, same column): a boxed result can go back up and stand beside it.
+  let prevLine: { y: number; endX: number; rightEdge: number; lineDown: number; prevDeep: number; prevDeepR: number } | null = null;
+  const newPage = () => { page = { glyphs: [], connectors: [], missing: [], lines: [], marks: [] }; pages.push(page); y = s.margin + s.lineH; deep = prevDeep = -Infinity; prevLine = null; };
   /**
    * Ink that starts `top` mm above this line's baseline (negative) would run into a deep fraction or root above: the line moves
    * down whole lines, so it stays on the ruling. No extra air asked for: the ink heights are measured in bands and come out a bit generous.
@@ -397,8 +400,10 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
     closeUnderline(); closeMark(); closeRing();
     if (!first) accentLine();
     rec = null;
+    const was = first ? null : { y, endX: lineX, rightEdge, lineDown, prevDeep, prevDeepR };
     if (!first) y += s.lineH * (1 + Math.max(0, lineDown));
-    lineDown = 0; prevDeep = deep; deep = -Infinity;
+    lineDown = 0; prevDeep = deep; deep = -Infinity; prevDeepR = deepR; deepR = -Infinity;
+    prevLine = was;
     if (first || (!inBlock && y > s.pageH - s.margin)) newPage();
     from = { g: page!.glyphs.length, c: page!.connectors.length, m: page!.missing.length, k: page!.marks.length };
     // Writing gets a little looser towards the end of a page, and its size wanders slowly from line to line.
@@ -414,12 +419,12 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
     phase = rand() * 2 * Math.PI;
     lambda = 60 + 60 * rand();
   };
-  /** Moves everything written on this line down by dy (mm), to make room above for a tall formula. */
-  const shiftLine = (dy: number) => {
-    for (const g of page!.glyphs.slice(from.g)) g.m[5] += dy;
-    for (const c of page!.connectors.slice(from.c)) for (const q of c.p) q[1] += dy;
-    for (const ms of page!.missing.slice(from.m)) ms.y += dy;
-    for (const k of page!.marks.slice(from.k)) { k.y0 += dy; k.y1 += dy; }
+  /** Moves everything written on this line down by dy (mm), to make room above for a tall formula; dx moves it sideways as well. */
+  const shiftLine = (dy: number, dx = 0) => {
+    for (const g of page!.glyphs.slice(from.g)) { g.m[4] += dx; g.m[5] += dy; }
+    for (const c of page!.connectors.slice(from.c)) for (const q of c.p) { q[0] += dx; q[1] += dy; }
+    for (const ms of page!.missing.slice(from.m)) { ms.x += dx; ms.y += dy; }
+    for (const k of page!.marks.slice(from.k)) { k.x0 += dx; k.x1 += dx; k.y0 += dy; k.y1 += dy; }
     y += dy; deep += dy;
   };
   /** Line break inside a paragraph: list items continue under their text. */
@@ -461,18 +466,32 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
     if (x1 - from > 0.8 * xh) pulled(from, base(from) + low, x1, base(x1) + low, FINE);
   }
   // Circled ((text)) or boxed (\boxed{…}) words: drawn by hand around this line's piece of them.
-  let ring: { box: boolean; x0: number; x1: number; top: number; bot: number } | null = null;
-  function closeRing() {
-    if (!ring) return;
-    const { box, x0, x1, top: inkTop, bot: inkBot } = ring;
+  let ring: { box: boolean; x0: number; x1: number; top: number; bot: number; lead: boolean } | null = null; // lead: it began the line
+  /** done: the box ends here (not just this line's piece of it). Returns how far the line's ink was moved sideways (mm). */
+  function closeRing(done = false): number {
+    if (!ring) return 0;
+    const { box, lead, top: inkTop, bot: inkBot } = ring;
+    let { x0, x1 } = ring;
     ring = null;
     if (box) {
       // roomy enough for what is inside (a fraction is taller than a word); corners overshoot a little, like a quick box
-      const l = x0 - 0.55 * xh, r = x1 + 0.55 * xh, o = 0.15 * xh;
+      const o = 0.15 * xh;
       const up = Math.min(-1.75 * xh, inkTop - y - 0.4 * xh), down = Math.max(0.7 * xh, inkBot - y + 0.4 * xh);
       // a tall box must not cut through the line above: move this line down a whole line (like a tall molecule)
       const room = Math.max(y - s.lineH + 0.9 * xh, prevDeep + 0.5 * xh); // nor sit on a fraction's denominator there: a frame needs air
-      if (y + up < room) shiftLine(Math.ceil((room - y - up) / s.lineH) * s.lineH);
+      // A boxed result under a formula with a deep fraction or root: pupils write it behind the calculation, on the same line.
+      // So when it would hit that fraction and fits beside the line above, it goes up there instead of skipping a line.
+      const left = prevLine ? prevLine.endX + 0.9 * xh : 0;
+      let moved = 0;
+      if (done && lead && prevLine && y + up < prevDeep + 0.5 * xh && left + (x1 - x0) + 1.4 * xh <= prevLine.rightEdge && up > 0.9 * xh - s.lineH
+        && (prevLine.y + up > prevLine.prevDeep + 0.3 * xh || left > prevLine.prevDeepR + 0.5 * xh)) { // up there it must clear the line above that one
+        moved = left + 0.7 * xh - x0;
+        const below = prevDeep, belowR = prevDeepR; // the formula line is this line now: what follows keeps clear of its fraction
+        shiftLine(prevLine.y - y, moved);
+        x0 += moved; x1 += moved;
+        lineDown = Math.max(lineDown, prevLine.lineDown); prevDeep = prevLine.prevDeep; prevDeepR = prevLine.prevDeepR; deep = Math.max(deep, below); deepR = Math.max(deepR, belowR); prevLine = null;
+      } else if (y + up < room) shiftLine(Math.ceil((room - y - up) / s.lineH) * s.lineH);
+      const l = x0 - 0.55 * xh, r = x1 + 0.55 * xh;
       lineDown = Math.max(lineDown, Math.ceil((down - s.lineH + 1.6 * xh) / s.lineH));
       // pulled straight: about level and plumb (the line's drift taken at the box's middle), corners overshoot a little
       const top = y + drift((l + r) / 2) + up, bot = y + drift((l + r) / 2) + down;
@@ -481,7 +500,7 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
       pulled(r, top - oj(), r, bot + oj(), FINE);
       pulled(r + oj(), bot, l - oj(), bot, FINE);
       pulled(l, bot + oj(), l, top - oj(), FINE);
-      return;
+      return moved;
     }
     // an ellipse in one go, a bit more than once round; it widens slightly so the ends do not meet exactly
     const cx = (x0 + x1) / 2, cy = y + drift(cx) - 0.55 * xh, rx = (x1 - x0) / 2 + 0.6 * xh, ry = 1.35 * xh;
@@ -491,6 +510,7 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
       const [ax, ay, adx, ady] = at(t0 + i * d), [bx, by, bdx, bdy] = at(t0 + (i + 1) * d);
       page!.connectors.push({ p: [[ax, ay], [ax + k * adx, ay + k * ady], [bx - k * bdx, by - k * bdy], [bx, by]], w0: penW, w1: penW });
     }
+    return 0;
   }
   let mark: { x0: number; x1: number } | null = null;
   function closeMark() {
@@ -827,11 +847,12 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
       const close = () => {
         if (token.includes(EMPH[1])) { closeUnderline(); emph = false; }
         if (token.includes(MARK[1])) { closeMark(); marking = false; }
-        if (token.includes(CIRC[1]) || token.includes(BOX[1])) { closeRing(); ringing = boxing = false; }
+        if (token.includes(CIRC[1]) || token.includes(BOX[1])) { const dx = closeRing(true); ringing = boxing = false; return dx; }
+        return 0;
       };
       // a ring or box needs room on both sides, or it runs into the neighbouring words
       const roomAfter = token.includes(CIRC[1]) || token.includes(BOX[1]) ? 0.5 * xh : 0;
-      if (!word) { close(); lineX += roomAfter; continue; }
+      if (!word) { lineX += close() + roomAfter; continue; }
       if ((token.includes(CIRC[0]) || token.includes(BOX[0])) && lineX > lineStart) lineX += 0.5 * xh;
       const first = lineX === lineStart + hang;
       // no two bullets look alike (a bit bigger or smaller, higher or lower), but they stand in one column: the line's wandering
@@ -844,18 +865,22 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
       // lineX is where the next word's ink starts
       if (lineX > lineStart && lineX - wd.inkL + wd.inkR > rightEdge) wrap();
       const [wTop, wBot] = wd.bars.length ? extentY(wd, size) : [-1.5 * xh * size, 0]; // plain words: up to their ascenders
-      clearAbove(wTop);
-      if (wd.bars.length) deep = Math.max(deep, y + wBot);
+      // A fraction or root that would just touch the one above (formula, then the numbers put in) is written a little lower,
+      // like a pupil squeezes it in: the line stays where it is. Only a real overlap skips a line.
+      const tight = prevDeep + 0.15 * xh - (y + wTop), nudge = wd.bars.length && tight > 0.15 * xh && tight <= 0.75 * xh ? tight : 0;
+      if (!nudge) clearAbove(wTop);
+      if (wd.bars.length) deep = Math.max(deep, y + wBot + nudge);
       const ox = lineX - wd.inkL;
+      if (wd.bars.length) deepR = Math.max(deepR, ox + wd.inkR);
       const plain = flatFrac(word).replace(/\u0010/g, ' ');
       if (rec) rec.text += ` ${plain}`;
       else page!.lines.push(rec = { text: plain });
-      for (const b of wd.bars) pulled(ox + b.x0, y + drift(ox + b.x0) + b.y0, ox + b.x1, y + drift(ox + b.x1) + b.y1, FINE); // fraction bars
+      for (const b of wd.bars) pulled(ox + b.x0, y + drift(ox + b.x0) + b.y0 + nudge, ox + b.x1, y + drift(ox + b.x1) + b.y1 + nudge, FINE); // fraction bars
       let prevM: Mat | null = null, prevG: GlyphMeta | null = null;
       for (const it of wd.items) {
         const m: Mat = [...it.m];
         m[4] += ox;
-        m[5] += y + drift(m[4]) + lift;
+        m[5] += y + drift(m[4]) + lift + nudge;
         if (it.join && prevM && prevG && it.from && it.to && s.bridges !== false) {
           page!.connectors.push(makeConnector(
             tf(prevM, it.from.x, it.from.y), dir(prevM, it.from),
@@ -878,12 +903,12 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
       if (ringing || boxing) {
         let top = ring?.top ?? Infinity, bot = ring?.bot ?? -Infinity;
         for (const p of wd.items.length ? page!.glyphs.slice(-wd.items.length) : []) { const [a, b] = inkY(p.g, p.m); top = Math.min(top, a); bot = Math.max(bot, b); }
-        ring = { box: boxing, x0: ring?.x0 ?? ox + wd.inkL, x1: ox + wd.inkR, top, bot };
+        ring = { box: boxing, x0: ring?.x0 ?? ox + wd.inkL, x1: ox + wd.inkR, top, bot, lead: ring?.lead ?? first };
       }
-      close();
+      const moved = close(); // a box that went up beside the line above takes the pen with it
       // people leave a bit more room after a full stop, and some after a comma: its ink is low and small, the next word would look glued on
       const sentenceEnd = /[.!?]["“”»)]*$/u.test(word) ? 0.3 * xh : /[,;:]["“”»)]*$/u.test(word) ? 0.2 * xh : 0;
-      lineX = ox + wd.inkR + sentenceEnd + roomAfter +Math.max(0.6 * xh, ((s.wordGap ?? DEFAULT_WORD_GAP) - 0.15 * h) * xh * size * (1 + gauss() * 0.1 * sig));
+      lineX = ox + moved + wd.inkR + sentenceEnd + roomAfter +Math.max(0.6 * xh, ((s.wordGap ?? DEFAULT_WORD_GAP) - 0.15 * h) * xh * size * (1 + gauss() * 0.1 * sig));
       // a list item's wrapped lines start under its text, not under the bullet
       if (bullet) hang = lineX - lineStart;
     }
@@ -901,7 +926,7 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
     const P = page!, at = { g: P.glyphs.length, c: P.connectors.length, m: P.missing.length, l: P.lines.length, k: P.marks.length };
     inBlock = true;
     cols.forEach((lines, c) => {
-      colL = xs[c] + (frame || c ? pad : 0); colR = xs[c + 1] - (frame || c < cols.length - 1 ? pad : 0); y = y0 - L; lineDown = 0; deep = -Infinity;
+      colL = xs[c] + (frame || c ? pad : 0); colR = xs[c + 1] - (frame || c < cols.length - 1 ? pad : 0); y = y0 - L; lineDown = 0; deep = -Infinity; prevLine = null;
       for (const line of lines) { newLine(); writeLine(line); }
       closeUnderline(); closeMark(); closeRing(); accentLine();
       end = Math.max(end, y + lineDown * L);

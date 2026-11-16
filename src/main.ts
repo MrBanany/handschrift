@@ -58,7 +58,9 @@ function rebuild() {
   strong = optimize(raw, 1.5);
   tuned = merge(raw, optimize(raw, n('optimize')), strong, decisions());
   // Symbols the set lacks (arrows, +, =, ✓ …) are drawn as pen strokes, so pasted AI answers come out complete.
-  const all = [...tuned.variants, ...symbolVariants(tuned.variants)];
+  // A sample's ² ³ are its font's printed exponents (tiny, in Druckschrift a mere tick): left out, so they are written from its own digits like every other exponent.
+  const own = sampleOf(active) ? tuned.variants.filter((v) => !'²³'.includes(v.key)) : tuned.variants;
+  const all = [...own, ...symbolVariants(own)];
   for (const v of all) v.prof = profile(v.alpha, v.w, v.h, v.baseline);
   bySrc = new Map(all.map((v) => [v.src, v]));
   lib = new Map();

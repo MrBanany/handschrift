@@ -17,22 +17,25 @@ const { field: F, branch: B, item: I } = MAP_SEP;
 
 export interface MapTree { bullet: string; topic: string; branches: { title: string; items: string[] }[] }
 
-const HEADER = /^\s*(?:#{1,6}\s*)?(?:\*\*|__)?Mind-?\s?map(?:\*\*|__)?\s*[:：]\s*(?:\*\*|__)?(.*?)(?:\*\*|__)?\s*$/i;
-const ITEM = /^([ \t]*)(?:[-*+•●▪◦]|\d{1,2}[.)])[ \t]+(.*\S)[ \t]*$/;
+/** "Mindmap: topic" (also "## **Mind Map:** topic"); `word` is the keyword's regex source, so "Schaubild:" can use the same rules (diagram.ts). */
+export const header = (word: string) => new RegExp(String.raw`^\s*(?:#{1,6}\s*)?(?:\*\*|__)?(?:${word})(?:\*\*|__)?\s*[:：]\s*(?:\*\*|__)?(.*?)(?:\*\*|__)?\s*$`, 'i');
+const HEADER = header(String.raw`Mind-?\s?map`);
+const ITEM = /^([ \t]*)(?:[-*+•●▪◦]|\d{1,2}[.)]|[a-z]\))[ \t]+(.*\S)[ \t]*$/;
 
 /**
  * Replaces every "Mindmap: topic" line plus the list below it by put(tree); put returns the text to leave in its place.
  * First-level list items are the branches, deeper ones their sub-points.
  */
-export function extractMindmaps(text: string, put: (tree: Omit<MapTree, 'bullet'>) => string): string {
+export function extractMindmaps(text: string, put: (tree: Omit<MapTree, 'bullet'>) => string, head = HEADER): string {
   const lines = text.split('\n'), out: string[] = [];
   for (let i = 0; i < lines.length; i++) {
-    const head = HEADER.exec(lines[i]);
+    const h = head.exec(lines[i]);
     const first = (lines[i + 1] ?? '').trim() ? i + 1 : i + 2; // Gemini leaves an empty line between the title and the list
-    if (!head || !head[1].trim() || !ITEM.test(lines[first] ?? '')) { out.push(lines[i]); continue; }
-    const tree = { topic: head[1].trim(), branches: [] as MapTree['branches'] };
+    if (!h || !h[1].trim() || !ITEM.test(lines[first] ?? '')) { out.push(lines[i]); continue; }
+    const tree = { topic: h[1].trim(), branches: [] as MapTree['branches'] };
     let base = -1;
     for (i = first; i < lines.length; i++) {
+      if (!lines[i].trim() && ITEM.test(lines[i + 1] ?? '')) continue; // and sometimes one between the branches
       const it = ITEM.exec(lines[i]);
       if (!it) break;
       const indent = it[1].replace(/\t/g, '  ').length, node = it[2].replace(/\*\*|__/g, '').trim();
@@ -83,8 +86,22 @@ export interface PlanOpts {
   measure: (text: string, size: number) => number;
 }
 
+/** Greedy line breaking; null when one word alone is too wide. `first` / `rest` are the line widths (mm). */
+export function wrapText(text: string, first: number, rest: number, size: number, measure: PlanOpts['measure']): string[] | null {
+  const lines: string[] = [];
+  let cur = '';
+  for (const w of text.split(/\s+/).filter(Boolean)) {
+    const next = cur ? `${cur} ${w}` : w, room = lines.length ? rest : first;
+    if (measure(next, size) <= room) cur = next;
+    else if (!cur) return null;
+    else { lines.push(cur); cur = w; if (measure(w, size) > rest) return null; }
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
 /** Sizes to try, relative to the normal writing: a map that does not fit is written smaller before it becomes a list. */
-const SHRINK = [1, 0.9, 0.8, 0.7];
+export const SHRINK = [1, 0.9, 0.8, 0.7];
 
 /**
  * Topic in a box in the middle, branches stacked left and right of it (the first half clockwise from the top right,
@@ -106,19 +123,7 @@ function planAt(t: MapTree, o: PlanOpts, k: number): MapPlan | null {
   const n = t.branches.length, TOPIC = 1.3 * k, TITLE = 1.12 * k;
   const { xh, measure } = o;
 
-  /** Greedy line breaking; null when one word alone is too wide. `first` / `rest` are the line widths. */
-  const wrap = (text: string, first: number, rest: number, size: number): string[] | null => {
-    const lines: string[] = [];
-    let cur = '';
-    for (const w of text.split(/\s+/).filter(Boolean)) {
-      const next = cur ? `${cur} ${w}` : w, room = lines.length ? rest : first;
-      if (measure(next, size) <= room) cur = next;
-      else if (!cur) return null;
-      else { lines.push(cur); cur = w; if (measure(w, size) > rest) return null; }
-    }
-    if (cur) lines.push(cur);
-    return lines;
-  };
+  const wrap = (text: string, first: number, rest: number, size: number) => wrapText(text, first, rest, size, measure);
 
   const pad = 0.9 * xh * TOPIC, gapMin = 0.07 * o.width * k;
   const topicLines = wrap(t.topic, 0.34 * o.width - 2 * pad, 0.34 * o.width - 2 * pad, TOPIC);

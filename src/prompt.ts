@@ -9,6 +9,7 @@ FORMAT
 - Pfeile als Text: -> normal, --> lang, ---> sehr lang, auch ⇒ ⇔ ⇌.
 - "Merke: …" oder "Definition: …" als eigener Absatz (wird eingerahmt).
 - Nur auf Wunsch: "Mindmap: Thema" mit "- "-Liste darunter (höchstens 8 Äste). "Karteikarte: Frage" mit "Antwort: …" direkt darunter, dann Leerzeile. "Cornell: Thema", dann pro Zeile "Stichwort | Notiz" (ohne Kopfzeile), zum Schluss "Zusammenfassung: …".
+- Schaubild nur, wenn es wirklich hilft (Ablauf, Kreislauf, Gliederung), sonst keins. Auf eigener Zeile: "Ablauf: Reiz -> Nerv -> Gehirn", "Kreislauf: Verdunstung -> Regen -> Versickerung", oder "Schaubild: Oberbegriff" mit 2 bis 5 "- "-Unterpunkten darunter. Kurze Stichworte, höchstens 8 Schritte.
 
 MATHE (wie im Unterricht, Formeln in $...$, eine Umformung pro Zeile)
 Geg.: $a = 3$, $b = 4$

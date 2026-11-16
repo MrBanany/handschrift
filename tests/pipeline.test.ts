@@ -311,21 +311,32 @@ describe('layout', () => {
     expect(pages[0].connectors.some((c) => c.accent)).toBe(true); // the underline
   });
 
-  it('keeps the next line clear of a deep fraction or root: a boxed result moves down a whole line, plain text stays', () => {
+  it('writes compactly after a deep fraction or root: the boxed result beside the formula, the next fraction just clear of it', () => {
     const base = (g: Page['glyphs'][number]) => g.m[3] * g.g.baseline + g.m[5]; // baseline height on the page
+    const bottom = (g: Page['glyphs'][number]) => g.m[5] + g.g.h * g.m[3];
     const frac = '\u0011a\u0012b\u0013', root = `\u0007\u001d${frac}\u001e`, box = '\u0016cd\u0017';
     /** Lines between the first and the last glyph's baseline. */
     const lines = (...text: string[]) => { const g = layout(text.join('\n'), lib, S).pages[0].glyphs; return (base(g.at(-1)!) - base(g[0])) / S.lineH; };
     expect(lines(`x ${frac}`, 'cd') - lines('x a', 'cd')).toBeCloseTo(0, 1); // plain text under a fraction does not move
-    // whatever moves, moves by whole lines: the writing stays on the ruling
-    for (const first of [frac, `x ${root}`]) { const d = lines(first, box) - lines(first, 'cd'); expect(Math.abs(d - Math.round(d))).toBeLessThan(0.05); }
+    // the boxed result goes up beside the formula line: same baseline as its "x", right of the fraction, frame and all
+    for (const formula of [frac, root]) {
+      const p = layout([`x ${formula}`, box].join('\n'), lib, S).pages[0], [x, a] = p.glyphs, c = p.glyphs.at(-2)!;
+      expect(base(c) - base(x)).toBeCloseTo(0, 0);
+      expect(c.m[4]).toBeGreaterThan(a.m[4] + 60 * a.m[0]);
+      const frame = p.connectors.slice(-4).flatMap((k) => [k.p[0], k.p[3]]);
+      expect(Math.min(...frame.map((q) => q[0]))).toBeGreaterThan(a.m[4] + 60 * a.m[0]);
+      expect(Math.min(...frame.map((q) => q[1]))).toBeLessThan(base(c)); // around the letters, not left below
+      expect(Math.max(...frame.map((q) => q[1]))).toBeGreaterThan(base(c));
+    }
+    // what follows starts on the next line, not two further down
+    expect(lines(`x ${frac}`, box, 'ab')).toBeLessThan(2.5);
+    // no room beside a long line: the box goes below, by whole lines (on the ruling), its top under the denominator
+    const long = Array(22).fill('abcd').join(' '), q = layout([`${long} ${frac}`, box].join('\n'), lib, S).pages[0], den = q.glyphs.at(-3)!;
+    expect(base(q.glyphs.at(-1)!)).toBeGreaterThan(base(den));
+    expect(Math.min(...q.connectors.slice(-4).flatMap((k) => [k.p[0][1], k.p[3][1]]))).toBeGreaterThan(bottom(den));
     // a fraction under a fraction: the second numerator starts below the first denominator
     const two = layout([frac, frac].join('\n'), lib, S).pages[0].glyphs;
-    expect(two[2].m[5]).toBeGreaterThan(two[1].m[5] + two[1].g.h * two[1].m[3]);
-    // the frame's top edge ends up below the denominator
-    const p = layout([frac, box].join('\n'), lib, S).pages[0];
-    const boxTop = Math.min(...p.connectors.slice(-4).flatMap((c) => [c.p[0][1], c.p[3][1]]));
-    expect(boxTop).toBeGreaterThan(p.glyphs[1].m[5] + p.glyphs[1].g.h * p.glyphs[1].m[3]); // the bottom of the denominator's ink
+    expect(two[2].m[5]).toBeGreaterThan(bottom(two[1]));
   });
 
   it('draws a ring around circled words and a box around boxed ones', () => {

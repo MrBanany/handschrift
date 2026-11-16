@@ -264,6 +264,47 @@ describe('layout', () => {
     expect(pages[0].lines[0].text).toBe('x = ab/c,');
   });
 
+  it('draws a root by hand: hook and a bar over the whole radicand, taller around a fraction, the index small in the hook', () => {
+    const R = (rad: string, n = '') => `\u0007${n}\u001d${rad}\u001e`;
+    const span = (p: Page) => { const xs = p.glyphs.map((g) => g.m[4]); return [Math.min(...xs), Math.max(...xs) + 60 * 0.06]; }; // glyphs are 60 px wide, ~0.06 mm/px
+    const bars = (p: Page) => p.connectors.map((c) => c.p).sort((a, b) => (b[3][0] - b[0][0]) - (a[3][0] - a[0][0])); // widest first
+    const root = layout(`x = ${R('ab')},`, lib, S).pages[0]; // two words: no join between the letters, only the root's strokes
+    expect(root.connectors).toHaveLength(4); // tick, down, up, bar
+    const [bar] = bars(root), [, a, b] = root.glyphs, top = a.m[5]; // glyph top on the page (y of the bitmap's row 0)
+    expect(bar[0][0]).toBeLessThan(a.m[4]);
+    expect(bar[3][0]).toBeGreaterThan(b.m[4] + 60 * b.m[0]); // past the last letter
+    expect(Math.abs(bar[0][1] - bar[3][1])).toBeLessThan(0.5); // level
+    expect(bar[0][1]).toBeLessThan(top + 1); // above the letters
+    expect(root.lines[0].text).toBe('x = √(a b),');
+    // every stroke of the hook ends where the next begins (one pen movement)
+    const c = root.connectors.map((k) => k.p);
+    for (let i = 0; i + 1 < c.length; i++) expect(Math.hypot(c[i][3][0] - c[i + 1][0][0], c[i][3][1] - c[i + 1][0][1])).toBeLessThan(0.6);
+
+    const frac = layout(R('\u0011a\u0012b\u0013'), lib, S).pages[0];
+    expect(frac.connectors).toHaveLength(5); // the root and the fraction bar
+    const ys = frac.connectors.flatMap((k) => [k.p[0][1], k.p[3][1]]), tall = Math.max(...ys) - Math.min(...ys);
+    const ys1 = root.connectors.flatMap((k) => [k.p[0][1], k.p[3][1]]);
+    expect(tall).toBeGreaterThan(1.2 * (Math.max(...ys1) - Math.min(...ys1)));
+    expect(frac.lines[0].text).toBe('√(a/b)');
+
+    const nested = layout(R(`${R('a')}\u0010b`), lib, S).pages[0];
+    expect(nested.connectors).toHaveLength(8);
+    const [outer, inner] = bars(nested);
+    expect(outer[0][1]).toBeLessThan(inner[0][1]); // the outer bar above the inner one
+    expect(outer[3][0]).toBeGreaterThan(inner[3][0]);
+
+    const third = layout(R('a', 'c'), lib, S).pages[0], [ra, ix] = third.glyphs;
+    expect(Math.abs(ix.m[0])).toBeLessThan(0.7 * Math.abs(ra.m[0])); // the index is small
+    expect(ix.m[4]).toBeLessThan(ra.m[4]); // and stands left, in the hook
+    expect(third.lines[0].text).toBe('c√a');
+
+    // a root in a fraction keeps numerator and denominator stacked, nothing is left unwritten
+    const mixed = layout(`\u0011a\u0010${R('b')}\u0012c\u0013`, lib, S).pages[0];
+    expect(mixed.glyphs).toHaveLength(3);
+    expect(mixed.connectors).toHaveLength(5);
+    expect(mixed.missing).toHaveLength(0);
+  });
+
   it('marks heading ink (letters and underline) for the heading colour, nothing else', () => {
     const { pages } = layout('\u0006\u0002ab\u0003\ncd', lib, S);
     expect(pages[0].glyphs.map((g) => !!g.accent)).toEqual([true, true, false, false]);

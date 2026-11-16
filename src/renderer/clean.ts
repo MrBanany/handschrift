@@ -1,6 +1,6 @@
 import { markBlocks } from './cards';
-import { latex } from './latex';
-import { ARROW, CIRC, CODE, EMPH, HEAD, INCOMING_CONTROL, INDENT, MAP, MARK, PLOT, STRUCT } from './markers';
+import { flat, latex } from './latex';
+import { ARROW, CIRC, CODE, EMPH, HEAD, INCOMING_CONTROL, INDENT, MAP, MARK, PLOT, ROOT, SP, STRUCT } from './markers';
 import { encodeMap, extractMindmaps, type MapTree } from './mindmap';
 import { encodePlot, extractPlots } from './plot';
 
@@ -65,7 +65,7 @@ export function clean(text: string, has: (ch: string) => boolean): string {
   // a "Mindmap: topic" line with its list is kept away too and drawn as a mind map (see mindmap.ts)
   const maps: Omit<MapTree, 'bullet'>[] = [];
   // a node is plain text: an arrow's label becomes "→ (label)", every other marker goes
-  const node = (x: string) => clean(x, has).replace(/\u001b([^\u001c]*)\u001c([→←⇒⇔↔⇌])/g, (_, l: string, a: string) => `${a} (${l})`).replace(/[\u0001-\u0006\u000E\u000F\u0014-\u0018\u001b\u001c\u001f]/g, '').replace(/\u0010/g, ' ').replace(/\s+/g, ' ').trim();
+  const node = (x: string) => flat(clean(x, has)).replace(/\u001b([^\u001c]*)\u001c([→←⇒⇔↔⇌])/g, (_, l: string, a: string) => `${a} (${l})`).replace(/[\u0001-\u0006\u000E\u000F\u0014-\u0018\u001b\u001c\u001f]/g, '').replace(/\u0010/g, ' ').replace(/\s+/g, ' ').trim();
   // incoming control characters are just dropped: only the markers clean() puts in itself may stand in the result
   // [[plot: x^2, -3..3]] too: drawn as a function graph on a line of its own (see plot.ts)
   const plots: string[] = [];
@@ -158,6 +158,8 @@ export function clean(text: string, has: (ch: string) => boolean): string {
     // a stacked fraction too; punctuation right after it stays attached
     .replace(/[ \t]*\u0011([^\u0012\n]*)\u0012([^\u0013\n]*)\u0013[ \t]*/g, (_, a: string, b: string) => ` \u0011${a.trim().replace(/ +/g, '\u0010')}\u0012${b.trim().replace(/ +/g, '\u0010')}\u0013 `)
     .replace(/\u0013 (?=[.,;:!?)]|-\p{L})/gu, '\u0013') // \cfrac{1}{2}-Wert too
+    // a root with all that is under it is one "word" as well: its spaces hidden (roots may nest, so count them)
+    .replace(/\u0007[^\n]*\u001e/g, (r) => { let d = 0; return r.replace(/[\u0007\u001e ]/g, (c) => (c === ' ' ? (d > 0 ? SP : c) : ((d += c === ROOT[0] ? 1 : -1), c))); })
     // the mind map: one token on a line of its own, its texts cleaned like any other (after the rules above, which would split it)
     .replace(/\u0019(\d+)\u001A/g, (_, i: string) => {
       const t = maps[+i], bullet = pick('•', '-');

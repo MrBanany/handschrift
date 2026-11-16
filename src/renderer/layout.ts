@@ -3,8 +3,8 @@ import type { Anchor, GlyphMeta } from '../glyphstore/types';
 import { MM, XH } from '../template/layout';
 import { SUB, SUB_LETTERS, SUP, SUP_LETTERS } from './clean';
 import { withoutWideGaps } from './gaps';
-import { flatFrac } from './latex';
-import { ARROW, BOX, CARD, CIRC, CORNELL, EMPH, HEAD, INDENT, MAP, MARK, NOTE, STRUCT } from './markers';
+import { flat as flatFrac } from './latex';
+import { ARROW, BOX, CARD, CIRC, CORNELL, EMPH, FRAC, HEAD, INDENT, MAP, MARK, NOTE, ROOT, SP, STRUCT } from './markers';
 import { decodeMap, mapAsList, planMindmap, type MapPlan } from './mindmap';
 import { decodePlot, parsePlot, planPlot, type PlotPlan } from './plot';
 import { molecule, type Molecule } from './structure';
@@ -96,8 +96,26 @@ export function segment(word: string, lib: Library, rand?: () => number): string
 const SMALL = new Set([...SUP, ...SUB, ...Object.values(SUP_LETTERS), ...Object.values(SUB_LETTERS), '⁺', '⁻', "'", '′']);
 
 interface WordItem { g: GlyphMeta; m: Mat; join: boolean; from?: Anchor; to?: Anchor }
-/** Fraction bar from x0 to x1 at height y (mm, relative to the word's baseline). */
-interface Bar { x0: number; x1: number; y: number }
+/** Pen stroke of a formula (fraction bar, root hook and bar) from (x0, y0) to (x1, y1), mm relative to the word's baseline. */
+interface Bar { x0: number; y0: number; x1: number; y1: number }
+
+/**
+ * Splits a formula at the separators that stand outside every fraction and root;
+ * without a separator: into plain text and whole fractions / roots (which may hold more inside).
+ */
+export function topLevel(t: string, sep?: string): string[] {
+  const out = [''];
+  let depth = 0;
+  for (const c of t) {
+    const open = c === FRAC[0] || c === ROOT[0], close = c === FRAC[2] || c === ROOT[2];
+    if (open && !depth++ && !sep && out.at(-1)) out.push('');
+    if (close) depth = Math.max(0, depth - 1);
+    if (!depth && c === sep) out.push('');
+    else out[out.length - 1] += c;
+    if (close && !depth && !sep) out.push('');
+  }
+  return out;
+}
 
 const isLetter = (c: string) => /\p{L}/u.test(c);
 
@@ -273,21 +291,52 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
   const put = (into: Laid, w: Laid, dx: number, dy: number) => {
     for (const it of w.items) { const m: Mat = [...it.m]; m[4] += dx; m[5] += dy; into.items.push({ ...it, m }); }
     for (const ms of w.missing) into.missing.push({ ...ms, x: ms.x + dx, y: ms.y + dy });
-    for (const b of w.bars) into.bars.push({ x0: b.x0 + dx, x1: b.x1 + dx, y: b.y + dy });
+    for (const b of w.bars) into.bars.push({ x0: b.x0 + dx, y0: b.y0 + dy, x1: b.x1 + dx, y1: b.y1 + dy });
     into.inkL = Math.min(into.inkL, w.inkL + dx); into.inkR = Math.max(into.inkR, w.inkR + dx);
   };
   const empty = (): Laid => ({ items: [], missing: [], inkL: Infinity, inkR: -Infinity, bars: [] });
 
-  /** Several words (separated by \u0010) on one baseline, a bit closer than normal words. */
+  /** Several words (separated by \u0010) on one baseline, a bit closer than normal words; fractions and roots inside them are stacked and drawn, in any depth. */
   function layoutRun(text: string, size: number): Laid {
     const out = empty();
     let x = 0;
-    for (const w of text.split('\u0010').filter(Boolean)) {
-      const wd = layoutWord(w, size);
-      put(out, wd, x - wd.inkL, 0);
+    for (const w of topLevel(text, SP).filter(Boolean)) {
+      for (const p of topLevel(w).filter(Boolean)) {
+        const part = (sep: string) => { const [a = '', ...b] = topLevel(p.slice(1, p.endsWith(FRAC[2]) || p.endsWith(ROOT[2]) ? -1 : undefined), sep); return [a, b.join('')] as const; };
+        const wd = p[0] === FRAC[0] ? layoutFrac(...part(FRAC[1]), '', size) : p[0] === ROOT[0] ? layoutRoot(...part(ROOT[1]), size) : layoutWord(p, size);
+        put(out, wd, x - wd.inkL, 0);
+        x = out.inkR + 0.12 * xh * size;
+      }
       x = out.inkR + 0.5 * xh * size;
     }
     if (!Number.isFinite(out.inkL)) { out.inkL = 0; out.inkR = 0; }
+    return out;
+  }
+
+  /** Top and bottom of a laid-out piece's ink (mm, relative to its baseline); at least a small letter tall. */
+  const extentY = (l: Laid, size: number): [number, number] => {
+    let t = -xh * size, b = 0;
+    for (const it of l.items) { const [a, c] = inkY(it.g, it.m); t = Math.min(t, a); b = Math.max(b, c); }
+    for (const s of l.bars) { t = Math.min(t, s.y0, s.y1); b = Math.max(b, s.y0, s.y1); }
+    return [t, b];
+  };
+
+  /**
+   * A root like written by hand: a small tick, down, up, and the bar across the whole radicand, all pen strokes (so they are
+   * ink in GoodNotes too); as tall and deep as what stands under it. The index of an n-th root is written small into the hook.
+   */
+  function layoutRoot(index: string, rad: string, size: number): Laid {
+    const xs = xh * size, r = layoutRun(rad, size), ix = index ? layoutRun(index, 0.6 * size) : null;
+    const [t, b] = extentY(r, size), top = t - 0.3 * xs, bot = b + 0.05 * xs;
+    const ym = bot - Math.min(0.5 * (bot - top), 0.75 * xs); // where the tick starts: half way up, lower on a tall root
+    const x0 = ix ? Math.max(0, ix.inkR - ix.inkL - 0.4 * xs) : 0; // a wide index pushes the hook right
+    const out = empty();
+    put(out, r, x0 + 1.1 * xs - r.inkL, 0);
+    const end = Math.max(out.inkR, x0 + 1.6 * xs) + 0.2 * xs;
+    if (ix) put(out, ix, x0 + 0.4 * xs - ix.inkR, ym - 0.45 * xs);
+    const pts = [[x0 - 0.05 * xs, ym + 0.12 * xs], [x0 + 0.25 * xs, ym - 0.05 * xs], [x0 + 0.5 * xs, bot], [x0 + 0.9 * xs, top], [end, top]];
+    for (let i = 0; i + 1 < pts.length; i++) out.bars.push({ x0: pts[i][0], y0: pts[i][1], x1: pts[i + 1][0], y1: pts[i + 1][1] });
+    out.inkL = 0; out.inkR = end;
     return out;
   }
 
@@ -296,10 +345,13 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
     const f = 0.8 * size, n = layoutRun(num, f), d = layoutRun(den, f);
     const over = 0.15 * xh, W = Math.max(n.inkR - n.inkL, d.inkR - d.inkL, 0.6 * xh) + 2 * over;
     const bar = -0.45 * xh * size;
+    // a root reaches below the baseline and above the digits: keep it off the bar
+    const nDown = num.includes(ROOT[0]) ? Math.max(0, extentY(n, f)[1] - 0.1 * xh * f) : 0;
+    const dUp = den.includes(ROOT[0]) ? Math.max(0, -extentY(d, f)[0] - 1.3 * xh * f) : 0;
     const out = empty();
-    put(out, n, (W - (n.inkR - n.inkL)) / 2 - n.inkL, bar - 0.3 * xh * size);
-    put(out, d, (W - (d.inkR - d.inkL)) / 2 - d.inkL, bar + 0.3 * xh * size + 1.3 * xh * f); // digits are ~1.3 x-heights tall
-    out.bars.push({ x0: 0, x1: W, y: bar });
+    put(out, n, (W - (n.inkR - n.inkL)) / 2 - n.inkL, bar - 0.3 * xh * size - nDown);
+    put(out, d, (W - (d.inkR - d.inkL)) / 2 - d.inkL, bar + 0.3 * xh * size + 1.3 * xh * f + dUp); // digits are ~1.3 x-heights tall
+    out.bars.push({ x0: 0, y0: bar, x1: W, y1: bar });
     out.inkL = 0; out.inkR = Math.max(out.inkR, W);
     if (tail) { const t = layoutWord(tail, size); put(out, t, out.inkR + 0.1 * xh - t.inkL, 0); }
     return out;
@@ -543,7 +595,7 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
   const strip = (x: string) => x.replace(/[\u0001-\u0006\u0014-\u0018\u001b\u001c\u001f]/g, '');
   const width = (x: string) => { const d = layoutWord(strip(x)); return d.inkR - d.inkL; };
   const fit = (tok: string): string[] => {
-    if (tok.startsWith(STRUCT[0]) || tok.includes('\u001c') || tok.includes('\u0011') || strip(tok).length < 20 * (colR - colL) / (s.pageW - 2 * s.margin) || width(tok) <= maxW()) return [tok];
+    if (tok.startsWith(STRUCT[0]) || tok.includes('\u001c') || tok.includes('\u0011') || tok.includes(ROOT[0]) || strip(tok).length < 20 * (colR - colL) / (s.pageW - 2 * s.margin) || width(tok) <= maxW()) return [tok];
     let lo = 1, hi = tok.length - 1;
     while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (width(tok.slice(0, mid) + '-') <= maxW()) lo = mid; else hi = mid - 1; }
     return [tok.slice(0, lo) + '-', ...fit(tok.slice(lo))];
@@ -687,7 +739,7 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
       const bullet = first && /^(?:[•\-–*]|\d{1,2}[.)])$/.test(word);
       if (bullet) lineX = colL + 0.6 + (rand() - 0.5) * 0.3;
       const fr = /^\u0011([^\u0012]*)\u0012([^\u0013]*)\u0013([^\u0011]*)$/.exec(word);
-      const wd = fr ? layoutFrac(fr[1], fr[2], fr[3], size) : layoutWord(flatFrac(word), bullet ? size * (0.85 + 0.3 * rand()) : size);
+      const wd = word.includes(ROOT[0]) ? layoutRun(word, size) : fr ? layoutFrac(fr[1], fr[2], fr[3], size) : layoutWord(flatFrac(word), bullet ? size * (0.85 + 0.3 * rand()) : size);
       const lift = bullet ? (rand() - 0.5) * 0.2 * xh : 0;
       // lineX is where the next word's ink starts
       if (lineX > lineStart && lineX - wd.inkL + wd.inkR > rightEdge) wrap();
@@ -695,7 +747,7 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
       const plain = flatFrac(word).replace(/\u0010/g, ' ');
       if (rec) rec.text += ` ${plain}`;
       else page!.lines.push(rec = { text: plain });
-      for (const b of wd.bars) stroke(ox + b.x0, y + drift(ox + b.x0) + b.y, ox + b.x1, y + drift(ox + b.x1) + b.y);
+      for (const b of wd.bars) stroke(ox + b.x0, y + drift(ox + b.x0) + b.y0, ox + b.x1, y + drift(ox + b.x1) + b.y1);
       let prevM: Mat | null = null, prevG: GlyphMeta | null = null;
       for (const it of wd.items) {
         const m: Mat = [...it.m];

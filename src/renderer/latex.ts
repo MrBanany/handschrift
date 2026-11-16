@@ -1,5 +1,5 @@
 // Formulas in AI answers (LaTeX, mhchem) -> plain characters a handwriting can write.
-import { BOX, FRAC, LABEL, LIT_BRACE, SP, TEX_BRACE } from './markers';
+import { BOX, FRAC, LABEL, LIT_BRACE, ROOT, SP, TEX_BRACE } from './markers';
 
 export { BOX, FRAC } from './markers'; // the codes live in markers.ts
 
@@ -31,6 +31,17 @@ const group = (x: string) => (/^[\p{L}\p{N}.,²³]+$/u.test(x) ? x : `(${x})`);
 
 /** Stacked fractions inside x back to a/b (a fraction inside a fraction or a root stays on one line). */
 export const flatFrac = (x: string) => x.replace(/\u0011([^\u0012]*)\u0012([^\u0013]*)\u0013/g, (_, a: string, b: string) => `${group(a.trim())}/${group(b.trim())}`);
+
+/** Roots back to "√x" on one line, for places that cannot draw them (mind maps, alt text, measuring). */
+export const flatRoot = (x: string) => {
+  for (let prev = ''; prev !== x;) {
+    prev = x;
+    x = x.replace(/\u0007([^\u0007\u001d\u001e]*)\u001d([^\u0007\u001d\u001e]*)\u001e/g, (_, n: string, a: string) => (/^\d$/.test(n) ? '⁰¹²³⁴⁵⁶⁷⁸⁹'[+n] : n) + `√${group(flatFrac(a.replace(/^\u0010+|\u0010+$/g, '')))}`);
+  }
+  return x;
+};
+/** Roots and stacked fractions on one line. */
+export const flat = (x: string) => flatFrac(flatRoot(x));
 
 /** A chemical formula written with plain digits ("H2SO4", "Ca(OH)2") -> the same with _n subscript markup. */
 export function chem(word: string): string {
@@ -108,7 +119,6 @@ export function latex(text: string): string {
     // limits written out in words: a writer puts them under the sign, the app on the line
     .replace(/\\lim_\{([^{}]*)\}/g, (_, a: string) => `lim(${a})`)
     .replace(/\\(sum|int)_\{?([^{}\s^]*)\}?\^\{?([^{}\s]*)\}?/g, (_, f: string, a: string, b: string) => (f === 'sum' ? `Σ(${a} bis ${b})` :`∫ von ${a} bis ${b}: `))
-    .replace(/\\sqrt\[(\d)\]\{([^{}]*)\}/g, (_, n: string, a: string) => '⁰¹²³⁴⁵⁶⁷⁸⁹'[+n] + `√${group(a)}`)
     .replace(/\^\{?\\circ\}?/g, '°') // 90^\circ
     .replace(/\\right([\]|])_\{?([^{}\s^]+)\}?\^\{?([^{}\s]+)\}?/g, '\\right$1 von $2 bis $3') // [F(x)]_0^2: limits of evaluation in words
     .replace(/\\left\./g, '')
@@ -120,10 +130,10 @@ export function latex(text: string): string {
     prev = t;
     t = t
       .replace(/\\[dtc]?frac\{([^{}]*)\}\{([^{}]*)\}/g, (_, a: string, b: string) => FRAC[0] + flatFrac(a) + FRAC[1] + flatFrac(b) + FRAC[2])
-      .replace(/\\sqrt\{([^{}]*)\}/g, (_, a: string) => `√${group(flatFrac(a))}`)
+      .replace(/\\sqrt(?:\[([^\]{}]*)\])?\{([^{}]*)\}/g, (_, n: string | undefined, a: string) => ROOT[0] + (n ?? '').trim() + ROOT[1] + a.trim() + ROOT[2])
       .replace(/\\boxed\{([^{}]*)\}/g, (_, a: string) => ` ${BOX[0]}${a.trim()}${BOX[1]} `);
   }
-  return t
+  t = t
     .replaceAll(TEX_BRACE[0], '{').replaceAll(TEX_BRACE[1], '}').replaceAll(LIT_BRACE[0], '{').replaceAll(LIT_BRACE[1], '}')
     .replace(/\\binom\{([^{}]*)\}\{([^{}]*)\}/g, '($1 über $2)')
     .replace(/\\([A-Za-z]+)/g, (m, name: string) => SYMBOL[name] ?? name) // \sin -> sin
@@ -132,4 +142,11 @@ export function latex(text: string): string {
     // x_{kin} and x_{1,2} keep their brackets for clean() to lower them; x_{Gesamtmasse} loses them, x_{n+1} becomes x_(n+1)
     .replace(/_\{([^{}]+)\}/g, (m, x: string) => (/^\w{1,8}$|^\w+,\w+$/.test(x) ? m : /^[A-Za-z]+$/.test(x) ? '_' + x : `_(${x})`))
     .replace(/(^|[\s(])(\d*(?:[A-Z][a-z]?\d*|\(|\)\d*)+(?:\((?:s|l|g|aq)\))?)(?=[\s.,;:)+]|$)/gm, (m, pre: string, f: string) => pre + chem(f));
+  // typed roots: √(x+1), √16, √x², ³√8 (a longer word after the sign is left alone); innermost first
+  for (let prev = ''; prev !== t;) {
+    prev = t;
+    t = t.replace(/([²³⁴⁵⁶⁷⁸⁹])?√(\((?:[^()\n]|\([^()\n]*\))*\)|(?:\d+(?:[.,]\d+)?|\p{L}[\p{L}\p{N}]{0,2}(?!\p{L}))(?:\^\d|[²³])?)/gu,
+      (_, n: string | undefined, a: string) => ROOT[0] + (n ? '⁰¹²³⁴⁵⁶⁷⁸⁹'.indexOf(n) : '') + ROOT[1] + (a[0] === '(' ? a.slice(1, -1).trim() : a) + ROOT[2]);
+  }
+  return t;
 }

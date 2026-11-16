@@ -19,6 +19,8 @@ export const STRUCT = ['\u000E', '\u000F'] as const;
 export const SP = '\u0010';
 /** Stacked fraction: FRAC[0] numerator FRAC[1] denominator FRAC[2]; the layout writes it over a fraction bar. */
 export const FRAC = ['\u0011', '\u0012', '\u0013'] as const;
+/** Root: ROOT[0] index ("3", mostly empty) ROOT[1] radicand ROOT[2]; the layout draws hook and bar over the radicand by hand. May nest. */
+export const ROOT = ['\u0007', '\u001d', '\u001e'] as const;
 /** Start and end of circled text; the layout draws a ring around it by hand. */
 export const CIRC = ['\u0014', '\u0015'] as const;
 /** Start and end of boxed text (\boxed{…}, final results); the layout draws a box around it by hand. */
@@ -52,6 +54,7 @@ export const CODE = ['\uF714', '\uF715'] as const;
 const ALL: Record<string, string> = {
   'EMPH[0]': EMPH[0], 'EMPH[1]': EMPH[1], 'MARK[0]': MARK[0], 'MARK[1]': MARK[1], HEAD,
   'STRUCT[0]': STRUCT[0], 'STRUCT[1]': STRUCT[1], SP, 'FRAC[0]': FRAC[0], 'FRAC[1]': FRAC[1], 'FRAC[2]': FRAC[2],
+  'ROOT[0]': ROOT[0], 'ROOT[1]': ROOT[1], 'ROOT[2]': ROOT[2],
   'CIRC[0]': CIRC[0], 'CIRC[1]': CIRC[1], 'BOX[0]': BOX[0], 'BOX[1]': BOX[1], INDENT, 'MAP[0]': MAP[0], 'MAP[1]': MAP[1],
   'ARROW[0]': ARROW[0], 'ARROW[1]': ARROW[1], 'LABEL[0]': LABEL[0], 'LABEL[1]': LABEL[1],
   'MAP_SEP.field': MAP_SEP.field, 'MAP_SEP.branch': MAP_SEP.branch, 'MAP_SEP.item': MAP_SEP.item,

@@ -2,6 +2,7 @@
   --bg: #0f1115; --surface: #171a20; --raised: #1f232b; --line: #2a2f38; --text: #eceef2; --muted: #9097a4;
   --accent: #8aa4ff; --accent-ink: #0b1230; --accent-soft: rgba(138,164,255,.13); --warn: #ff8a7a; --warn-soft: rgba(255,138,122,.1);
   --hover: #272c36; --shadow: 0 1px 0 rgba(255,255,255,.03) inset, 0 8px 24px rgba(0,0,0,.25);
+  --btn: #262b36; --btn-line: #414858; --btn-hover: #303644; /* plain buttons: a clearer fill and edge than the cards they sit on */
   --paper: #fbfaf6; --radius: 16px; --tabbar: 64px; --content: 880px; --touch: 44px;
   font: 15px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
   color: var(--text); color-scheme: dark; -webkit-tap-highlight-color: transparent;
@@ -34,11 +35,11 @@ main { padding: 16px 16px calc(var(--tabbar) + 24px + env(safe-area-inset-bottom
 .icon svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 
 button, .button {
-  font: inherit; min-height: 42px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--line);
-  background: var(--raised); color: var(--text); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap;
+  font: inherit; min-height: 42px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--btn-line);
+  background: var(--btn); color: var(--text); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap;
   transition: background .15s, transform .1s;
 }
-button:hover, .button:hover { background: var(--hover); }
+button:hover, .button:hover { background: var(--btn-hover); }
 button:active, .button:active { transform: scale(.97); }
 .primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
 .primary:hover { background: #95adff; }
@@ -173,9 +174,10 @@ details > * + * { margin-top: 10px; }
   --bg: #f5f4f0; --surface: #ffffff; --raised: #f2f1ec; --line: #e4e2db; --text: #1b1d22; --muted: #666a73;
   --accent: #3550c8; --accent-ink: #ffffff; --accent-soft: rgba(53,80,200,.09); --warn: #c0392b; --warn-soft: rgba(192,57,43,.08);
   --hover: #e9e8e3; --shadow: 0 1px 2px rgba(20,22,30,.05), 0 6px 20px rgba(20,22,30,.05);
+  --btn: #ffffff; --btn-line: #cbc8be; --btn-hover: #f0efe9;
   color-scheme: light;
 }
-[data-theme=light] button:hover, [data-theme=light] .button:hover { background: var(--hover); }
+[data-theme=light] button:hover, [data-theme=light] .button:hover { background: var(--btn-hover); }
 [data-theme=light] .primary:hover { background: #2c45b4; }
 [data-theme=light] .seg button.on { background: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
 [data-theme=light] .topbar { background: rgba(255,255,255,.9); }
@@ -230,7 +232,7 @@ details > * + * { margin-top: 10px; }
 .add-part { display: flex; gap: 8px; margin: 0 0 10px; max-width: 460px; }
 .add-part input { flex: 1; min-width: 0; font: inherit; height: 42px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); color: var(--text); }
 .textbar { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
-.small-btn { font-size: 13px; min-height: 34px; padding: 0 12px; border-radius: 10px; color: var(--muted); }
+.small-btn { font-size: 13px; min-height: 34px; padding: 0 12px; border-radius: 10px; font-weight: 500; }
 /* ---------- design 2: one calm system (content width, touch sizes, cards, two columns on wide screens) ---------- */
 .topbar { padding-inline: max(16px, calc((100% - var(--content)) / 2)); }
 .topbar .brand { gap: 10px; font-size: 17px; letter-spacing: -.01em; min-height: var(--touch); }

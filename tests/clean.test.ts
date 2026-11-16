@@ -30,7 +30,7 @@ describe('clean pasted AI text', () => {
     expect(clean('x^4', (c) => c !== '⁴')).toBe('x^4');
     expect(clean('$10^{-3}$ m, s^-1', () => true)).toBe('10⁻³ m, s⁻¹');
     expect(clean('$x^n$, $e^{2x}$, $a_n$, snake_case, file_name', () => true)).toBe('xⁿ, e²ˣ, aₙ, snake_case, file_name');
-    expect(clean('$\\lim_{x \\to 0}$, $\\sum_{i=1}^{n} i$, $\\sqrt[3]{8}$, $\\vec{v}$', () => true)).toBe('lim(x → 0), Σ(i=1 bis n) i, ³√8, v');
+    expect(clean('$\\lim_{x \\to 0}$, $\\sum_{i=1}^{n} i$, $\\sqrt[3]{8}$, $\\vec{v}$', () => true)).toBe('lim(x → 0), Σ(i=1 bis n) i, \u00073\u001d8\u001e, v');
     expect(clean('$\\ce{H2O(l) + NaCl(aq) ->[Kat] X}$', () => true)).toBe('H₂O(l) + NaCl(aq) \u001bKat\u001c→ X'); // label above the arrow
     // long and very long arrows keep their length for the layout
     expect(clean('A --> B ---> C ==> D $\\longrightarrow$ E -> F', () => true)).toBe('A \u0001→ B \u001f→ C \u0001⇒ D \u0001→ E → F');
@@ -50,10 +50,10 @@ describe('clean pasted AI text', () => {
   });
   it('turns LaTeX and chemistry from AI answers into writable characters', () => {
     const all = () => true;
-    expect(clean('$\\frac{a+b}{2} \\cdot \\sqrt{x} \\approx 3,5 \\pm 0,1$', all)).toBe('\u0011a+b\u00122\u0013 · √x ≈ 3,5 ± 0,1');
+    expect(clean('$\\frac{a+b}{2} \\cdot \\sqrt{x} \\approx 3,5 \\pm 0,1$', all)).toBe('\u0011a+b\u00122\u0013 · \u0007\u001dx\u001e ≈ 3,5 ± 0,1');
     expect(clean('\\[ v = \\frac{\\Delta s}{\\Delta t} \\]', all)).toBe('v = \u0011Δ\u0010s\u0012Δ\u0010t\u0013');
-    // a fraction inside a fraction or a root stays on one line; punctuation stays attached
-    expect(clean('$\\frac{\\frac{1}{2}}{3}$, $\\sqrt{\\frac{a}{b}}$', all)).toBe('\u00111/2\u00123\u0013, √(a/b)');
+    // a fraction inside a fraction stays on one line, one under a root is stacked (the root is drawn around it); punctuation stays attached
+    expect(clean('$\\frac{\\frac{1}{2}}{3}$, $\\sqrt{\\frac{a}{b}}$', all)).toBe('\u00111/2\u00123\u0013, \u0007\u001d\u0010\u0011a\u0012b\u0013\u0010\u001e');
     expect(clean('Winkel $90^\\circ$, $x^{2}$, $\\text{km}^2$', all)).toBe('Winkel 90°, x², km²');
     expect(clean('$\\ce{6CO2 + 6H2O -> C6H12O6 + 6O2}$', all)).toBe('6CO₂ + 6H₂O → C₆H₁₂O₆ + 6O₂');
     expect(clean('CO2 und H2SO4 auf A4, MP3, Ca(OH)2', all)).toBe('CO₂ und H₂SO₄ auf A4, MP3, Ca(OH)₂');
@@ -91,13 +91,22 @@ describe('clean pasted AI text', () => {
   it('keeps braces inside fractions and roots from blocking them, and does not raise x^{n-1} wrongly', () => {
     const all = () => true;
     expect(clean(String.raw`$\frac{x^{n+1}}{n+1}$`, all)).toBe('\u0011x^(n+1)\u0012n+1\u0013');
-    expect(clean(String.raw`$\sqrt{b^{2}-4ac}$, $\frac{x_{1}}{2}$`, all)).toBe('√(b²-4ac), \u0011x₁\u00122\u0013');
+    expect(clean(String.raw`$\sqrt{b^{2}-4ac}$, $\frac{x_{1}}{2}$`, all)).toBe('\u0007\u001db²-4ac\u001e, \u0011x₁\u00122\u0013');
+  });
+  it('marks roots for the layout to draw: index, radicand, nested ones, typed ones; spaces under a root do not split it', () => {
+    const all = () => true, R = (rad: string, n = '') => `\u0007${n}\u001d${rad}\u001e`;
+    expect(clean(String.raw`$\sqrt{x}$, $\sqrt[3]{8}$, $\sqrt[n]{a}$, $2\sqrt{3}$`, all)).toBe(`${R('x')}, ${R('8', '3')}, ${R('a', 'n')}, 2${R('3')}`);
+    expect(clean(String.raw`$\sqrt{\sqrt{x} + 1}$`, all)).toBe(R(`${R('x')}\u0010+\u00101`));
+    expect(clean(String.raw`$x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}$`, all)).toBe(`x = \u0011-b\u0010±\u0010${R('b²\u0010-\u00104ac')}\u00122a\u0013`);
+    // typed without LaTeX; a word after the sign is no radicand
+    expect(clean('√(x+1), √16, ³√8, √x², 2√3. √(√(x)+1) √Wurzel', all)).toBe(`${R('x+1')}, ${R('16')}, ${R('8', '3')}, ${R('x²')}, 2${R('3')}. ${R(`${R('x')}+1`)} √Wurzel`);
+    expect(clean('Mindmap: Wurzel\n- A\n  - $\\sqrt{x + 1}$\n- B\n  - b', all)).toContain('√(x\u0010+\u00101)'); // a mind map writes it on one line
     expect(clean('$x^{n-1}$, $2^{n+1}$, $x^{n}$, $e^{2x}$, $a^{-1}$, $x^{T}$', all)).toBe('x^(n-1), 2^(n+1), xⁿ, e²ˣ, a⁻¹, x^T');
   });
   it('writes binom, set symbols, spacing commands and style switches without leaving their names', () => {
     const all = () => true;
     expect(clean(String.raw`$\binom{n}{k}$, $A \cap B$, $x \in \mathbb{R}$, $\forall x$`, all)).toBe('(n über k), A ∩ B, x ∈ R, ∀ x');
-    expect(clean(String.raw`$\displaystyle a\quad b$, $\textbf{fett}$, $\frac12$, $\sqrt2$`, all)).toBe('a b, fett, \u00111\u00122\u0013, √2');
+    expect(clean(String.raw`$\displaystyle a\quad b$, $\textbf{fett}$, $\frac12$, $\sqrt2$`, all)).toBe('a b, fett, \u00111\u00122\u0013, \u0007\u001d2\u001e');
     expect(clean(String.raw`$\xrightarrow{\text{Kat.}}$, $\overset{!}{=}$`, all)).toBe('\u001bKat.\u001c→ , =');
   });
   it('writes the limits of an evaluation bar in words and x_{1,2} with small digits', () => {

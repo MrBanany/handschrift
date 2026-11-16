@@ -55,7 +55,7 @@ const dir = (m: Mat, a: Anchor): [number, number] => {
 const scaleOf = (m: Mat) => Math.sqrt(Math.abs(m[0] * m[3] - m[1] * m[2]));
 
 /** Left/right edge of the actual ink (mm), not the slanted bitmap box, so word gaps look even. */
-function inkX(g: GlyphMeta, m: Mat): [number, number] {
+export function inkX(g: GlyphMeta, m: Mat): [number, number] {
   let l = Infinity, r = -Infinity;
   BANDS.forEach((b, i) => {
     const y = g.baseline + b, L = g.prof?.l[i], R = g.prof?.r[i];
@@ -67,7 +67,19 @@ function inkX(g: GlyphMeta, m: Mat): [number, number] {
 }
 
 /** Top and bottom of the actual ink (mm), from the profile bands; the bitmap box otherwise. */
-function inkY(g: GlyphMeta, m: Mat): [number, number] {
+type Pt = [number, number];
+/** How a line pulled straight by hand is off: tilt (degrees, spread), ends that run over or stop short and their sideways move at most (x-heights), bow (share of its length). */
+interface Feel { tilt: number; end: number; maxOff: number; bow: number }
+/** Underlines, frames, boxes, fraction bars, arrow heads: only a hair off. */
+const FINE: Feel = { tilt: 0.25, end: 0.08, maxOff: 0.12, bow: 0 };
+/** Arrows and lines of a diagram, a graph's axes. */
+const LINE: Feel = { tilt: 0.6, end: 0.12, maxOff: 0.35, bow: 0.006 };
+/** Mind-map branches: drawn more freely, a slight bow and their own angle. */
+const FREE: Feel = { tilt: 1.5, end: 0.15, maxOff: 0.7, bow: 0.035 };
+/** How far a box drawn around text reaches below its last baseline, in x-heights: clear of the descenders (see diagram.ts boxBottom). */
+const BOX_DOWN = 1;
+
+export function inkY(g: GlyphMeta, m: Mat): [number, number] {
   const rows = BANDS.map((b, i) => (g.prof?.l[i] != null ? b : null)).filter((b): b is number => b !== null);
   const [t, u] = rows.length ? [g.baseline + rows[0] - BAND / 2, g.baseline + rows.at(-1)! + BAND / 2] : [0, g.h];
   return [m[3] * t + m[5], m[3] * u + m[5]];
@@ -346,9 +358,10 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
     const f = 0.8 * size, n = layoutRun(num, f), d = layoutRun(den, f);
     const over = 0.15 * xh, W = Math.max(n.inkR - n.inkL, d.inkR - d.inkL, 0.6 * xh) + 2 * over;
     const bar = -0.45 * xh * size;
-    // a root reaches below the baseline and above the digits: keep it off the bar
-    const nDown = num.includes(ROOT[0]) ? Math.max(0, extentY(n, f)[1] - 0.1 * xh * f) : 0;
-    const dUp = den.includes(ROOT[0]) ? Math.max(0, -extentY(d, f)[0] - 1.3 * xh * f) : 0;
+    // whatever reaches below the numerator's baseline or above ~1.3 x-heights in the denominator (a root, tall digits, a g)
+    // keeps off the bar: no line through the writing
+    const nDown = Math.max(0, extentY(n, f)[1] - 0.1 * xh * f);
+    const dUp = Math.max(0, -extentY(d, f)[0] - 1.3 * xh * f);
     const out = empty();
     put(out, n, (W - (n.inkR - n.inkL)) / 2 - n.inkL, bar - 0.3 * xh * size - nDown);
     put(out, d, (W - (d.inkR - d.inkL)) / 2 - d.inkL, bar + 0.3 * xh * size + 1.3 * xh * f + dUp); // digits are ~1.3 x-heights tall
@@ -413,15 +426,39 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
   const wrap = () => { newLine(); lineX = lineStart + hang * (1 + gauss() * 0.05); };
   const drift = (x: number) => slope * (x - lineStart) + amp * Math.sin((2 * Math.PI * x) / lambda + phase);
 
-  // Emphasised words (bold, headings) are underlined: one straight pen stroke per line, just below the baseline.
+  // Emphasised words (bold, headings) are underlined: one pen stroke per line, pulled straight, below the letters.
   const ws = [...lib.values()].flat().map((g) => g.strokeW).sort((a, b) => a - b);
   const penW = (ws[ws.length >> 1] ?? 5) * s0;
   let under: { x0: number; x1: number } | null = null;
   function closeUnderline() {
     if (!under) return;
     const { x0, x1 } = under;
-    straight(x0, y + drift(x0) + 0.3 * xh, x1, y + drift(x1) + 0.3 * xh); // along the line's own drift, so it stays under the words
+    underline(x0, x1, (x) => y + drift(x)); // along the line's own drift, so it stays under the words
     under = null;
+  }
+  /**
+   * An underline from x0 to x1 below the baseline base(x): just under the letters, or under the deepest descender (g, y, p)
+   * in that stretch. One that would then reach the next line's letters stays up and leaves a gap around each descender:
+   * a line never runs through the writing.
+   */
+  function underline(x0: number, x1: number, base: (x: number) => number) {
+    const desc: [number, number][] = [];
+    let low = 0.3 * xh, deep = low; // under the other letters / under the descenders too (room for the line's lean included)
+    for (const p of page!.glyphs) {
+      const [t, u] = inkY(p.g, p.m), [l, r] = inkX(p.g, p.m), b = base((l + r) / 2);
+      if (r < x0 || l > x1 || t > b || u < b - 0.5 * xh) continue; // only letters of this line
+      if (u < b + 0.45 * xh) { low = Math.max(low, u - b + 0.25 * xh); continue; }
+      desc.push([l, r]);
+      deep = Math.max(deep, u - b + 0.25 * xh);
+    }
+    deep = Math.max(deep, low);
+    if (deep <= s.lineH - 2.1 * xh) { pulled(x0, base(x0) + deep, x1, base(x1) + deep, FINE); return; }
+    let from = x0;
+    for (const [l, r] of desc.sort((a, b) => a[0] - b[0])) {
+      if (l - 0.3 * xh - from > 0.8 * xh) pulled(from, base(from) + low, l - 0.3 * xh, base(l - 0.3 * xh) + low, FINE);
+      from = Math.max(from, r + 0.3 * xh);
+    }
+    if (x1 - from > 0.8 * xh) pulled(from, base(from) + low, x1, base(x1) + low, FINE);
   }
   // Circled ((text)) or boxed (\boxed{…}) words: drawn by hand around this line's piece of them.
   let ring: { box: boolean; x0: number; x1: number; top: number; bot: number } | null = null;
@@ -437,13 +474,13 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
       const room = Math.max(y - s.lineH + 0.9 * xh, prevDeep + 0.5 * xh); // nor sit on a fraction's denominator there: a frame needs air
       if (y + up < room) shiftLine(Math.ceil((room - y - up) / s.lineH) * s.lineH);
       lineDown = Math.max(lineDown, Math.ceil((down - s.lineH + 1.6 * xh) / s.lineH));
-      // like drawn with a ruler: dead level and plumb (the line's drift taken at the box's middle), no bow, corners overshoot a little
+      // pulled straight: about level and plumb (the line's drift taken at the box's middle), corners overshoot a little
       const top = y + drift((l + r) / 2) + up, bot = y + drift((l + r) / 2) + down;
       const oj = () => o * Math.max(0.3, 1 + 0.3 * gauss());
-      straight(l - oj(), top, r + oj(), top);
-      straight(r, top - oj(), r, bot + oj());
-      straight(r + oj(), bot, l - oj(), bot);
-      straight(l, bot + oj(), l, top - oj());
+      pulled(l - oj(), top, r + oj(), top, FINE);
+      pulled(r, top - oj(), r, bot + oj(), FINE);
+      pulled(r + oj(), bot, l - oj(), bot, FINE);
+      pulled(l, bot + oj(), l, top - oj(), FINE);
       return;
     }
     // an ellipse in one go, a bit more than once round; it widens slightly so the ends do not meet exactly
@@ -463,10 +500,22 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
     mark = null;
   }
 
-  /** A dead straight pen stroke (lines, frames, underlines: on the iPad they are pulled straight), no wobble. */
-  function straight(x0: number, y0: number, x1: number, y1: number, on = page!) {
-    on.connectors.push({ p: [[x0, y0], [x0 + (x1 - x0) / 3, y0 + (y1 - y0) / 3], [x0 + (2 * (x1 - x0)) / 3, y0 + (2 * (y1 - y0)) / 3], [x1, y1]], w0: penW, w1: penW });
+  /**
+   * A line pulled straight by hand (on the iPad the pen snaps it straight): no wobble, but never computer-exact. It leans
+   * a little (turned about its middle, the ends move at most maxOff), its ends run over or stop short, a free one bows.
+   * into: the end points at something (a box, a text) and only ever stops short of it. Returns where it really ends and its direction.
+   */
+  function pulled(x0: number, y0: number, x1: number, y1: number, f: Feel, o: { into?: boolean; on?: Page } = {}) {
+    const len = Math.hypot(x1 - x0, y1 - y0) || 1, ux = (x1 - x0) / len, uy = (y1 - y0) / len, cap = (v: number, m: number) => Math.max(-m, Math.min(m, v));
+    const t = cap((gauss() * f.tilt * Math.PI) / 180, Math.min((3 * f.tilt * Math.PI) / 180, Math.atan((f.maxOff * xh) / (len / 2)))), c = Math.cos(t), sn = Math.sin(t);
+    const vx = ux * c - uy * sn, vy = ux * sn + uy * c, mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+    const e0 = cap(gauss() * f.end, 2 * f.end) * xh, e1 = cap(gauss() * f.end, 2 * f.end) * xh * (o.into ? 0 : 1) - (o.into ? Math.abs(gauss() * f.end * xh) : 0);
+    const a: Pt = [mx - vx * (len / 2 + e0), my - vy * (len / 2 + e0)], b: Pt = [mx + vx * (len / 2 + e1), my + vy * (len / 2 + e1)];
+    const d = Math.hypot(b[0] - a[0], b[1] - a[1]), bow = cap(gauss() * f.bow, 2 * f.bow) * d, nx = -vy * bow, ny = vx * bow;
+    (o.on ?? page!).connectors.push({ p: [a, [a[0] + (b[0] - a[0]) / 3 + nx, a[1] + (b[1] - a[1]) / 3 + ny], [a[0] + (2 * (b[0] - a[0])) / 3 + nx, a[1] + (2 * (b[1] - a[1])) / 3 + ny], b], w0: penW, w1: penW });
+    return { x: b[0], y: b[1], ux: vx, uy: vy };
   }
+  const rule = (x0: number, y0: number, x1: number, y1: number, on = page!) => pulled(x0, y0, x1, y1, FINE, { on }); // frames: like drawn with a ruler, almost
   /** A slightly bowed, wobbly pen stroke from (x0, y0) to (x1, y1) in mm. */
   const stroke = (x0: number, y0: number, x1: number, y1: number) => {
     const j = () => gauss() * 0.03 * xh;
@@ -644,9 +693,13 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
   /** Texts of a mind map or diagram, each on its line row; X is the left edge, Y(row) a row's baseline. */
   function writeTexts(texts: MapText[], X: number, Y: (row: number) => number) {
     for (const t of texts) {
-      let x = X + t.x;
-      for (const w of t.text.split(' ').filter(Boolean)) {
-        const wd = layoutWord(flatFrac(strip(w)), t.size), ox = x - wd.inkL, yb = Y(t.row);
+      const wds = t.text.split(' ').filter(Boolean).map((w) => layoutWord(flatFrac(strip(w)), t.size));
+      const gaps = wds.map(() => wordGapMm(t.size) * (1 + gauss() * 0.1 * sig));
+      // a text in a box sits in its middle by the letters really written (they come out wider or narrower than measured)
+      const width = wds.reduce((a, wd, i) => a + wd.inkR - wd.inkL + (i ? gaps[i - 1] : 0), 0);
+      let x = X + (t.centre === undefined ? t.x : t.centre - width / 2);
+      for (const [i, wd] of wds.entries()) {
+        const ox = x - wd.inkL, yb = Y(t.row);
         let prevM: Mat | null = null;
         for (const it of wd.items) {
           const m: Mat = [...it.m];
@@ -656,31 +709,36 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
           prevM = m;
         }
         for (const ms of wd.missing) page!.missing.push({ ...ms, x: ms.x + ox, y: ms.y + yb });
-        x = ox + wd.inkR + wordGapMm(t.size) * (1 + gauss() * 0.1 * sig);
+        x = ox + wd.inkR + gaps[i];
       }
     }
   }
   /** A box around text rows, four strokes that overshoot the corners a little (diagram.ts boxTop/boxBottom know its size). */
   function drawBox(box: MapPlan['box'], X: number, Y: (row: number) => number) {
-    const k = box.size, top = Y(box.row0) - 2.1 * xh * k, bot = Y(box.row1) + 0.8 * xh * k, l = X + box.x0, r = X + box.x1, o = 0.15 * xh;
-    straight(l - o, top, r + o, top); straight(r, top - o, r, bot + o); straight(r + o, bot, l - o, bot); straight(l, bot + o, l, top - o);
+    const k = box.size, o = 0.15 * xh;
+    let l = X + box.x0, r = X + box.x1;
+    let top = Y(box.row0) - 2.1 * xh * k, bot = Y(box.row1) + BOX_DOWN * xh * k;
+    // tall ascenders, deep descenders or a line written wider than measured: the box grows around the ink, never through it
+    for (const p of page!.glyphs) {
+      const [gt, gb] = inkY(p.g, p.m), [gl, gr] = inkX(p.g, p.m), cx = (gl + gr) / 2, cy = (gt + gb) / 2;
+      if (cx > l && cx < r && cy > top && cy < bot) { top = Math.min(top, gt - 0.3 * xh); bot = Math.max(bot, gb + 0.25 * xh); l = Math.min(l, gl - 0.3 * xh); r = Math.max(r, gr + 0.3 * xh); }
+    }
+    pulled(l - o, top, r + o, top, FINE); pulled(r, top - o, r, bot + o, FINE); pulled(r + o, bot, l - o, bot, FINE); pulled(l, bot + o, l, top - o, FINE);
   }
   /** An arrow head at (bx, by) for a shaft running in direction (ux, uy): two barbs leaning back from the tip. */
   function barbs(bx: number, by: number, ux: number, uy: number) {
     for (const k of [-1, 1]) {
       const ang = 0.45 + gauss() * 0.05, hl = 0.7 * xh * (0.85 + 0.3 * rand()), c = Math.cos(ang), sn = Math.sin(ang);
-      straight(bx - hl * (ux * c - k * uy * sn), by - hl * (k * ux * sn + uy * c), bx, by);
+      pulled(bx - hl * (ux * c - k * uy * sn), by - hl * (k * ux * sn + uy * c), bx, by, FINE);
     }
   }
   function placeMap(p: MapPlan) {
     roomFor(p.rows);
     const X = s.margin, Y = (row: number) => y + row * s.lineH;
     writeTexts(p.texts, X, Y);
-    for (const u of p.underlines) straight(u.x0 + X, Y(u.row) + 0.3 * xh, u.x1 + X, Y(u.row) + 0.3 * xh);
+    for (const u of p.underlines) underline(u.x0 + X, u.x1 + X, () => Y(u.row));
     drawBox(p.box, X, Y);
-    for (const [x0, r0, x1, r1] of p.links) {
-      straight(X + x0, Y(r0) - 0.5 * xh, X + x1, Y(r1) - 0.55 * xh);
-    }
+    for (const [x0, r0, x1, r1] of p.links) pulled(X + x0, Y(r0) - 0.5 * xh, X + x1, Y(r1) - 0.55 * xh, FREE, { into: true });
     page!.lines.push({ text: p.texts.map((t) => t.text).join(' / ') });
     lineDown = Math.max(lineDown, p.rows); // the next line starts below the map
   }
@@ -691,9 +749,8 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
     writeTexts(p.texts, X, Y);
     for (const b of p.boxes) drawBox(b, X, Y);
     for (const k of p.strokes) {
-      const x0 = X + k.x0, y0 = Y(k.y0), x1 = X + k.x1, y1 = Y(k.y1), len = Math.hypot(x1 - x0, y1 - y0) || 1;
-      straight(x0, y0, x1, y1);
-      if (k.head) barbs(x1, y1, (x1 - x0) / len, (y1 - y0) / len);
+      const e = pulled(X + k.x0, Y(k.y0), X + k.x1, Y(k.y1), LINE, { into: true }); // never into the box it points at
+      if (k.head) barbs(e.x, e.y, e.ux, e.uy);
     }
     page!.lines.push({ text: p.texts.map((t) => t.text).join(' / ') });
     lineDown = Math.max(lineDown, p.rows);
@@ -705,11 +762,10 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
     if (top() + p.height > s.pageH - s.margin && y > s.margin + 1.5 * s.lineH) { lineDown = 0; y = s.pageH; newLine(); }
     const X = s.margin + Math.max(0, (s.pageW - 2 * s.margin - p.width) / 2), Y = top();
     for (const [a, b] of p.axes) {
-      straight(X + a[0], Y + a[1], X + b[0], Y + b[1]);
-      const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-      barbs(X + b[0], Y + b[1], (b[0] - a[0]) / len, (b[1] - a[1]) / len);
+      const e = pulled(X + a[0], Y + a[1], X + b[0], Y + b[1], LINE);
+      barbs(e.x, e.y, e.ux, e.uy);
     }
-    for (const [a, b] of p.ticks) straight(X + a[0], Y + a[1], X + b[0], Y + b[1]);
+    for (const [a, b] of p.ticks) pulled(X + a[0], Y + a[1], X + b[0], Y + b[1], FINE);
     for (const c of p.curves) {
       // a hand does not follow the curve exactly: the pen wanders a little around it
       let wob = 0;
@@ -794,7 +850,7 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
       const plain = flatFrac(word).replace(/\u0010/g, ' ');
       if (rec) rec.text += ` ${plain}`;
       else page!.lines.push(rec = { text: plain });
-      for (const b of wd.bars) stroke(ox + b.x0, y + drift(ox + b.x0) + b.y0, ox + b.x1, y + drift(ox + b.x1) + b.y1);
+      for (const b of wd.bars) pulled(ox + b.x0, y + drift(ox + b.x0) + b.y0, ox + b.x1, y + drift(ox + b.x1) + b.y1, FINE); // fraction bars
       let prevM: Mat | null = null, prevG: GlyphMeta | null = null;
       for (const it of wd.items) {
         const m: Mat = [...it.m];
@@ -836,7 +892,6 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
   // Flash cards and note boxes (cards.ts marks their lines): the lines are written into columns inside a ruled frame.
   // A block is never split over two pages: one that does not fit moves to the next page as a whole.
   // One taller than a whole page is written as plain lines instead.
-  const rule = straight; // frames like drawn with a ruler
   /** split: where the first of two columns ends (share of the width). Without a frame (Cornell rows) the block tiles with the next one; returns its extent then, null if it became plain lines. */
   function placeBlock(cols: string[][], gap: boolean, split = 0.5, frame = true) {
     const L = s.lineH, l = s.margin, r = s.pageW - s.margin, pad = 1.2 * xh, xs = cols.length > 1 ? [l, l + split * (r - l), r] : [l, r];

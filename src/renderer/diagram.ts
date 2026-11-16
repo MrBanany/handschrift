@@ -73,9 +73,9 @@ export interface DiagramPlan {
   strokes: { x0: number; y0: number; x1: number; y1: number; head: boolean }[];
 }
 
-/** Where a box drawn around text rows starts and ends, in rows (as layout() draws it: 2.1 x-heights up, 0.8 down). */
+/** Where a box drawn around text rows starts and ends, in rows (as layout() draws it: 2.1 x-heights up, 1 down, clear of descenders; it grows around taller ink). */
 export const boxTop = (row: number, size: number, o: Pick<DiagramOpts, 'xh' | 'lineH'>) => row - (2.1 * o.xh * size) / o.lineH;
-export const boxBottom = (row: number, size: number, o: Pick<DiagramOpts, 'xh' | 'lineH'>) => row + (0.8 * o.xh * size) / o.lineH;
+export const boxBottom = (row: number, size: number, o: Pick<DiagramOpts, 'xh' | 'lineH'>) => row + (o.xh * size) / o.lineH;
 
 export interface DiagramOpts extends PlanOpts { lineH: number }
 
@@ -88,17 +88,18 @@ export function planDiagram(d: Diagram, o: DiagramOpts): DiagramPlan | null {
   return null;
 }
 
-type Box = { lines: string[]; w: number };
+type Box = { lines: string[]; ws: number[]; w: number }; // ws: each line's width, measured once (a second measure picks other letters)
 /** The text of one box, wrapped to at most 3 lines of at most `max` mm (padding included). */
 function boxOf(text: string, max: number, k: number, o: DiagramOpts): Box | null {
   const pad = 0.6 * o.xh * k, lines = wrapText(text, max - 2 * pad, max - 2 * pad, k, o.measure);
   if (!lines || lines.length > 3) return null;
-  return { lines, w: Math.max(...lines.map((l) => o.measure(l, k))) + 2 * pad };
+  const ws = lines.map((l) => o.measure(l, k));
+  return { lines, ws, w: Math.max(...ws) + 2 * pad };
 }
 
 /** The lines of a box, each centred, from row `row` down. */
 const boxTexts = (b: Box, x: number, row: number, k: number, o: DiagramOpts): MapText[] =>
-  b.lines.map((text, i) => ({ x: x + (b.w - o.measure(text, k)) / 2, row: row + i, size: k, text }));
+  b.lines.map((text, i) => ({ x: x + (b.w - b.ws[i]) / 2, centre: x + b.w / 2, row: row + i, size: k, text }));
 
 /**
  * Ablauf / Kreislauf: boxes in a row with arrows between, as many as fit; then on the next row (an empty row between),

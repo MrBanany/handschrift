@@ -69,7 +69,8 @@ export function mapAsList(t: MapTree, head: string, emph: readonly [string, stri
   return [head + emph[0] + t.topic + emph[1], ...t.branches.flatMap((b) => [`${t.bullet} ${b.title}`, ...b.items.map((x) => `${indent}${x}`)])];
 }
 
-export interface MapText { x: number; row: number; size: number; text: string }
+/** centre: a text in a box, written in its middle by the letters really chosen (x is then where the measure put it). */
+export interface MapText { x: number; row: number; size: number; text: string; centre?: number }
 export interface MapPlan {
   rows: number; // baseline rows 1..rows are used (row r = r lines below the line the map starts on)
   texts: MapText[]; // x: where the ink starts, mm from the left edge of the map; size: relative to normal writing
@@ -128,7 +129,7 @@ function planAt(t: MapTree, o: PlanOpts, k: number): MapPlan | null {
   const pad = 0.9 * xh * TOPIC, gapMin = 0.07 * o.width * k;
   const topicLines = wrap(t.topic, 0.34 * o.width - 2 * pad, 0.34 * o.width - 2 * pad, TOPIC);
   if (!topicLines || topicLines.length > 3) return null;
-  const cw = Math.max(...topicLines.map((l) => measure(l, TOPIC))) + 2 * pad;
+  const tw = topicLines.map((l) => measure(l, TOPIC)), cw = Math.max(...tw) + 2 * pad; // measured once: a second measure picks other letters
   const sw = (o.width - cw - 2 * gapMin) / 2; // widest a side column may be
   if (sw < 24 * (xh * k / 2.6)) return null;
 
@@ -168,7 +169,7 @@ function planAt(t: MapTree, o: PlanOpts, k: number): MapPlan | null {
 
   const texts: MapText[] = [], underlines: MapPlan['underlines'] = [], links: MapPlan['links'] = [];
   const c0 = 1 + Math.floor((rows - topicLines.length) / 2), mid = c0 + (topicLines.length - 1) / 2;
-  topicLines.forEach((text, i) => texts.push({ x: boxX0 + (cw - measure(text, TOPIC)) / 2, row: c0 + i, size: TOPIC, text }));
+  topicLines.forEach((text, i) => texts.push({ x: boxX0 + (cw - tw[i]) / 2, centre: boxX0 + cw / 2, row: c0 + i, size: TOPIC, text }));
   const place = (side: typeof bs, at: number[], isRight: boolean) => {
     side.forEach((b, i) => {
       const bx = isRight ? rightX : boxX0 - gap - b.w;

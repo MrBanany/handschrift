@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { inkStrokes } from '../src/export/goodnotes';
 import type { GlyphMeta } from '../src/glyphstore/types';
 import { clean } from '../src/renderer/clean';
 import { DIAGRAM, boxBottom, boxTop, decodeDiagram, planDiagram, type Diagram, type DiagramPlan } from '../src/renderer/diagram';
@@ -112,6 +113,17 @@ describe('diagram: laid out', () => {
     const diagramBottom = Math.max(...strokes.flatMap((c) => c.p.map(([, y]) => y)));
     const after = p.glyphs.filter((g) => g.g.key === 'D').map((g) => g.m[5]);
     expect(Math.min(...after)).toBeGreaterThan(diagramBottom);
+  });
+  it('lines, arrows, boxes and underlines are dead straight, in the GoodNotes ink too', () => {
+    const src = '## Überschrift\nEin **fettes** Wort.\n\nAblauf: Reiz -> Nerv -> Gehirn\n\nKreislauf: A -> B -> C\n\nSchaubild: Zelle\n- Kern\n- Plasma\n\nMindmap: Zelle\n- Kern\n- Plasma\n\nMerke: Das ist wichtig.\n\n$\\boxed{x = 4}$';
+    const text = clean(src, has), lib = new Map([...new Set([...text].filter((c) => !/[\s\u0001-\u001f-]/.test(c)))].map((c) => [c, [glyph(c)]]));
+    const [page] = layout(text, lib, { ...S, bridges: false }).pages; // no joins between letters: every connector is a drawn line
+    const strokes = inkStrokes({ ...page, glyphs: [] }, () => { throw new Error('no glyphs'); });
+    expect(strokes.length).toBeGreaterThan(40);
+    for (const { pts } of strokes) {
+      const [a, b] = [pts[0], pts.at(-1)!], len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      for (const p of pts) expect(Math.abs((b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])) / len).toBeLessThan(1e-6); // distance from the chord
+    }
   });
   it('a Schaubild with 6 sub-points is written as a list, a token never reaches the page as text', () => {
     const pages = run('Schaubild: Zelle\n- a\n- b\n- c\n- d\n- e\n- f');

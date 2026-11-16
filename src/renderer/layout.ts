@@ -386,7 +386,11 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
    * Ink that starts `top` mm above this line's baseline (negative) would run into a deep fraction or root above: the line moves
    * down whole lines, so it stays on the ruling. No extra air asked for: the ink heights are measured in bands and come out a bit generous.
    */
-  const clearAbove = (top: number) => { const need = prevDeep - (y + top); if (need > 0) shiftLine(Math.ceil(need / s.lineH) * s.lineH); };
+  const clearAbove = (top: number) => {
+    const need = prevDeep - (y + top), dy = Math.ceil(need / s.lineH) * s.lineH;
+    if (need > 0 && y + dy > s.pageH - s.margin && y > s.margin + 1.5 * s.lineH) carryLine(); // pushed below the last line: on to the next page
+    else if (need > 0) shiftLine(dy);
+  };
   let heading = false;
   /** Everything written on this line so far gets the heading colour. */
   const accentLine = () => {
@@ -426,6 +430,18 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
     for (const ms of page!.missing.slice(from.m)) { ms.x += dx; ms.y += dy; }
     for (const k of page!.marks.slice(from.k)) { k.x0 += dx; k.x1 += dx; k.y0 += dy; k.y1 += dy; }
     y += dy; deep += dy;
+  };
+  /** The line written so far moves to the top of a new page (keeping its x positions). */
+  // shortcut: an underline or marker still open on this line keeps its old start, molecules inside one are rare
+  const carryLine = () => {
+    const P = page!, g = P.glyphs.splice(from.g), c = P.connectors.splice(from.c), m = P.missing.splice(from.m), k = P.marks.splice(from.k);
+    const ln = rec && P.lines.at(-1) === rec ? P.lines.splice(-1) : [];
+    const y0 = y, d0 = deep;
+    newPage();
+    from = { g: 0, c: 0, m: 0, k: 0 };
+    page!.glyphs.push(...g); page!.connectors.push(...c); page!.missing.push(...m); page!.marks.push(...k); page!.lines.push(...ln);
+    const dy = y - y0;
+    y = y0; deep = d0; shiftLine(dy);
   };
   /** Line break inside a paragraph: list items continue under their text. */
   const wrap = () => { newLine(); lineX = lineStart + hang * (1 + gauss() * 0.05); };
@@ -478,7 +494,7 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
       const o = 0.15 * xh;
       const up = Math.min(-1.75 * xh, inkTop - y - 0.4 * xh), down = Math.max(0.7 * xh, inkBot - y + 0.4 * xh);
       // a tall box must not cut through the line above: move this line down a whole line (like a tall molecule)
-      const room = Math.max(y - s.lineH + 0.9 * xh, prevDeep + 0.5 * xh); // nor sit on a fraction's denominator there: a frame needs air
+      const drop = () => Math.max(0, Math.ceil((Math.max(y - s.lineH + 0.9 * xh, prevDeep + 0.5 * xh) - y - up) / s.lineH)) * s.lineH; // nor sit on a fraction's denominator there: a frame needs air
       // A boxed result under a formula with a deep fraction or root: pupils write it behind the calculation, on the same line.
       // So right after such a line it goes up there whenever it fits beside, instead of standing (or skipping a line) below.
       const left = prevLine ? prevLine.endX + 0.9 * xh : 0;
@@ -490,7 +506,10 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
         shiftLine(prevLine.y - y, moved);
         x0 += moved; x1 += moved;
         lineDown = Math.max(lineDown, prevLine.lineDown); prevDeep = prevLine.prevDeep; prevDeepR = prevLine.prevDeepR; deep = Math.max(deep, below); deepR = Math.max(deepR, belowR); prevLine = null;
-      } else if (y + up < room) shiftLine(Math.ceil((room - y - up) / s.lineH) * s.lineH);
+      } else {
+        if (y + drop() + down > s.pageH - 0.5 * s.margin && y > s.margin + 1.5 * s.lineH) carryLine(); // the box would run past the page bottom
+        if (drop() > 0) shiftLine(drop());
+      }
       const l = x0 - 0.55 * xh, r = x1 + 0.55 * xh;
       lineDown = Math.max(lineDown, Math.ceil((down - s.lineH + 1.6 * xh) / s.lineH));
       // pulled straight: about level and plumb (the line's drift taken at the box's middle), corners overshoot a little
@@ -613,9 +632,11 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
     // ink extent relative to the atom positions: letters reach ~0.8 xh above and ~0.7 xh below their atom
     const top = Math.min(...mol.atoms.map((a, i) => ys[i] * B - (a.label ? 0.8 * xh : 0)));
     const bot = Math.max(...mol.atoms.map((a, i) => ys[i] * B + (a.label ? 0.7 * xh : 0)));
-    const room = y - s.lineH + 0.9 * xh; // below the previous line's descenders
-    const up = Math.ceil((room - (y - 0.5 * xh - (bot - top) / 2)) / s.lineH);
-    if (up > 0) shiftLine(up * s.lineH); // shortcut: may run past the page bottom for huge molecules, fine for school sizes
+    const lift = () => Math.ceil((y - s.lineH + 0.9 * xh - (y - 0.5 * xh - (bot - top) / 2)) / s.lineH); // lines to move down: clear the previous line's descenders
+    // runs past the page bottom: the whole line so far moves on to a new page (unless it already starts one)
+    if (y + Math.max(0, lift()) * s.lineH - 0.5 * xh + (bot - top) / 2 > s.pageH - 0.5 * s.margin && y > s.margin + 1.5 * s.lineH) carryLine();
+    const up = lift();
+    if (up > 0) shiftLine(up * s.lineH); // shortcut: a molecule taller than a page still runs past the bottom, fine for school sizes
     const oy = y - 0.5 * xh - (top + bot) / 2, ox = x0 + padL - minX * B;
     lineDown = Math.max(lineDown, Math.ceil((oy + bot - (y + s.lineH - 1.6 * xh)) / s.lineH));
     const P = mol.atoms.map((a) => [ox + a.x * B, oy + a.y * B] as const);

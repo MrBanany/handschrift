@@ -46,3 +46,20 @@ describe('layout snapshots', () => {
     });
   }
 });
+
+describe('page bottom', () => {
+  it('no answer writes past the bottom of the page, on any paper or line spacing (boxes, tall formulas)', () => {
+    const papers = [[210, 297], [148, 210], [297, 210]];
+    for (const answer of Object.values(ANSWERS)) {
+      const text = clean(answer, has).replace(/[\u000e\u000f][^\u000e\u000f]*[\u000e\u000f]/g, ' ');
+      const lib = new Map([...new Set([...text].filter((c) => !/[\s\u0001-\u001f]/.test(c)))].map((c) => [c, [glyph(c, 0), glyph(c, 1)]]));
+      for (const [pageW, pageH] of papers) for (const lineH of [6.4, 8, 10, 12]) for (const seed of [1, 23]) {
+        const s = { ...S, xh: 0.3 * lineH, lineH, margin: 10, pageW, pageH, seed };
+        for (const p of layout(text, lib, s).pages) {
+          const low = Math.max(...p.glyphs.map(({ g, m }) => m[5] + m[3] * g.h), ...p.connectors.flatMap((c) => c.p.map((q) => q[1])));
+          expect(low, `${pageW}x${pageH} ${lineH} ${seed}`).toBeLessThan(pageH - 1); // a deep denominator may reach into the bottom margin, never off the paper
+        }
+      }
+    }
+  });
+});

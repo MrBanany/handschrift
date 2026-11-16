@@ -480,10 +480,10 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
       // a tall box must not cut through the line above: move this line down a whole line (like a tall molecule)
       const room = Math.max(y - s.lineH + 0.9 * xh, prevDeep + 0.5 * xh); // nor sit on a fraction's denominator there: a frame needs air
       // A boxed result under a formula with a deep fraction or root: pupils write it behind the calculation, on the same line.
-      // So when it would hit that fraction and fits beside the line above, it goes up there instead of skipping a line.
+      // So right after such a line it goes up there whenever it fits beside, instead of standing (or skipping a line) below.
       const left = prevLine ? prevLine.endX + 0.9 * xh : 0;
       let moved = 0;
-      if (done && lead && prevLine && y + up < prevDeep + 0.5 * xh && left + (x1 - x0) + 1.4 * xh <= prevLine.rightEdge && up > 0.9 * xh - s.lineH
+      if (done && lead && prevLine && prevDeep > -Infinity && left + (x1 - x0) + 1.4 * xh <= prevLine.rightEdge && up > 0.9 * xh - s.lineH
         && (prevLine.y + up > prevLine.prevDeep + 0.3 * xh || left > prevLine.prevDeepR + 0.5 * xh)) { // up there it must clear the line above that one
         moved = left + 0.7 * xh - x0;
         const below = prevDeep, belowR = prevDeepR; // the formula line is this line now: what follows keeps clear of its fraction

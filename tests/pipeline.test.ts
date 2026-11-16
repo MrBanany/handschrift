@@ -312,15 +312,18 @@ describe('layout', () => {
   });
 
   it('writes compactly after a deep fraction or root: the boxed result beside the formula, the next fraction just clear of it', () => {
+    // the box holds x-height letters (like "2 s"): the test font's full-height boxes would decide by size jitter alone whether it fits beside
+    const low = new Map(lib);
+    for (const k of 'cd') low.set(k, lib.get(k)!.map((g) => ({ ...g, h: 100, baseline: 80 })));
     const base = (g: Page['glyphs'][number]) => g.m[3] * g.g.baseline + g.m[5]; // baseline height on the page
     const bottom = (g: Page['glyphs'][number]) => g.m[5] + g.g.h * g.m[3];
     const frac = '\u0011a\u0012b\u0013', root = `\u0007\u001d${frac}\u001e`, box = '\u0016cd\u0017';
     /** Lines between the first and the last glyph's baseline. */
-    const lines = (...text: string[]) => { const g = layout(text.join('\n'), lib, S).pages[0].glyphs; return (base(g.at(-1)!) - base(g[0])) / S.lineH; };
+    const lines = (...text: string[]) => { const g = layout(text.join('\n'), low, S).pages[0].glyphs; return (base(g.at(-1)!) - base(g[0])) / S.lineH; };
     expect(lines(`x ${frac}`, 'cd') - lines('x a', 'cd')).toBeCloseTo(0, 1); // plain text under a fraction does not move
     // the boxed result goes up beside the formula line: same baseline as its "x", right of the fraction, frame and all
     for (const formula of [frac, root]) {
-      const p = layout([`x ${formula}`, box].join('\n'), lib, S).pages[0], [x, a] = p.glyphs, c = p.glyphs.at(-2)!;
+      const p = layout([`x ${formula}`, box].join('\n'), low, S).pages[0], [x, a] = p.glyphs, c = p.glyphs.at(-2)!;
       expect(base(c) - base(x)).toBeCloseTo(0, 0);
       expect(c.m[4]).toBeGreaterThan(a.m[4] + 60 * a.m[0]);
       const frame = p.connectors.slice(-4).flatMap((k) => [k.p[0], k.p[3]]);
@@ -331,11 +334,14 @@ describe('layout', () => {
     // what follows starts on the next line, not two further down
     expect(lines(`x ${frac}`, box, 'ab')).toBeLessThan(2.5);
     // no room beside a long line: the box goes below, by whole lines (on the ruling), its top under the denominator
-    const long = Array(22).fill('abcd').join(' '), q = layout([`${long} ${frac}`, box].join('\n'), lib, S).pages[0], den = q.glyphs.at(-3)!;
-    expect(base(q.glyphs.at(-1)!)).toBeGreaterThan(base(den));
+    // (the line is filled word by word until the fraction ends so far right that the box no longer fits beside it)
+    const filled = Array.from({ length: 40 }, (_, n) => layout([`${Array(n + 1).fill('abcd').join(' ')} ${frac}`, box].join('\n'), low, S).pages[0])
+      .find((p) => base(p.glyphs.at(-1)!) > base(p.glyphs.at(-3)!));
+    expect(filled).toBeDefined();
+    const q = filled!, den = q.glyphs.at(-3)!;
     expect(Math.min(...q.connectors.slice(-4).flatMap((k) => [k.p[0][1], k.p[3][1]]))).toBeGreaterThan(bottom(den));
     // a fraction under a fraction: the second numerator starts below the first denominator
-    const two = layout([frac, frac].join('\n'), lib, S).pages[0].glyphs;
+    const two = layout([frac, frac].join('\n'), low, S).pages[0].glyphs;
     expect(two[2].m[5]).toBeGreaterThan(bottom(two[1]));
   });
 

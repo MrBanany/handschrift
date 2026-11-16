@@ -325,14 +325,17 @@ describe('layout', () => {
     expect(next.m[4] + next.m[2] * next.g.baseline).toBeGreaterThan(ringR + 0.3 * S.xh);
   });
 
-  it('draws the box of a boxed word with straight, level and plumb lines', () => {
+  it('draws the box of a boxed word with lines pulled straight: no bow, about level and plumb, but not computer-exact', () => {
     const plain = layout('ab', lib, S).pages[0].connectors.length;
-    const frame = layout('ab', lib, S).pages[0].connectors.slice(plain);
+    const frame = layout('\u0016ab\u0017', lib, S).pages[0].connectors.slice(plain);
     expect(frame).toHaveLength(4);
-    for (const c of frame) {
-      const xs = c.p.map((p) => p[0]), ys = c.p.map((p) => p[1]);
-      expect(Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys))).toBeLessThan(1e-9); // no slant, no bow
-    }
+    const offs = frame.map((c) => {
+      const [a, , , b] = c.p, len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      for (const p of c.p) expect(Math.abs((b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])) / len).toBeLessThan(1e-9); // no bow
+      return (Math.min(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1])) / len) * (180 / Math.PI); // degrees off level / plumb
+    });
+    for (const d of offs) expect(d).toBeLessThan(0.8);
+    expect(Math.max(...offs)).toBeGreaterThan(0.01);
   });
 
   it('lets the left edge wander and indents wrapped list items under their text', () => {

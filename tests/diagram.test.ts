@@ -3,7 +3,7 @@ import { inkStrokes } from '../src/export/goodnotes';
 import type { GlyphMeta } from '../src/glyphstore/types';
 import { clean } from '../src/renderer/clean';
 import { DIAGRAM, boxBottom, boxTop, decodeDiagram, planDiagram, type Diagram, type DiagramPlan } from '../src/renderer/diagram';
-import { layout, type Settings } from '../src/renderer/layout';
+import { BANDS, inkX, inkY, layout, type Settings } from '../src/renderer/layout';
 import { MAP, decodeMap } from '../src/renderer/mindmap';
 
 const has = () => true;
@@ -114,16 +114,32 @@ describe('diagram: laid out', () => {
     const after = p.glyphs.filter((g) => g.g.key === 'D').map((g) => g.m[5]);
     expect(Math.min(...after)).toBeGreaterThan(diagramBottom);
   });
-  it('lines, arrows, boxes and underlines are dead straight, in the GoodNotes ink too', () => {
-    const src = '## Überschrift\nEin **fettes** Wort.\n\nAblauf: Reiz -> Nerv -> Gehirn\n\nKreislauf: A -> B -> C\n\nSchaubild: Zelle\n- Kern\n- Plasma\n\nMindmap: Zelle\n- Kern\n- Plasma\n\nMerke: Das ist wichtig.\n\n$\\boxed{x = 4}$';
-    const text = clean(src, has), lib = new Map([...new Set([...text].filter((c) => !/[\s\u0001-\u001f-]/.test(c)))].map((c) => [c, [glyph(c)]]));
-    const [page] = layout(text, lib, { ...S, bridges: false }).pages; // no joins between letters: every connector is a drawn line
-    const strokes = inkStrokes({ ...page, glyphs: [] }, () => { throw new Error('no glyphs'); });
-    expect(strokes.length).toBeGreaterThan(40);
-    for (const { pts } of strokes) {
+  it('lines are pulled straight like on the iPad (no wobble, a slight lean, not exact) and never run through the writing, in the GoodNotes ink too', () => {
+    // letters with real ink outlines: descenders (g y p) almost an x-height down, capitals and b d h … up to the ascender line
+    const band = (key: string) => (/[gjpqy]/.test(key) ? [5, 9] : /[A-ZÄÖÜbdfhklt0-9]/.test(key) ? [2, 7] : [5, 7]);
+    const real = (key: string): GlyphMeta => { const [lo, hi] = band(key); return { ...glyph(key), h: 150, prof: { l: BANDS.map((_, i) => (i >= lo && i <= hi ? 5 : null)), r: BANDS.map((_, i) => (i >= lo && i <= hi ? 55 : null)) } }; };
+    const src = '## Gruppenarbeit\nEin **gypsy** Wort und $\\frac{1}{2}$.\n\nAblauf: Reiz -> Nerv -> Gehirn -> Muskel\n\nKreislauf: Regen -> Quelle -> Fluss\n\nSchaubild: Zellorganellen\n- Kern\n- Plasma\n- Ribosomen\n\nMindmap: Zellatmung\n- Glykolyse\n  - Zytoplasma\n- Atmungskette\n- Gärung\n\nMerke: Das ist wichtig, gypsy.\n\n$\\boxed{y = 4}$';
+    const text = clean(src, has), lib = new Map([...new Set([...text].filter((c) => !/[\s\u0001-\u001f-]/.test(c)))].map((c) => [c, [real(c)]]));
+    const pages = layout(text, lib, { ...S, bridges: false }).pages; // no joins between letters: every connector is a drawn line
+    const strokes = pages.flatMap((p) => inkStrokes({ ...p, glyphs: [] }, () => { throw new Error('no glyphs'); }).map((k) => ({ ...k, page: p })));
+    expect(strokes.length).toBeGreaterThan(60);
+    const offAxis: number[] = [];
+    for (const { pts, page } of strokes) {
       const [a, b] = [pts[0], pts.at(-1)!], len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-      for (const p of pts) expect(Math.abs((b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])) / len).toBeLessThan(1e-6); // distance from the chord
+      // no wobble: one smooth bow at most, never to and fro
+      const side = pts.map((p) => ((b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])) / len);
+      expect(Math.max(...side.map(Math.abs))).toBeLessThan(0.06 * len + 1e-6);
+      expect(Math.min(...side) > -1e-6 || Math.max(...side) < 1e-6).toBe(true);
+      const deg = (Math.min(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1])) / len) * (180 / Math.PI);
+      if (len > 2 * S.xh && deg < 5) offAxis.push(deg); // meant level or plumb
+      // never through a letter (its ink rectangle, less a hair)
+      for (const g of page.glyphs) {
+        const [l, r] = inkX(g.g, g.m), [t, u] = inkY(g.g, g.m);
+        for (const [x, y] of pts) expect(x > l + 0.05 && x < r - 0.05 && y > t + 0.05 && y < u - 0.05, `${g.g.key} at ${x.toFixed(1)},${y.toFixed(1)}`).toBe(false);
+      }
     }
+    expect(Math.max(...offAxis)).toBeLessThan(2.5); // a slight lean only
+    expect(offAxis.filter((d) => d > 0.05).length).toBeGreaterThan(offAxis.length / 3); // and not drawn by a computer
   });
   it('a Schaubild with 6 sub-points is written as a list, a token never reaches the page as text', () => {
     const pages = run('Schaubild: Zelle\n- a\n- b\n- c\n- d\n- e\n- f');

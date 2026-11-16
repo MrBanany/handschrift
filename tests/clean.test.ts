@@ -71,6 +71,7 @@ describe('clean pasted AI text', () => {
   });
   it('marks ==highlighted== text, but leaves a == b alone', () => {
     expect(clean('Das ist ==sehr wichtig== und a == b', () => true)).toBe(`Das ist ${MARK[0]}sehr wichtig${MARK[1]} und a == b`);
+    expect(clean('==Dieser ganze lange Satz wurde von der KI gelb markiert.==', () => true)).toBe('Dieser ganze lange Satz wurde von der KI gelb markiert.');
     const plain = (c: string) => /[A-Za-z0-9 ,^>-]/.test(c);
     expect(clean('A => B ⇔ C <-> D, x^2', plain)).toBe('A ⇒ B ⇔ C ↔ D, x^2');
   });

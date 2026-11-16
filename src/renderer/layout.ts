@@ -802,7 +802,13 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
       }
       for (const ms of wd.missing) page!.missing.push({ ...ms, x: ms.x + ox, y: ms.y + y + drift(ms.x + ox) });
       if (emph) under = { x0: under?.x0 ?? ox + wd.inkL, x1: ox + wd.inkR };
-      if (marking) mark = { x0: mark?.x0 ?? ox + wd.inkL, x1: ox + wd.inkR };
+      if (marking) {
+        // the highlighter runs from the first to the last letter: a comma, full stop or bracket at the edge stays plain
+        let l = Infinity, r = -Infinity;
+        if (!wd.missing.length) for (const it of wd.items) if (!/^[.,;:!?()"„“”»«]+$/.test(it.g.key)) { const [a, b] = inkX(it.g, it.m); l = Math.min(l, a); r = Math.max(r, b); }
+        if (l > r) { l = wd.inkL; r = wd.inkR; }
+        mark = { x0: mark?.x0 ?? ox + l, x1: ox + r };
+      }
       if (ringing || boxing) {
         let top = ring?.top ?? Infinity, bot = ring?.bot ?? -Infinity;
         for (const p of wd.items.length ? page!.glyphs.slice(-wd.items.length) : []) { const [a, b] = inkY(p.g, p.m); top = Math.min(top, a); bot = Math.max(bot, b); }

@@ -112,7 +112,8 @@ export function clean(text: string, has: (ch: string) => boolean): string {
     .replace(/~~(?=\S)(.+?)(?<=\S)~~/g, '$1') // strikethrough: just the text
     .replace(/^(\s*)[-*+•●▪◦]\s+/gm, `$1${pick('•', '-')} `) // bullets
     .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1') // links -> their text
-    .replace(/==(?=\S)(.+?)(?<=\S)==/g, `${MARK[0]}$1${MARK[1]}`) // highlighter
+    // highlighter: for key words. A whole marked sentence (more than 6 words) is a yellow block on the page, so it stays plain.
+    .replace(/==(?=\S)(.+?)(?<=\S)==/g, (_, t: string) => (t.split(/\s+/).filter((w) => /[\p{L}\d]/u.test(w)).length > 6 ? t : `${MARK[0]}${t}${MARK[1]}`))
     // shortcut: circling is switched off, ((text)) is written as plain text; replace '$1' with `${CIRC[0]}$1${CIRC[1]}` to turn it back on
     .replace(/(?<![\p{L}\p{N})])\(\((?=\S)([^()\n]+?)(?<=\S)\)\)/gu, '$1') // ((text)), but not f((x))
     .replace(/(\*\*|__)(.+?)\1/g, `${EMPH[0]}$2${EMPH[1]}`) // bold: underlined

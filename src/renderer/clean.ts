@@ -1,6 +1,7 @@
 import { markBlocks } from './cards';
 import { latex } from './latex';
-import { ARROW, CIRC, CODE, EMPH, HEAD, INCOMING_CONTROL, INDENT, MAP, MARK, PLOT, STRUCT } from './markers';
+import { ARROW, CIRC, CODE, DIAGRAM, EMPH, HEAD, INCOMING_CONTROL, INDENT, MAP, MARK, PLOT, STRUCT } from './markers';
+import { encodeDiagram, extractDiagrams, type Diagram } from './diagram';
 import { encodeMap, extractMindmaps, type MapTree } from './mindmap';
 import { encodePlot, extractPlots } from './plot';
 
@@ -64,6 +65,8 @@ export function clean(text: string, has: (ch: string) => boolean): string {
   const mols: string[] = [];
   // a "Mindmap: topic" line with its list is kept away too and drawn as a mind map (see mindmap.ts)
   const maps: Omit<MapTree, 'bullet'>[] = [];
+  // so are diagrams ("Ablauf: A -> B", "Schaubild: topic" with a list, see diagram.ts)
+  const diagrams: Omit<Diagram, 'bullet'>[] = [];
   // a node is plain text: an arrow's label becomes "→ (label)", every other marker goes
   const node = (x: string) => clean(x, has).replace(/\u001b([^\u001c]*)\u001c([→←⇒⇔↔⇌])/g, (_, l: string, a: string) => `${a} (${l})`).replace(/[\u0001-\u0006\u000E\u000F\u0014-\u0018\u001b\u001c\u001f]/g, '').replace(/\u0010/g, ' ').replace(/\s+/g, ' ').trim();
   // incoming control characters are just dropped: only the markers clean() puts in itself may stand in the result
@@ -83,7 +86,7 @@ export function clean(text: string, has: (ch: string) => boolean): string {
     .replace(/<sub>([^<\n]*)<\/sub>/gi, '_{$1}').replace(/<sup>([^<\n]*)<\/sup>/gi, '^{$1}')
     .replace(/<\/?(?:b|strong)>/gi, '**').replace(/<\/?(?:i|em|u|code|span|p|small)>/gi, '')
     .replace(/<(https?:\/\/[^\s>]+)>/g, '$1').replace(/[?&]utm_[^\s)]*/g, '');
-  const kept = extractPlots(unflatten(extractMindmaps(markBlocks(tidy(src)), (t) => `${MAP[0]}${maps.push(t) - 1}${MAP[1]}`)), (spec) => `${PLOT[0]}${plots.push(spec) - 1}${PLOT[1]}`).replace(/\[\[([^\]\n]+)\]\]/g, (_, s: string) => `${STRUCT[0]}${mols.push(s.trim()) - 1}${STRUCT[1]}`);
+  const kept = extractPlots(unflatten(extractDiagrams(extractMindmaps(markBlocks(tidy(src)), (t) => `${MAP[0]}${maps.push(t) - 1}${MAP[1]}`), (d) => `\n${DIAGRAM[0]}${diagrams.push(d) - 1}${DIAGRAM[1]}\n`)), (spec) => `${PLOT[0]}${plots.push(spec) - 1}${PLOT[1]}`).replace(/\[\[([^\]\n]+)\]\]/g, (_, s: string) => `${STRUCT[0]}${mols.push(s.trim()) - 1}${STRUCT[1]}`);
   // one indent step is the smallest indent in the text (2 spaces or a tab; Gemini uses 4)
   const step = Math.max(2, Math.min(4, ...[...kept.matchAll(/^([ \t]{2,})(?:[-*+•●▪◦]|\d+[.)])\s/gm)].map((m) => m[1].replace(/\t/g, '  ').length)));
   return latex(kept)
@@ -162,6 +165,10 @@ export function clean(text: string, has: (ch: string) => boolean): string {
     .replace(/\u0019(\d+)\u001A/g, (_, i: string) => {
       const t = maps[+i], bullet = pick('•', '-');
       return encodeMap({ bullet, topic: node(t.topic), branches: t.branches.map((b) => ({ title: node(b.title), items: b.items.map((x) => `${bullet} ${node(x)}`) })) });
+    })
+    .replace(new RegExp(`[ \\t]*${DIAGRAM[0]}(\\d+)${DIAGRAM[1]}[ \\t]*`, 'g'), (_, i: string) => {
+      const d = diagrams[+i]; // its texts cleaned like any other (an arrow inside one becomes plain text, see node)
+      return `\n${encodeDiagram({ ...d, bullet: pick('•', '-'), topic: node(d.topic), steps: d.steps.map(node), subs: d.subs.map((it) => it.map(node)) })}\n`;
     })
     .replace(new RegExp(`[ \\t]*${PLOT[0]}(\\d+)${PLOT[1]}[ \\t]*`, 'g'), (_, i: string) => `\n${encodePlot(plots[+i])}\n`) // the graph: one token on a line of its own
     .replace(/^ +| +$/gm, '')

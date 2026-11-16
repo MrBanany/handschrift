@@ -44,6 +44,8 @@ export const CORNELL = ['\uF704', '\uF705', '\uF706'] as const;
 export const TEX_BRACE = ['\uF710', '\uF711'] as const;
 /** Start and end of an encoded function graph, one token on its own line (plot.ts). */
 export const PLOT = ['\uF730', '\uF731'] as const;
+/** Start and end of an encoded diagram (Ablauf, Kreislauf, Schaubild), one token on its own line (diagram.ts). */
+export const DIAGRAM = ['\uF732', '\uF733'] as const;
 /** \{1, 2\}: literal braces while latex() works, so the group rules leave them alone; turned back at the end. */
 export const LIT_BRACE = ['\uF712', '\uF713'] as const;
 /** A fenced code block, kept away from the Markdown rules until the end (clean.ts): CODE[0] index CODE[1]. */
@@ -57,7 +59,7 @@ const ALL: Record<string, string> = {
   'MAP_SEP.field': MAP_SEP.field, 'MAP_SEP.branch': MAP_SEP.branch, 'MAP_SEP.item': MAP_SEP.item,
   'CARD[0]': CARD[0], 'CARD[1]': CARD[1], NOTE,
   'CORNELL[0]': CORNELL[0], 'CORNELL[1]': CORNELL[1], 'CORNELL[2]': CORNELL[2],
-  'TEX_BRACE[0]': TEX_BRACE[0], 'TEX_BRACE[1]': TEX_BRACE[1], 'LIT_BRACE[0]': LIT_BRACE[0], 'LIT_BRACE[1]': LIT_BRACE[1], 'PLOT[0]': PLOT[0], 'PLOT[1]': PLOT[1],
+  'TEX_BRACE[0]': TEX_BRACE[0], 'TEX_BRACE[1]': TEX_BRACE[1], 'LIT_BRACE[0]': LIT_BRACE[0], 'LIT_BRACE[1]': LIT_BRACE[1], 'PLOT[0]': PLOT[0], 'PLOT[1]': PLOT[1], 'DIAGRAM[0]': DIAGRAM[0], 'DIAGRAM[1]': DIAGRAM[1],
   'CODE[0]': CODE[0], 'CODE[1]': CODE[1],
 };
 

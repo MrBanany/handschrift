@@ -363,7 +363,14 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
   let rec: Line | null = null;
   let lineDown = 0; // extra lines a tall structural formula on this line reaches down into
   let from = { g: 0, c: 0, m: 0, k: 0 }; // where this line's ink starts in the page lists
-  const newPage = () => { page = { glyphs: [], connectors: [], missing: [], lines: [], marks: [] }; pages.push(page); y = s.margin + s.lineH; };
+  // How far down the fractions and roots of this line / of the line above reach (page mm): what follows keeps clear of it.
+  let deep = -Infinity, prevDeep = -Infinity;
+  const newPage = () => { page = { glyphs: [], connectors: [], missing: [], lines: [], marks: [] }; pages.push(page); y = s.margin + s.lineH; deep = prevDeep = -Infinity; };
+  /**
+   * Ink that starts `top` mm above this line's baseline (negative) would run into a deep fraction or root above: the line moves
+   * down whole lines, so it stays on the ruling. No extra air asked for: the ink heights are measured in bands and come out a bit generous.
+   */
+  const clearAbove = (top: number) => { const need = prevDeep - (y + top); if (need > 0) shiftLine(Math.ceil(need / s.lineH) * s.lineH); };
   let heading = false;
   /** Everything written on this line so far gets the heading colour. */
   const accentLine = () => {
@@ -378,7 +385,7 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
     if (!first) accentLine();
     rec = null;
     if (!first) y += s.lineH * (1 + Math.max(0, lineDown));
-    lineDown = 0;
+    lineDown = 0; prevDeep = deep; deep = -Infinity;
     if (first || (!inBlock && y > s.pageH - s.margin)) newPage();
     from = { g: page!.glyphs.length, c: page!.connectors.length, m: page!.missing.length, k: page!.marks.length };
     // Writing gets a little looser towards the end of a page, and its size wanders slowly from line to line.
@@ -400,7 +407,7 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
     for (const c of page!.connectors.slice(from.c)) for (const q of c.p) q[1] += dy;
     for (const ms of page!.missing.slice(from.m)) ms.y += dy;
     for (const k of page!.marks.slice(from.k)) { k.y0 += dy; k.y1 += dy; }
-    y += dy;
+    y += dy; deep += dy;
   };
   /** Line break inside a paragraph: list items continue under their text. */
   const wrap = () => { newLine(); lineX = lineStart + hang * (1 + gauss() * 0.05); };
@@ -427,7 +434,7 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
       const l = x0 - 0.55 * xh, r = x1 + 0.55 * xh, o = 0.15 * xh;
       const up = Math.min(-1.75 * xh, inkTop - y - 0.4 * xh), down = Math.max(0.7 * xh, inkBot - y + 0.4 * xh);
       // a tall box must not cut through the line above: move this line down a whole line (like a tall molecule)
-      const room = y - s.lineH + 0.9 * xh;
+      const room = Math.max(y - s.lineH + 0.9 * xh, prevDeep + 0.5 * xh); // nor sit on a fraction's denominator there: a frame needs air
       if (y + up < room) shiftLine(Math.ceil((room - y - up) / s.lineH) * s.lineH);
       lineDown = Math.max(lineDown, Math.ceil((down - s.lineH + 1.6 * xh) / s.lineH));
       // like drawn with a ruler: dead level and plumb (the line's drift taken at the box's middle), no bow, corners overshoot a little
@@ -780,6 +787,9 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
       const lift = bullet ? (rand() - 0.5) * 0.2 * xh : 0;
       // lineX is where the next word's ink starts
       if (lineX > lineStart && lineX - wd.inkL + wd.inkR > rightEdge) wrap();
+      const [wTop, wBot] = wd.bars.length ? extentY(wd, size) : [-1.5 * xh * size, 0]; // plain words: up to their ascenders
+      clearAbove(wTop);
+      if (wd.bars.length) deep = Math.max(deep, y + wBot);
       const ox = lineX - wd.inkL;
       const plain = flatFrac(word).replace(/\u0010/g, ' ');
       if (rec) rec.text += ` ${plain}`;
@@ -836,7 +846,7 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
     const P = page!, at = { g: P.glyphs.length, c: P.connectors.length, m: P.missing.length, l: P.lines.length, k: P.marks.length };
     inBlock = true;
     cols.forEach((lines, c) => {
-      colL = xs[c] + (frame || c ? pad : 0); colR = xs[c + 1] - (frame || c < cols.length - 1 ? pad : 0); y = y0 - L; lineDown = 0;
+      colL = xs[c] + (frame || c ? pad : 0); colR = xs[c + 1] - (frame || c < cols.length - 1 ? pad : 0); y = y0 - L; lineDown = 0; deep = -Infinity;
       for (const line of lines) { newLine(); writeLine(line); }
       closeUnderline(); closeMark(); closeRing(); accentLine();
       end = Math.max(end, y + lineDown * L);
@@ -844,7 +854,7 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
     inBlock = false; colL = l; colR = r; heading = false;
     if (end - y0 > s.pageH - 2 * s.margin - 2 * L) {
       P.glyphs.length = at.g; P.connectors.length = at.c; P.missing.length = at.m; P.lines.length = at.l; P.marks.length = at.k;
-      y = yStart - L; lineDown = 0;
+      y = yStart - L; lineDown = 0; deep = -Infinity;
       for (const line of cols.flat()) { newLine(); writeLine(line); }
       return null;
     }
@@ -859,7 +869,7 @@ export function layout(text: string, library: Library, s: Settings): { pages: Pa
       page!.glyphs.push(...g); page!.connectors.push(...c); page!.missing.push(...m); page!.lines.push(...ln); page!.marks.push(...k);
       y0 += dy; end += dy;
     }
-    y = end; rec = null;
+    y = end; rec = null; deep = -Infinity;
     from = { g: page!.glyphs.length, c: page!.connectors.length, m: page!.missing.length, k: page!.marks.length };
     if (!frame) { lineDown = 0; return { x: xs[1], top: y0 - 0.75 * L, bot: end + 0.25 * L }; }
     const top = y0 - Math.max(0.8 * L, 2.1 * xh), bot = end + 0.45 * L;

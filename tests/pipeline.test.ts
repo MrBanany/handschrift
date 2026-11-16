@@ -311,6 +311,23 @@ describe('layout', () => {
     expect(pages[0].connectors.some((c) => c.accent)).toBe(true); // the underline
   });
 
+  it('keeps the next line clear of a deep fraction or root: a boxed result moves down a whole line, plain text stays', () => {
+    const base = (g: Page['glyphs'][number]) => g.m[3] * g.g.baseline + g.m[5]; // baseline height on the page
+    const frac = '\u0011a\u0012b\u0013', root = `\u0007\u001d${frac}\u001e`, box = '\u0016cd\u0017';
+    /** Lines between the first and the last glyph's baseline. */
+    const lines = (...text: string[]) => { const g = layout(text.join('\n'), lib, S).pages[0].glyphs; return (base(g.at(-1)!) - base(g[0])) / S.lineH; };
+    expect(lines(`x ${frac}`, 'cd') - lines('x a', 'cd')).toBeCloseTo(0, 1); // plain text under a fraction does not move
+    // whatever moves, moves by whole lines: the writing stays on the ruling
+    for (const first of [frac, `x ${root}`]) { const d = lines(first, box) - lines(first, 'cd'); expect(Math.abs(d - Math.round(d))).toBeLessThan(0.05); }
+    // a fraction under a fraction: the second numerator starts below the first denominator
+    const two = layout([frac, frac].join('\n'), lib, S).pages[0].glyphs;
+    expect(two[2].m[5]).toBeGreaterThan(two[1].m[5] + two[1].g.h * two[1].m[3]);
+    // the frame's top edge ends up below the denominator
+    const p = layout([frac, box].join('\n'), lib, S).pages[0];
+    const boxTop = Math.min(...p.connectors.slice(-4).flatMap((c) => [c.p[0][1], c.p[3][1]]));
+    expect(boxTop).toBeGreaterThan(p.glyphs[1].m[5] + p.glyphs[1].g.h * p.glyphs[1].m[3]); // the bottom of the denominator's ink
+  });
+
   it('draws a ring around circled words and a box around boxed ones', () => {
     const plain = layout('ab cd', lib, S).pages[0].connectors.length;
     const circ = layout('\u0014ab cd\u0015', lib, S).pages[0];
